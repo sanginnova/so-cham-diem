@@ -15,6 +15,5 @@ firebase-credentials*.json
 gha-creds-*.json
 android/app/build/
 android/.gradle/
-mobile/node_modules/
-mobile/.expo/
+mobile/
 so-cham-diem
