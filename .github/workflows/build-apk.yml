@@ -39,7 +39,7 @@ jobs:
       - name: 🔄 Sync Capacitor Android
         env:
           ANDROID_HOME: /usr/local/lib/android/sdk
-        run: npx cap sync android --verbose
+        run: npx cap sync android
 
       - name: ⚙️ Compile Android APK
         env:
