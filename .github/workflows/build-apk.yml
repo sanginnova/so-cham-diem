@@ -33,11 +33,13 @@ jobs:
       - name: 🏗️ Build Web Application
         run: npm run build
 
-      - name: 🔄 Sync Capacitor Android
-        run: npx @capacitor/cli sync android
-
       - name: 🔑 Grant execute permission for gradlew
         run: chmod +x android/gradlew
+
+      - name: 🔄 Sync Capacitor Android
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
+        run: npx cap sync android --verbose
 
       - name: ⚙️ Compile Android APK
         env:
