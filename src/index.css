@@ -10,6 +10,17 @@
     font-feature-settings: "cv02", "cv03", "cv04", "cv11";
     text-rendering: optimizeLegibility;
     -webkit-font-smoothing: antialiased;
+    overscroll-behavior-y: none;
+  }
+
+  /* Tối ưu hóa phản hồi cảm ứng 0ms và chống delay click */
+  button, a, input, select {
+    touch-action: manipulation;
+  }
+
+  input, textarea, .selectable-text {
+    -webkit-user-select: auto;
+    user-select: auto;
   }
 
   /* Support mobile notch and home indicator bar */

@@ -23,9 +23,15 @@ import { InspectorBanner } from './components/InspectorBanner';
 import { LoginModal } from './components/LoginModal';
 import { CommandPalette } from './components/CommandPalette';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { initNativeShell } from './lib/nativeBridge';
 
 function MainApp() {
   const { classConfig, userRole, activeAccount, isAuthLoading } = useApp();
+
+  // Khởi tạo shell Native (Phím Back phần cứng, Status Bar) khi chạy trên app Android
+  useEffect(() => {
+    initNativeShell();
+  }, []);
   const [activeTab, setActiveTab] = useState<TabType>(() => {
     return userRole === 'guest' || new URLSearchParams(window.location.search).has('report') ? 'portal' : 'dashboard';
   });
