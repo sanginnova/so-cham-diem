@@ -25,14 +25,7 @@ jobs:
         with:
           distribution: 'temurin'
           java-version: 17
-
-      - name: 🤖 Setup Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: 📦 Install Android SDK packages
-        run: |
-          yes | sdkmanager --licenses
-          sdkmanager "platform-tools" "platforms;android-34" "build-tools;34.0.0" "cmdline-tools;latest"
+          cache: 'gradle'
 
       - name: 📦 Install dependencies
         run: npm install
@@ -41,15 +34,17 @@ jobs:
         run: npm run build
 
       - name: 🔄 Sync Capacitor Android
-        run: npx cap sync android
+        run: npx @capacitor/cli sync android
 
       - name: 🔑 Grant execute permission for gradlew
         run: chmod +x android/gradlew
 
       - name: ⚙️ Compile Android APK
+        env:
+          ANDROID_HOME: /usr/local/lib/android/sdk
         run: |
           cd android
-          ./gradlew assembleDebug
+          ./gradlew assembleDebug --no-daemon --stacktrace
 
       - name: 📤 Upload APK Artifact
         uses: actions/upload-artifact@v4
