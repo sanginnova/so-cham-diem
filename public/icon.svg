@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512" width="512" height="512">
+  <defs>
+    <linearGradient id="grad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#4f46e5" />
+      <stop offset="50%" stop-color="#7c3aed" />
+      <stop offset="100%" stop-color="#2563eb" />
+    </linearGradient>
+    <linearGradient id="badgeGrad" x1="0%" y1="0%" x2="100%" y2="100%">
+      <stop offset="0%" stop-color="#f59e0b" />
+      <stop offset="100%" stop-color="#d97706" />
+    </linearGradient>
+    <filter id="shadow" x="-10%" y="-10%" width="120%" height="120%">
+      <feDropShadow dx="0" dy="12" stdDeviation="16" flood-color="#000" flood-opacity="0.25" />
+    </filter>
+  </defs>
+  <!-- Background squircle -->
+  <rect width="512" height="512" rx="112" fill="url(#grad)" />
+  
+  <!-- Inner card/clipboard -->
+  <g filter="url(#shadow)">
+    <!-- Clipboard body -->
+    <rect x="106" y="100" width="300" height="340" rx="32" fill="#ffffff" />
+    
+    <!-- Clipboard top clip -->
+    <rect x="186" y="70" width="140" height="54" rx="14" fill="#312e81" />
+    <rect x="226" y="60" width="60" height="18" rx="8" fill="#e0e7ff" />
+    
+    <!-- Checklist items / Score lines -->
+    <!-- Line 1: Checked -->
+    <rect x="146" y="160" width="36" height="36" rx="10" fill="#10b981" />
+    <path d="M156 178 l6 6 l14 -14" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+    <rect x="200" y="168" width="170" height="18" rx="6" fill="#e2e8f0" />
+    
+    <!-- Line 2: Checked -->
+    <rect x="146" y="220" width="36" height="36" rx="10" fill="#3b82f6" />
+    <path d="M156 238 l6 6 l14 -14" fill="none" stroke="#ffffff" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round" />
+    <rect x="200" y="228" width="140" height="18" rx="6" fill="#e2e8f0" />
+
+    <!-- Line 3: Star / Badge line -->
+    <rect x="146" y="280" width="36" height="36" rx="10" fill="#8b5cf6" />
+    <path d="M164 288 l2.5 5.5 l6 0.8 l-4.3 4.2 l1 6 l-5.2 -2.8 l-5.2 2.8 l1 -6 l-4.3 -4.2 l6 -0.8 z" fill="#ffffff" />
+    <rect x="200" y="288" width="155" height="18" rx="6" fill="#e2e8f0" />
+
+    <!-- Progress / Score indicator bar -->
+    <rect x="146" y="356" width="220" height="24" rx="12" fill="#f1f5f9" />
+    <rect x="146" y="356" width="180" height="24" rx="12" fill="url(#badgeGrad)" />
+    <circle cx="326" cy="368" r="16" fill="#ffffff" filter="url(#shadow)" />
+    <circle cx="326" cy="368" r="8" fill="#d97706" />
+  </g>
+  
+  <!-- Mini star accent -->
+  <path d="M410 70 l4 9 l10 1.5 l-7 7 l1.6 10 l-8.6 -4.5 l-8.6 4.5 l1.6 -10 l-7 -7 l10 -1.5 z" fill="#fbbf24" />
+</svg>

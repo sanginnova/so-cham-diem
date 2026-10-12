@@ -1,0 +1,169 @@
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    function signedIn() {
+      return request.auth != null && request.auth.token.firebase.sign_in_provider != 'anonymous';
+    }
+    function profile() { return get(/databases/$(database)/documents/users/$(request.auth.uid)).data; }
+    function active() {
+      return signedIn() && exists(/databases/$(database)/documents/users/$(request.auth.uid)) && profile().isActive == true;
+    }
+    function admin() { return active() && profile().role in ['admin', 'owner']; }
+    function teacher() { return active() && profile().role == 'teacher'; }
+    function ownData(data) { return active() && data.teacherId == request.auth.uid && profile().role != 'monitor'; }
+    function monitorData(data) { return active() && profile().role == 'monitor' && data.teacherId == profile().teacherId; }
+    function monitorClass(data) {
+      return monitorData(data) && (data.classId == profile().get('classConfigId', '')
+        || (profile().get('classConfigId', '') == '' && get(/databases/$(database)/documents/classConfigs/$(data.classId)).data.get('scopeVersion', 1) != 2));
+    }
+    function readable(data) { return admin() || ownData(data) || monitorData(data); }
+    function writable(data) { return admin() || ownData(data); }
+    function stableOwner() { return request.resource.data.teacherId == resource.data.teacherId; }
+    function managesMonitor(data) { return teacher() && data.role == 'monitor' && data.teacherId == request.auth.uid; }
+    function validProfile(uid) {
+      return request.resource.data.uid == uid && request.resource.data.role in ['teacher', 'monitor', 'admin', 'owner']
+        && request.resource.data.isActive is bool && !request.resource.data.keys().hasAny(['password']);
+    }
+    function unlocked(type, value) {
+      let id = type + '_' + string(value);
+      return !exists(/databases/$(database)/documents/periodLocks/$(id))
+        || get(/databases/$(database)/documents/periodLocks/$(id)).data.isLocked != true;
+    }
+    function classUnlocked(type, value, classId) {
+      let id = classId + '__' + type + '_' + string(value);
+      let config = get(/databases/$(database)/documents/classConfigs/$(classId)).data;
+      return config.get('scopeVersion', 1) == 2
+        ? (!exists(/databases/$(database)/documents/periodLocks/$(id)) || get(/databases/$(database)/documents/periodLocks/$(id)).data.isLocked != true)
+        : unlocked(type, value);
+    }
+    function validLog() {
+      let log = request.resource.data;
+      return log.type in ['deduct', 'bonus'] && log.count is int && log.count > 0
+        && log.month is int && log.month >= 1 && log.month <= 12
+        && log.weekNumber is int && log.weekNumber >= 1 && log.weekNumber <= 53
+        && log.scorePerUnit is number && log.scorePerUnit >= 0
+        && log.totalScore is number && log.totalScore >= 0
+        && log.totalScore >= log.scorePerUnit * log.count - 0.00501
+        && log.totalScore <= log.scorePerUnit * log.count + 0.00501
+        && get(/databases/$(database)/documents/students/$(log.studentId)).data.teacherId == log.teacherId
+        && get(/databases/$(database)/documents/students/$(log.studentId)).data.classId == log.classId
+        && get(/databases/$(database)/documents/classConfigs/$(log.classId)).data.teacherId == log.teacherId;
+    }
+    function semesterOpen(data) {
+      let config = get(/databases/$(database)/documents/classConfigs/$(data.classId)).data;
+      return config.semester1Months.hasAny([data.month]) ? classUnlocked('semester', 1, data.classId) : classUnlocked('semester', 2, data.classId);
+    }
+    function logOpen() { return classUnlocked('week', request.resource.data.weekNumber, request.resource.data.classId) && classUnlocked('month', request.resource.data.month, request.resource.data.classId) && semesterOpen(request.resource.data); }
+    function monitorCanRecord(data) {
+      return monitorClass(data) && ((data.type == 'deduct' && profile().permissions.canAddViolations == true)
+        || (data.type == 'bonus' && profile().permissions.canAddBonuses == true));
+    }
+    match /users/{uid} {
+      allow get: if signedIn() && (request.auth.uid == uid || admin() || managesMonitor(resource.data));
+      allow list: if admin() || managesMonitor(resource.data);
+      allow create: if signedIn() && validProfile(uid) && (admin()
+        || (request.auth.uid == uid && request.resource.data.role == 'teacher'
+          && request.resource.data.isActive == true && request.resource.data.teacherId == '')
+        || (managesMonitor(request.resource.data)
+          && get(/databases/$(database)/documents/classes/$(request.resource.data.assignedClassId)).data.teacherId == request.auth.uid));
+      allow update: if active() && validProfile(uid) && (admin()
+        || (request.auth.uid == uid && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['displayName', 'phone', 'avatarUrl', 'lastLoginAt', 'updatedAt']))
+        || (managesMonitor(resource.data) && request.resource.data.diff(resource.data).affectedKeys()
+          .hasOnly(['displayName', 'phone', 'permissions', 'isActive', 'updatedAt', 'lastLoginAt', 'classConfigId'])
+          && (request.resource.data.get('classConfigId', '') == '' || get(/databases/$(database)/documents/classConfigs/$(request.resource.data.classConfigId)).data.teacherId == request.auth.uid)));
+      allow delete: if admin() || managesMonitor(resource.data);
+    }
+    match /classes/{id} {
+      allow read: if readable(resource.data);
+      allow create: if writable(request.resource.data);
+      allow update: if writable(resource.data) && stableOwner();
+      allow delete: if writable(resource.data);
+    }
+    match /{collection}/{id} {
+      allow read: if collection in ['students', 'classConfigs', 'behaviorCategories', 'weeklySnapshots', 'monthlySummaries', 'semesterSummaries', 'parentReports']
+        && (collection in ['classConfigs', 'behaviorCategories'] ? readable(resource.data)
+          : (admin() || ownData(resource.data) || monitorClass(resource.data)));
+      allow create: if collection in ['students', 'classConfigs', 'behaviorCategories', 'weeklySnapshots', 'monthlySummaries', 'semesterSummaries', 'parentReports'] && writable(request.resource.data);
+      allow update: if collection in ['students', 'classConfigs', 'behaviorCategories', 'weeklySnapshots', 'monthlySummaries', 'semesterSummaries', 'parentReports'] && writable(resource.data) && stableOwner()
+        && (collection != 'classConfigs' || resource.data.get('scopeVersion', 1) != 2
+          || (request.resource.data.scopeVersion == 2 && request.resource.data.schoolYear == resource.data.schoolYear
+            && request.resource.data.classDirectoryId == resource.data.classDirectoryId));
+      allow delete: if collection in ['students', 'classConfigs', 'behaviorCategories', 'weeklySnapshots', 'monthlySummaries', 'semesterSummaries', 'parentReports'] && writable(resource.data);
+    }
+    match /disciplineLogs/{id} {
+      allow read: if admin() || ownData(resource.data) || (monitorClass(resource.data) && profile().permissions.canViewScores == true);
+      allow create: if validLog() && logOpen() && request.resource.data.createdBy == request.auth.uid
+        && (writable(request.resource.data) || monitorCanRecord(request.resource.data));
+      allow update: if validLog() && logOpen() && classUnlocked('week', resource.data.weekNumber, resource.data.classId)
+        && classUnlocked('month', resource.data.month, resource.data.classId) && semesterOpen(resource.data) && stableOwner()
+        && request.resource.data.studentId == resource.data.studentId
+        && request.resource.data.classId == resource.data.classId
+        && request.resource.data.get('createdBy', '') == resource.data.get('createdBy', '')
+        && (writable(resource.data) || (monitorCanRecord(request.resource.data) && resource.data.createdBy == request.auth.uid));
+      allow delete: if writable(resource.data) && classUnlocked('week', resource.data.weekNumber, resource.data.classId) && classUnlocked('month', resource.data.month, resource.data.classId) && semesterOpen(resource.data);
+    }
+    match /periodLocks/{id} { allow read: if active(); allow write: if admin(); }
+    function familyAccess(data) {
+      return signedIn() && request.auth.token.get('email_verified', false) == true
+        && request.auth.token.get('email', '').lower() == data.viewerEmail
+        && data.revoked == false && request.time < data.expiresAt
+        && get(/databases/$(database)/documents/users/$(data.teacherId)).data.isActive == true;
+    }
+    match /familyReports/{id} {
+      allow get: if writable(resource.data) || familyAccess(resource.data);
+      allow list: if writable(resource.data);
+      allow create: if writable(request.resource.data)
+        && request.resource.data.viewerEmail is string && request.resource.data.viewerEmail.size() > 3
+        && request.resource.data.expiresAt is timestamp && request.resource.data.expiresAt > request.time
+        && request.resource.data.expiresAt < request.time + duration.value(31, 'd')
+        && get(/databases/$(database)/documents/students/$(request.resource.data.studentId)).data.teacherId == request.resource.data.teacherId
+        && get(/databases/$(database)/documents/students/$(request.resource.data.studentId)).data.classId == request.resource.data.classId;
+      allow update: if writable(resource.data) && stableOwner()
+        && request.resource.data.studentId == resource.data.studentId && request.resource.data.classId == resource.data.classId
+        && request.resource.data.viewerEmail == resource.data.viewerEmail
+        && request.resource.data.expiresAt is timestamp && request.resource.data.expiresAt < request.time + duration.value(31, 'd');
+      allow delete: if false;
+    }
+    match /correctionRequests/{id} {
+      allow read: if writable(resource.data) || (signedIn() && resource.data.requesterId == request.auth.uid);
+      allow create: if request.resource.data.keys().hasOnly(['reportId', 'teacherId', 'classId', 'studentId', 'logId', 'requesterId', 'requesterEmail', 'reason', 'requestedDescription', 'status', 'createdAt'])
+        && familyAccess(get(/databases/$(database)/documents/familyReports/$(request.resource.data.reportId)).data)
+        && request.resource.data.requesterId == request.auth.uid && request.resource.data.requesterEmail == request.auth.token.email
+        && request.resource.data.status == 'pending'
+        && request.resource.data.reason is string && request.resource.data.reason.size() > 0 && request.resource.data.reason.size() <= 1000
+        && request.resource.data.requestedDescription is string && request.resource.data.requestedDescription.size() > 0 && request.resource.data.requestedDescription.size() <= 500
+        && request.resource.data.teacherId == get(/databases/$(database)/documents/familyReports/$(request.resource.data.reportId)).data.teacherId
+        && request.resource.data.classId == get(/databases/$(database)/documents/familyReports/$(request.resource.data.reportId)).data.classId
+        && request.resource.data.studentId == get(/databases/$(database)/documents/familyReports/$(request.resource.data.reportId)).data.studentId
+        && request.resource.data.logId in get(/databases/$(database)/documents/familyReports/$(request.resource.data.reportId)).data.logIds;
+      allow update: if writable(resource.data) && resource.data.status == 'pending'
+        && request.resource.data.diff(resource.data).affectedKeys().hasOnly(['status', 'response', 'reviewedAt', 'reviewedBy'])
+        && request.resource.data.status in ['approved', 'rejected'] && request.resource.data.response is string && request.resource.data.response.size() > 0
+        && request.resource.data.reviewedBy == request.auth.uid
+        && (request.resource.data.status == 'rejected' || getAfter(/databases/$(database)/documents/disciplineLogs/$(resource.data.logId)).data.behaviorDescription == resource.data.requestedDescription);
+      allow delete: if false;
+    }
+    match /disciplineTrash/{id} {
+      allow read: if writable(resource.data);
+      allow create: if writable(request.resource.data)
+        && request.resource.data.log == get(/databases/$(database)/documents/disciplineLogs/$(id)).data
+        && request.resource.data.teacherId == request.resource.data.log.teacherId && request.resource.data.classId == request.resource.data.log.classId;
+      allow update: if false;
+      allow delete: if writable(resource.data)
+        && !exists(/databases/$(database)/documents/disciplineLogs/$(id))
+        && getAfter(/databases/$(database)/documents/disciplineLogs/$(id)).data.teacherId == resource.data.teacherId
+        && getAfter(/databases/$(database)/documents/disciplineLogs/$(id)).data.classId == resource.data.classId
+        && getAfter(/databases/$(database)/documents/disciplineLogs/$(id)).data.studentId == resource.data.log.studentId;
+    }
+    match /auditLogs/{id} {
+      allow read: if admin();
+      allow create: if active() && request.resource.data.actorId == request.auth.uid;
+      allow update, delete: if false;
+    }
+    // V2 hierarchy is restricted to administrators until its dedicated migration.
+    match /{collection}/{id} {
+      allow read, write: if collection in ['schools', 'academicYears', 'semesters', 'enrollments', 'systemConfigs'] && admin();
+    }
+  }
+}

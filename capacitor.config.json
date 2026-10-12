@@ -1,0 +1,8 @@
+{
+  "appId": "com.sang.sochamdiem",
+  "appName": "Sổ Chấm Điểm Hàng Ngày",
+  "webDir": "dist",
+  "server": {
+    "androidScheme": "https"
+  }
+}

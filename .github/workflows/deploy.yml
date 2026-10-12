@@ -1,0 +1,42 @@
+name: Deploy Firebase production
+on:
+  workflow_dispatch:
+  push:
+    branches: [main]
+permissions:
+  contents: read
+  id-token: write
+concurrency:
+  group: firebase-production
+  cancel-in-progress: false
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    environment: production
+    env:
+      FIREBASE_PROJECT_ID: qsangtnl-4226a
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+          cache: npm
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '21'
+      - name: Verify Firebase configuration
+        run: node scripts/configure-firebase.mjs
+      - run: npm ci
+      - run: npm run lint
+      - run: npm run build
+      - run: npx --no-install tsx --test tests/*.test.ts
+      - run: npm run test:backup
+      - run: npm run test:rules
+      - name: Authenticate to Google Cloud without stored keys
+        uses: google-github-actions/auth@v2
+        with:
+          workload_identity_provider: projects/167858448701/locations/global/workloadIdentityPools/github-so-cham-diem/providers/github
+          service_account: github-so-cham-diem@qsangtnl-4226a.iam.gserviceaccount.com
+      - name: Deploy rules and Hosting
+        run: npx --no-install firebase deploy --only firestore:rules,hosting --project "$FIREBASE_PROJECT_ID" --non-interactive

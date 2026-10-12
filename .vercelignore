@@ -1,0 +1,11 @@
+.publish
+.tools
+.firebase
+.git
+node_modules
+dist
+dev-dist
+.env*
+*.log
+firebase-credentials*.json
+gha-creds-*.json
