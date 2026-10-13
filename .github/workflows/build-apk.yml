@@ -54,6 +54,13 @@ jobs:
           cd android
           ./gradlew assembleDebug --no-daemon --stacktrace 2>&1 | tee ../gradle_output.txt
 
+      - name: 📋 Print Full Failure Log
+        if: failure()
+        run: |
+          echo "==================== FULL GRADLE LOG START ===================="
+          cat gradle_output.txt
+          echo "==================== FULL GRADLE LOG END ======================"
+
       - name: 📋 Upload Failure Log
         if: failure()
         uses: actions/upload-artifact@v4
