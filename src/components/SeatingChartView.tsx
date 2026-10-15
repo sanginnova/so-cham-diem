@@ -213,10 +213,34 @@ export function SeatingChartView() {
     }
   };
 
+  // Thay đổi số lượng học sinh mỗi bàn (2 - 4 HS/bàn)
+  const handleSeatsPerDeskChange = (newSeatsPerDesk: number) => {
+    const nextDesks: Record<string, (string | null)[]> = {};
+    Object.entries(config.desks || {}).forEach(([deskKey, seats]) => {
+      const adjusted = [...seats];
+      while (adjusted.length < newSeatsPerDesk) {
+        adjusted.push(null);
+      }
+      nextDesks[deskKey] = adjusted.slice(0, newSeatsPerDesk);
+    });
+    setConfig({
+      ...config,
+      seatsPerDesk: newSeatsPerDesk,
+      desks: nextDesks,
+    });
+    if (selectedSeat && selectedSeat.seatIndex >= newSeatsPerDesk) {
+      setSelectedSeat(null);
+    }
+    showToast(`Đã đổi cấu hình thành ${newSeatsPerDesk} học sinh / bàn!`, 'info');
+  };
+
   // Xử lý click chọn ghế trong sơ đồ
   const handleSeatClick = (col: number, row: number, seatIndex: number) => {
     const deskKey = `${col}_${row}`;
     const currentSeats = [...(config.desks[deskKey] || Array(config.seatsPerDesk).fill(null))];
+    while (currentSeats.length < config.seatsPerDesk) {
+      currentSeats.push(null);
+    }
     const currentStudentId = currentSeats[seatIndex];
 
     // Trường hợp 1: Đang có học sinh chưa xếp chỗ được chọn -> Đặt vào ghế này
@@ -266,6 +290,9 @@ export function SeatingChartView() {
     const sourceSeats = [
       ...(config.desks[sourceDeskKey] || Array(config.seatsPerDesk).fill(null)),
     ];
+    while (sourceSeats.length < config.seatsPerDesk) {
+      sourceSeats.push(null);
+    }
     const sourceStudentId = sourceSeats[selectedSeat.seatIndex];
 
     // Swap
@@ -291,6 +318,9 @@ export function SeatingChartView() {
     e.stopPropagation();
     const deskKey = `${col}_${row}`;
     const seats = [...(config.desks[deskKey] || Array(config.seatsPerDesk).fill(null))];
+    while (seats.length < config.seatsPerDesk) {
+      seats.push(null);
+    }
     const removedId = seats[seatIndex];
     seats[seatIndex] = null;
     setConfig({
@@ -511,11 +541,12 @@ export function SeatingChartView() {
                 <span>Số chỗ/bàn:</span>
                 <select
                   value={config.seatsPerDesk}
-                  onChange={(e) => setConfig({ ...config, seatsPerDesk: Number(e.target.value) })}
-                  className="rounded-lg border border-slate-300 dark:border-slate-700 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 font-bold focus:ring-2 focus:ring-indigo-500"
+                  onChange={(e) => handleSeatsPerDeskChange(Number(e.target.value))}
+                  className="rounded-lg border border-slate-300 dark:border-slate-700 px-2.5 py-1.5 bg-slate-50 dark:bg-slate-900 font-bold focus:ring-2 focus:ring-indigo-500 cursor-pointer"
                 >
                   <option value={2}>2 học sinh / bàn</option>
                   <option value={3}>3 học sinh / bàn</option>
+                  <option value={4}>4 học sinh / bàn</option>
                 </select>
               </label>
 
@@ -613,9 +644,10 @@ export function SeatingChartView() {
               {/* Grid of Columns (Dãy bàn) with horizontal scroll support on small screens */}
               <div className="overflow-x-auto pb-3 -mx-2 sm:mx-0 px-2 sm:px-0 scrollbar-thin">
                 <div
-                  className="grid gap-3 sm:gap-4 min-w-[620px] max-w-5xl mx-auto"
+                  className="grid gap-3 sm:gap-4 max-w-6xl mx-auto"
                   style={{
                     gridTemplateColumns: `repeat(${config.columns}, minmax(0, 1fr))`,
+                    minWidth: `${Math.max(640, config.columns * config.seatsPerDesk * 54)}px`,
                   }}
                 >
                 {Array.from({ length: config.columns }, (_, cIdx) => {
@@ -672,7 +704,9 @@ export function SeatingChartView() {
                                   <div
                                     key={seatIdx}
                                     onClick={() => handleSeatClick(col, row, seatIdx)}
-                                    className={`relative p-2 rounded-xl border text-center transition cursor-pointer select-none min-h-[64px] flex flex-col justify-center items-center ${
+                                    className={`relative rounded-xl border text-center transition cursor-pointer select-none min-h-[64px] flex flex-col justify-center items-center ${
+                                      config.seatsPerDesk >= 4 ? 'p-1 sm:p-1.5' : 'p-2'
+                                    } ${
                                       isSelected
                                         ? 'ring-3 ring-amber-400 border-amber-500 bg-amber-50 dark:bg-amber-950/60 animate-pulse'
                                         : student
@@ -698,14 +732,18 @@ export function SeatingChartView() {
                                           ×
                                         </button>
 
-                                        <p className="font-bold text-[11px] leading-tight line-clamp-2 text-slate-900 dark:text-white">
+                                        <p className={`font-bold leading-tight line-clamp-2 text-slate-900 dark:text-white ${
+                                          config.seatsPerDesk >= 4 ? 'text-[10px]' : 'text-[11px]'
+                                        }`}>
                                           {student.fullName}
                                         </p>
 
-                                        <div className="flex items-center gap-1 mt-1">
+                                        <div className="flex items-center gap-0.5 mt-1 flex-wrap justify-center">
                                           {groupInfo?.group && (
                                             <span
-                                              className={`text-[9px] font-bold px-1.5 py-0.2 rounded-full ${groupColor.badgeBg}`}
+                                              className={`font-bold rounded-full ${groupColor.badgeBg} ${
+                                                config.seatsPerDesk >= 4 ? 'text-[8px] px-1 py-0.2' : 'text-[9px] px-1.5 py-0.2'
+                                              }`}
                                             >
                                               {groupInfo.group}
                                             </span>
@@ -713,7 +751,9 @@ export function SeatingChartView() {
                                           {groupInfo?.duty &&
                                             groupInfo.duty !== 'Thành viên' && (
                                               <span
-                                                className="text-[9px] font-bold px-1 py-0.2 rounded bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-200"
+                                                className={`font-bold rounded bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-200 ${
+                                                  config.seatsPerDesk >= 4 ? 'text-[8px] px-0.5 py-0.2' : 'text-[9px] px-1 py-0.2'
+                                                }`}
                                                 title={groupInfo.duty}
                                               >
                                                 {groupInfo.duty === 'Tổ trưởng' ? 'TT' : groupInfo.duty === 'Tổ phó' ? 'TP' : groupInfo.duty.slice(0, 2)}

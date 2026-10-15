@@ -97,3 +97,12 @@ test('generateSeatingChartDocx creates a valid non-empty docx blob', async () =>
   assert.ok(blob);
   assert.ok(blob.size > 1000, 'Blob size should be substantial');
 });
+
+test('autoAssignSeatsBalanced supports 4 students per desk configuration', () => {
+  const config4 = { ...DEFAULT_SEATING_CONFIG, seatsPerDesk: 4 };
+  const chart = autoAssignSeatsBalanced(config4, mockStudents);
+  assert.equal(chart.desks['1_1']?.length, 4);
+  const totalSeated = Object.values(chart.desks).flatMap((seats) => seats.filter(Boolean));
+  assert.equal(totalSeated.length, mockStudents.length);
+});
+
