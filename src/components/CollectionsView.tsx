@@ -66,6 +66,18 @@ export function CollectionsView() {
   const [method, setMethod] = useState('Tiền mặt');
   const [note, setNote] = useState('');
   const [allowanceMode, setAllowanceMode] = useState('Giảm');
+  const [correctModal, setCorrectModal] = useState<{
+    studentId: string;
+    studentName: string;
+    studentCode: string;
+    payments: HomeroomRecord[];
+    selectedPaymentId: string;
+    actionType: 'void_only' | 'correct_amount';
+    reason: string;
+    customReason: string;
+    newAmount: string;
+    newMethod: string;
+  } | null>(null);
 
   const selected = collections.find((c) => c.id === selectedId) || collections[0];
 
@@ -221,20 +233,83 @@ export function CollectionsView() {
     });
   };
 
-  const voidPayment = (paymentRecord: HomeroomRecord) => {
-    const reason = window.prompt(
-      'Lý do hủy ghi nhận (phiếu gốc vẫn được giữ trong lịch sử):'
-    );
-    if (!reason?.trim()) return;
-    void run(() =>
-      saveHomeroomRecord({
-        id: paymentRecord.id,
+  const openCorrectModal = (studentId: string, specificPaymentId?: string) => {
+    const row = rows.find((r) => r.studentId === studentId);
+    if (!row) return;
+    const activePayments = row.transactions.filter((t) => t.data.state !== 'Đã hủy');
+    if (!activePayments.length) {
+      alert('Học sinh này hiện chưa có phiếu nộp tiền nào để sửa/hủy.');
+      return;
+    }
+    const defaultPayment =
+      (specificPaymentId ? activePayments.find((p) => p.id === specificPaymentId) : null) ||
+      activePayments[0];
+
+    setCorrectModal({
+      studentId,
+      studentName: row.name,
+      studentCode: row.code,
+      payments: activePayments,
+      selectedPaymentId: defaultPayment.id,
+      actionType: 'void_only',
+      reason: 'Học sinh thực tế chưa nộp tiền (Ghi nhận nhầm)',
+      customReason: '',
+      newAmount: defaultPayment.data.amount,
+      newMethod: defaultPayment.data.method || 'Tiền mặt',
+    });
+  };
+
+  const handleConfirmCorrection = async () => {
+    if (!correctModal || !selected) return;
+    const paymentToVoid = correctModal.payments.find((p) => p.id === correctModal.selectedPaymentId);
+    if (!paymentToVoid) return;
+
+    const finalReason =
+      correctModal.reason === 'Khác'
+        ? correctModal.customReason.trim() || 'Ghi nhận nhầm khi học sinh chưa nộp'
+        : correctModal.reason;
+
+    await run(async () => {
+      // 1. Hủy phiếu nộp cũ với lý do
+      await saveHomeroomRecord({
+        id: paymentToVoid.id,
         kind: 'payment',
-        studentId: paymentRecord.studentId,
-        date: paymentRecord.date,
-        data: { ...paymentRecord.data, state: 'Đã hủy', voidReason: reason.trim() },
-      })
-    );
+        studentId: paymentToVoid.studentId,
+        date: paymentToVoid.date,
+        data: {
+          ...paymentToVoid.data,
+          state: 'Đã hủy',
+          voidReason: finalReason,
+        },
+      });
+
+      // 2. Nếu chọn sửa lại số tiền nộp đúng
+      if (correctModal.actionType === 'correct_amount' && Number(correctModal.newAmount) > 0) {
+        await saveHomeroomRecord({
+          kind: 'payment',
+          studentId: paymentToVoid.studentId,
+          date: localDateString(),
+          data: {
+            collectionId: selected.id,
+            amount: correctModal.newAmount,
+            method: correctModal.newMethod || 'Tiền mặt',
+            note: `Ghi nhận lại sau khi điều chỉnh phiếu nhầm (${finalReason})`,
+            state: 'Đã ghi nhận',
+          },
+        });
+      }
+
+      setCorrectModal(null);
+      if (entry?.studentId === correctModal.studentId) {
+        setEntry(undefined);
+      }
+    }, correctModal.actionType === 'void_only'
+      ? `Đã hủy phiếu nộp nhầm của ${correctModal.studentName}. Trạng thái đã chuyển về Chưa nộp!`
+      : `Đã cập nhật lại số tiền nộp đúng của ${correctModal.studentName} thành công!`);
+  };
+
+  const voidPayment = (paymentRecord: HomeroomRecord) => {
+    openCorrectModal(paymentRecord.studentId, paymentRecord.id);
   };
 
   const exportExcel = () =>
@@ -810,6 +885,26 @@ export function CollectionsView() {
                     </button>
                   </div>
 
+                  {entry.kind === 'payment' && entryRow.paid > 0 && (
+                    <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2.5 p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/70 text-xs text-amber-900 dark:text-amber-200">
+                      <div className="flex items-center gap-2">
+                        <AlertCircle className="h-4 w-4 text-amber-600 shrink-0" />
+                        <span>
+                          Đã ghi nhận nộp: <strong className="font-mono text-emerald-700 dark:text-emerald-300 text-sm">{money(entryRow.paid)}</strong>
+                          {entryRow.remaining === 0 ? ' (Đã nộp đủ)' : ` (Còn thiếu: ${money(entryRow.remaining)})`}.
+                        </span>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => openCorrectModal(entryRow.studentId)}
+                        className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg bg-rose-600 hover:bg-rose-700 text-white font-bold transition shadow-xs active:scale-95 cursor-pointer shrink-0 self-start sm:self-auto"
+                      >
+                        <RotateCcw className="h-3.5 w-3.5" />
+                        <span>Sửa nộp nhầm (Chuyển về Chưa nộp)</span>
+                      </button>
+                    </div>
+                  )}
+
                   <div className="grid sm:grid-cols-2 gap-4">
                     <div>
                       <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -949,10 +1044,11 @@ export function CollectionsView() {
                                 <button
                                   type="button"
                                   disabled={blocked || selected.data.status !== 'Đang thu'}
-                                  onClick={() => voidPayment(t)}
-                                  className="text-rose-600 hover:text-rose-700 dark:text-rose-400 font-semibold hover:underline cursor-pointer"
+                                  onClick={() => openCorrectModal(entryRow.studentId, t.id)}
+                                  className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 border border-rose-200 dark:border-rose-800 font-bold transition cursor-pointer"
                                 >
-                                  Hủy phiếu này
+                                  <RotateCcw className="h-3 w-3" />
+                                  <span>Sửa / Hủy phiếu này</span>
                                 </button>
                               )}
                             </div>
@@ -1103,6 +1199,19 @@ export function CollectionsView() {
                               </span>
                             </button>
 
+                            {/* Nút sửa nộp nhầm hiển thị trực tiếp khi học sinh đã có tiền nộp */}
+                            {r.paid > 0 && selected.data.status === 'Đang thu' && (
+                              <button
+                                disabled={blocked}
+                                onClick={() => openCorrectModal(r.studentId)}
+                                className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-bold bg-rose-50 hover:bg-rose-600 text-rose-700 hover:text-white dark:bg-rose-950/40 dark:text-rose-300 dark:hover:bg-rose-600 dark:hover:text-white border border-rose-200 dark:border-rose-800 shadow-2xs transition active:scale-95 cursor-pointer"
+                                title="Nhấn để sửa khoản thu nếu ghi nhận nhầm là đã nộp"
+                              >
+                                <RotateCcw className="h-3.5 w-3.5" />
+                                <span>Sửa nộp nhầm</span>
+                              </button>
+                            )}
+
                             <button
                               disabled={blocked || selected.data.status !== 'Đang thu'}
                               onClick={() => openEntry(r.studentId, 'allowance')}
@@ -1132,6 +1241,221 @@ export function CollectionsView() {
             </>
           )}
         </>
+      )}
+
+      {/* ── MODAL SỬA KHOẢN THU NỘP NHẦM / HỦY PHIẾU ── */}
+      {correctModal && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-lg rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-5 sm:p-6 space-y-4">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800">
+              <div className="flex items-center gap-2.5">
+                <div className="h-10 w-10 rounded-xl bg-rose-100 text-rose-600 dark:bg-rose-950/60 dark:text-rose-400 flex items-center justify-center shrink-0">
+                  <RotateCcw className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-sm sm:text-base text-slate-900 dark:text-white">
+                    Sửa khoản thu đã nộp nhầm
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400">
+                    Học sinh: <strong className="text-blue-600 dark:text-blue-400">{correctModal.studentName}</strong> ({correctModal.studentCode})
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setCorrectModal(null)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* If student has multiple payments, let teacher pick which one */}
+            {correctModal.payments.length > 1 && (
+              <div>
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                  Chọn phiếu nộp cần xử lý:
+                </label>
+                <select
+                  value={correctModal.selectedPaymentId}
+                  onChange={(e) => {
+                    const p = correctModal.payments.find((x) => x.id === e.target.value);
+                    setCorrectModal({
+                      ...correctModal,
+                      selectedPaymentId: e.target.value,
+                      newAmount: p ? p.data.amount : correctModal.newAmount,
+                      newMethod: p?.data.method || 'Tiền mặt',
+                    });
+                  }}
+                  className={control}
+                >
+                  {correctModal.payments.map((p) => (
+                    <option key={p.id} value={p.id}>
+                      Ngày {p.date} · {money(Number(p.data.amount))} · {p.data.method} {p.data.note ? `(${p.data.note})` : ''}
+                    </option>
+                  ))}
+                </select>
+              </div>
+            )}
+
+            {/* Chosen Payment Card Summary */}
+            {(() => {
+              const currentPayment = correctModal.payments.find((p) => p.id === correctModal.selectedPaymentId) || correctModal.payments[0];
+              if (!currentPayment) return null;
+              return (
+                <div className="p-3 rounded-xl bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800/60 text-xs text-amber-900 dark:text-amber-200 flex items-center justify-between">
+                  <div>
+                    <span className="font-semibold">Phiếu đã ghi nhận: </span>
+                    <strong className="font-mono text-sm text-rose-700 dark:text-rose-300">
+                      {money(Number(currentPayment.data.amount))}
+                    </strong>
+                    <span className="text-[11px] text-slate-500 dark:text-slate-400 block mt-0.5">
+                      Ngày nộp: {currentPayment.date} · Hình thức: {currentPayment.data.method}
+                    </span>
+                  </div>
+                  <span className="px-2 py-0.5 rounded-full font-bold bg-amber-200 text-amber-900 dark:bg-amber-900 dark:text-amber-200 text-[10px]">
+                    Đang tính là Đã nộp
+                  </span>
+                </div>
+              );
+            })()}
+
+            {/* Action Type Toggle */}
+            <div className="space-y-1.5">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                Thầy/Cô muốn thực hiện thao tác nào?
+              </label>
+              <div className="grid grid-cols-2 gap-2">
+                <button
+                  type="button"
+                  onClick={() => setCorrectModal({ ...correctModal, actionType: 'void_only' })}
+                  className={`p-2.5 rounded-xl border text-xs font-bold transition flex flex-col items-center justify-center gap-1 cursor-pointer ${
+                    correctModal.actionType === 'void_only'
+                      ? 'bg-rose-50 border-rose-500 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 ring-2 ring-rose-400'
+                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  <RotateCcw className="h-4 w-4" />
+                  <span>Chưa nộp (Hủy ghi nhận)</span>
+                </button>
+
+                <button
+                  type="button"
+                  onClick={() => setCorrectModal({ ...correctModal, actionType: 'correct_amount' })}
+                  className={`p-2.5 rounded-xl border text-xs font-bold transition flex flex-col items-center justify-center gap-1 cursor-pointer ${
+                    correctModal.actionType === 'correct_amount'
+                      ? 'bg-blue-50 border-blue-500 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 ring-2 ring-blue-400'
+                      : 'border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800 text-slate-600 dark:text-slate-400'
+                  }`}
+                >
+                  <Edit3 className="h-4 w-4" />
+                  <span>Sửa lại số tiền đúng</span>
+                </button>
+              </div>
+            </div>
+
+            {/* If correcting amount */}
+            {correctModal.actionType === 'correct_amount' && (
+              <div className="grid sm:grid-cols-2 gap-3 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/50 border border-slate-200 dark:border-slate-700 animate-in fade-in">
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Số tiền thực nộp đúng (đồng) *
+                  </label>
+                  <input
+                    type="number"
+                    min="1"
+                    step="1"
+                    required
+                    value={correctModal.newAmount}
+                    onChange={(e) => setCorrectModal({ ...correctModal, newAmount: e.target.value })}
+                    className={control}
+                  />
+                </div>
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Hình thức *
+                  </label>
+                  <select
+                    value={correctModal.newMethod}
+                    onChange={(e) => setCorrectModal({ ...correctModal, newMethod: e.target.value })}
+                    className={control}
+                  >
+                    <option value="Tiền mặt">Tiền mặt</option>
+                    <option value="Chuyển khoản">Chuyển khoản</option>
+                    <option value="Khác">Khác</option>
+                  </select>
+                </div>
+              </div>
+            )}
+
+            {/* Quick Reason Radio Selector */}
+            <div className="space-y-2">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                Lý do điều chỉnh / hủy phiếu:
+              </label>
+              <div className="space-y-1.5">
+                {[
+                  'Học sinh thực tế chưa nộp tiền (Ghi nhận nhầm)',
+                  'Ghi nhầm sang tên học sinh khác',
+                  'Nhầm số tiền / Cần điều chỉnh lại',
+                  'Khác',
+                ].map((reasonOption) => (
+                  <label
+                    key={reasonOption}
+                    className="flex items-center gap-2 p-2 rounded-xl border border-slate-200 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-800/60 cursor-pointer text-xs"
+                  >
+                    <input
+                      type="radio"
+                      name="voidReasonOption"
+                      checked={correctModal.reason === reasonOption}
+                      onChange={() => setCorrectModal({ ...correctModal, reason: reasonOption })}
+                      className="text-blue-600 focus:ring-blue-500"
+                    />
+                    <span className="text-slate-800 dark:text-slate-200 font-medium">
+                      {reasonOption}
+                    </span>
+                  </label>
+                ))}
+              </div>
+
+              {correctModal.reason === 'Khác' && (
+                <input
+                  type="text"
+                  placeholder="Nhập lý do cụ thể..."
+                  value={correctModal.customReason}
+                  onChange={(e) => setCorrectModal({ ...correctModal, customReason: e.target.value })}
+                  className={`${control} mt-2 text-xs`}
+                />
+              )}
+            </div>
+
+            {/* Footer Buttons */}
+            <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setCorrectModal(null)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-semibold text-xs transition cursor-pointer"
+              >
+                Hủy bỏ
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={handleConfirmCorrection}
+                className={`px-4 py-2 rounded-xl text-white font-bold text-xs shadow-md transition active:scale-95 cursor-pointer disabled:opacity-50 ${
+                  correctModal.actionType === 'void_only'
+                    ? 'bg-rose-600 hover:bg-rose-700 shadow-rose-600/30'
+                    : 'bg-blue-600 hover:bg-blue-700 shadow-blue-600/30'
+                }`}
+              >
+                {correctModal.actionType === 'void_only'
+                  ? '✓ Xác nhận chuyển về Chưa nộp'
+                  : '✓ Lưu số tiền đã sửa'}
+              </button>
+            </div>
+          </div>
+        </div>
       )}
     </section>
   );
