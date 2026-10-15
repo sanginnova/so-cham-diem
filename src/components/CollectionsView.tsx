@@ -2,6 +2,7 @@ import React, { useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import type { HomeroomRecord } from '../types/homeroom';
 import { collectionRows, money } from '../lib/collections';
+import { exportCollectionToExcel } from '../lib/collectionExcelExport';
 import { localDateString } from '../lib/logValidation';
 import {
   Wallet,
@@ -41,6 +42,8 @@ export function CollectionsView() {
     homeroomError,
     saveHomeroomRecord,
     isLocalMode,
+    currentUser,
+    activeAccount,
   } = useApp();
 
   const collections = records
@@ -315,70 +318,15 @@ export function CollectionsView() {
   const exportExcel = () =>
     void run(async () => {
       if (!selected) return;
-      const XLSX = await import('xlsx');
-      const workbook = XLSX.utils.book_new();
-      const summary = rows.map((r, i) => ({
-        STT: i + 1,
-        'Mã học sinh': r.code,
-        'Họ tên': r.name,
-        'Mức thu (đ)': r.base,
-        'Miễn/giảm (đ)': r.discount,
-        'Phải nộp (đ)': r.due,
-        'Đã nộp (đ)': r.paid,
-        'Còn thiếu (đ)': r.remaining,
-        'Nộp dư (đ)': r.excess,
-        'Trạng thái': r.status,
-        'Ghi chú': r.allowance?.data.reason || '',
-      }));
-      const sheet = XLSX.utils.json_to_sheet(summary);
-      sheet['!cols'] = [
-        { wch: 6 },
-        { wch: 18 },
-        { wch: 30 },
-        ...Array.from({ length: 6 }, () => ({ wch: 18 })),
-        { wch: 20 },
-        { wch: 35 },
-      ];
-      XLSX.utils.book_append_sheet(workbook, sheet, 'Theo doi thu');
-      const history = records
-        .filter((r) => r.kind === 'payment' && r.data.collectionId === selected.id)
-        .sort((a, b) => a.date.localeCompare(b.date))
-        .map((r) => ({
-          'Mã phiếu': r.id,
-          Ngày: r.date,
-          'Học sinh': rows.find((s) => s.studentId === r.studentId)?.name || r.studentId,
-          'Số tiền (đ)': Number(r.data.amount),
-          'Phương thức': r.data.method,
-          'Trạng thái': r.data.state,
-          'Nội dung': r.data.note || '',
-          'Lý do hủy': r.data.voidReason || '',
-        }));
-      XLSX.utils.book_append_sheet(workbook, XLSX.utils.json_to_sheet(history), 'Lich su nop');
-      XLSX.utils.book_append_sheet(
-        workbook,
-        XLSX.utils.json_to_sheet([
-          {
-            Lớp: classConfig.className,
-            'Niên khóa': classConfig.schoolYear,
-            'Khoản thu': selected.data.name,
-            'Ngày bắt đầu': selected.date,
-            'Hạn nộp': selected.data.dueDate || '',
-            'Phải thu (đ)': totals.due,
-            'Đã thu (đ)': totals.paid,
-            'Còn thiếu (đ)': totals.remaining,
-            'Nộp dư (đ)': totals.excess,
-          },
-        ]),
-        'Thong tin'
-      );
-      XLSX.writeFile(
-        workbook,
-        `Khoan_thu_${classConfig.className}_${selected.data.name}.xlsx`.replace(
-          /[\\/:*?"<>|]/g,
-          '_'
-        )
-      );
-    }, 'Đã xuất tệp Excel.');
+      exportCollectionToExcel({
+        collection: selected,
+        rows,
+        records,
+        classConfig,
+        totals,
+        teacherName: activeAccount?.displayName || currentUser?.displayName || 'Nguyễn Văn Sang',
+      });
+    }, 'Đã xuất tệp Excel thành công.');
 
   const renderStatusBadge = (status: string) => {
     switch (status) {
