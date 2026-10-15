@@ -34,6 +34,7 @@ export type TabType =
   | 'dashboard'
   | 'homeroom'
   | 'collections'
+  | 'seating-chart'
   | 'daily-log'
   | 'weekly'
   | 'monthly'

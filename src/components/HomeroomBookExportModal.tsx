@@ -136,6 +136,7 @@ export const HomeroomBookExportModal: React.FC<HomeroomBookExportModalProps> = (
         disciplineVicePresident,
         parentRepresentativeHead: parentHead,
         parentRepresentativePhone: parentPhone,
+        homeroomRecords,
       };
 
       const { downloadHomeroomBook } = await import('../lib/homeroomBookWordExport');

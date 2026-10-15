@@ -26,6 +26,8 @@ import {
   LogIn,
   UserX,
   BookOpen,
+  LayoutGrid,
+  Wallet,
 } from 'lucide-react';
 import { TabType } from './Navbar';
 import { useApp } from '../context/AppContext';
@@ -77,7 +79,13 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Define modules in sidebar
   const menuGroups: MenuGroup[] = [
-    ...(['teacher', 'admin', 'owner'].includes(userRole) ? [{ id: 'homeroom', label: 'Trợ lý GVCN', icon: BookOpen, directTab: 'homeroom' as TabType }, { id: 'collections', label: 'Các khoản thu', icon: BookOpen, directTab: 'collections' as TabType }] : []),
+    ...(['teacher', 'admin', 'owner'].includes(userRole)
+      ? [
+          { id: 'homeroom', label: 'Trợ lý GVCN', icon: BookOpen, directTab: 'homeroom' as TabType },
+          { id: 'seating-chart', label: 'Xếp tổ & Sơ đồ lớp', icon: LayoutGrid, directTab: 'seating-chart' as TabType },
+          { id: 'collections', label: 'Các khoản thu', icon: Wallet, directTab: 'collections' as TabType },
+        ]
+      : []),
     {
       id: 'dashboard',
       label: 'Tổng quan',

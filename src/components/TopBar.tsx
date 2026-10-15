@@ -39,6 +39,7 @@ const TAB_LABELS: Record<TabType, { section: string; title: string }> = {
   dashboard: { section: 'Tổng quan', title: 'Bảng điều khiển lớp học' },
   collections: { section: 'Chủ nhiệm', title: 'Các khoản thu của lớp' },
   homeroom: { section: 'Chủ nhiệm', title: 'Trợ lý giáo viên chủ nhiệm' },
+  'seating-chart': { section: 'Chủ nhiệm', title: 'Xếp tổ & Sơ đồ lớp học' },
   'daily-log': { section: 'Nhật ký', title: 'Chấm điểm hằng ngày' },
   weekly: { section: 'Báo cáo', title: 'Tổng kết tuần' },
   monthly: { section: 'Báo cáo', title: 'Tổng kết tháng' },

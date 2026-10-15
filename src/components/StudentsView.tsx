@@ -33,6 +33,7 @@ import {
   RotateCcw,
   Key,
   Star,
+  LayoutGrid,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Student, StudentStatus, RankLevel } from '../types';
@@ -365,6 +366,14 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
               >
                 <Download className="h-4 w-4" />
                 <span>Tải tệp mẫu</span>
+              </button>
+              <button
+                onClick={() => onNavigateTab('seating-chart')}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-indigo-50 hover:bg-indigo-100 text-indigo-700 dark:bg-indigo-950/50 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 text-xs sm:text-sm font-semibold rounded-xl shadow-xs transition cursor-pointer"
+                title="Sơ đồ lớp học, xếp chỗ ngồi và chia tổ học sinh"
+              >
+                <LayoutGrid className="h-4 w-4" />
+                <span>Xếp tổ & Sơ đồ lớp</span>
               </button>
             </>
           )}

@@ -1,5 +1,7 @@
 import { Document, Packer, Paragraph, TextRun, Table, TableRow, TableCell, WidthType, AlignmentType, BorderStyle, PageBreak, Footer, PageNumber, PageOrientation } from 'docx';
 import type { Student, ClassConfig, DisciplineLog, StudentWeeklySummary, StudentMonthlySummary, StudentSemesterSummary } from '../types';
+import type { HomeroomRecord } from '../types/homeroom';
+import { loadSeatingConfig } from './seatingChart';
 import { classifyAttendance } from './attendanceStats';
 import { formatVietnameseDate, formatVietnameseNumber } from './utils';
 
@@ -47,6 +49,7 @@ export interface HomeroomBookExportOptions {
   parentRepresentativeDeputy?: string;
   parentRepresentativePhone?: string;
   notes?: HomeroomBookNotes;
+  homeroomRecords?: HomeroomRecord[];
 }
 const font = 'Times New Roman';
 const blank = '........................................................................................';
@@ -135,11 +138,38 @@ export async function generateHomeroomBookBlob(o: HomeroomBookExportOptions): Pr
   if (o.includeOrganization !== false) {
     body.push(heading('PHẦN II: TỔ CHỨC LỚP HỌC'), heading('DANH SÁCH HỌC SINH CHIA THEO TỔ'));
     text(notes.organization);
-    body.push(table(['STT', 'Họ tên', 'Nhiệm vụ trong lớp', 'Tổ / Ghi chú'], roster.length ? roster.map((s, i) => [String(i + 1), s.fullName,
+    const sortedRoster = [...roster].sort((a, b) => {
+      const gA = a.group || 'Tổ 99';
+      const gB = b.group || 'Tổ 99';
+      if (gA !== gB) return gA.localeCompare(gB, 'vi');
+      return a.fullName.localeCompare(b.fullName, 'vi');
+    });
+    body.push(table(['STT', 'Họ tên', 'Nhiệm vụ trong lớp', 'Tổ / Ghi chú'], sortedRoster.length ? sortedRoster.map((s, i) => [String(i + 1), s.fullName,
       s.duty || (s.fullName === o.classPresident ? 'Lớp trưởng' : s.fullName === o.academicVicePresident ? 'Lớp phó học tập' : s.fullName === o.disciplineVicePresident ? 'Lớp phó nề nếp' : ''), s.group || '']) : [['', '', '', '']], [6, 38, 30, 26]));
     pageBreak();
     body.push(heading(`SƠ ĐỒ LỚP HỌC ${o.className}`)); text(notes.seatingPlan);
-    body.push(p('BÀN GIÁO VIÊN', true, true), table(['Dãy 1', 'Dãy 2', 'Dãy 3'], Array.from({ length: 6 }, () => ['', '', ''])));
+    body.push(p('BÀN GIÁO VIÊN', true, true));
+
+    const seatingConfig = loadSeatingConfig(c.teacherId, c.id, o.homeroomRecords || []);
+    if (seatingConfig && Object.keys(seatingConfig.desks || {}).length > 0) {
+      const cols = seatingConfig.columns || 4;
+      const rowsCount = seatingConfig.rows || 5;
+      const sMap = new Map(roster.map(s => [s.id, s.fullName]));
+      const deskHeaders = Array.from({ length: cols }, (_, i) => `Dãy ${i + 1}`);
+      const deskRows: string[][] = [];
+      for (let r = 1; r <= rowsCount; r++) {
+        const rowData: string[] = [];
+        for (let col = 1; col <= cols; col++) {
+          const seatIds = seatingConfig.desks[`${col}_${r}`] || [];
+          const names = seatIds.map(id => id ? sMap.get(id) || id : '').filter(Boolean);
+          rowData.push(names.length ? `Bàn ${r}:\n${names.join(' - ')}` : `Bàn ${r}`);
+        }
+        deskRows.push(rowData);
+      }
+      body.push(table(deskHeaders, deskRows));
+    } else {
+      body.push(table(['Dãy 1', 'Dãy 2', 'Dãy 3', 'Dãy 4'], Array.from({ length: 6 }, () => ['', '', '', ''])));
+    }
     body.push(heading('BAN CÁN SỰ LỚP'));
     body.push(table(['Chức vụ', 'Họ tên'], [
       ['Lớp trưởng', o.classPresident || c.classPresident || ''], ['Lớp phó học tập', o.academicVicePresident || c.academicVicePresident || ''],
