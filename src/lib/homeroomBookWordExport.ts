@@ -109,10 +109,10 @@ export async function generateHomeroomBookBlob(o: HomeroomBookExportOptions): Pr
     body = [];
   };
   if (o.includeCover !== false) {
-    body.push(p('BỘ QUỐC PHÒNG', true, true, 14), p(o.schoolName || '', true, true, 16));
-    if (o.department) body.push(p(o.department, true, true));
+    body.push(p('BỘ QUỐC PHÒNG', true, true, 14), p(o.schoolName || 'TRƯỜNG CAO ĐẲNG NGHỀ SỐ 1 - BQP', true, true, 16));
+    body.push(p(o.department || 'KHOA CƠ BẢN', true, true));
     body.push(p(''), p(''), p('SỔ CÔNG TÁC', true, true, 26), p('GIÁO VIÊN CHỦ NHIỆM', true, true, 24), p('TRUNG HỌC PHỔ THÔNG', true, true, 16), p(''),
-      p(`HỌ TÊN GIÁO VIÊN: ${o.homeroomTeacher || blank}`, true, true, 14),
+      p(`HỌ TÊN GIÁO VIÊN: ${o.homeroomTeacher || 'NGUYỄN VĂN SANG'}`, true, true, 14),
       p(`CHỦ NHIỆM LỚP: ${o.className}`, true, true, 14), p(`NĂM HỌC: ${o.schoolYear}`, true, true, 14));
     page();
   }
@@ -228,7 +228,7 @@ export async function generateHomeroomBookBlob(o: HomeroomBookExportOptions): Pr
     body.push(table(['Họ tên', 'Nội dung cần theo dõi', 'Biện pháp', 'Kết quả'], [['', '', '', ''], ['', '', '', '']]));
     body.push(heading('KẾT HỢP VỚI PHỤ HUYNH HỌC SINH')); text(notes.parentCooperation);
     body.push(table(['Thời gian', 'Phụ huynh / Học sinh', 'Nội dung trao đổi', 'Kết quả / Theo dõi'], [['', '', '', ''], ['', '', '', '']]));
-    body.push(p(''), table(['DUYỆT CỦA TRƯỞNG KHOA / TTCM', 'GIÁO VIÊN CHỦ NHIỆM'], [['(Ký và ghi rõ họ tên)', '(Ký và ghi rõ họ tên)'], ['', ''], [o.approverName || '', o.homeroomTeacher || '']]));
+    body.push(p(''), table(['DUYỆT CỦA TRƯỞNG KHOA / TTCM', 'GIÁO VIÊN CHỦ NHIỆM'], [['(Ký và ghi rõ họ tên)', '(Ký và ghi rõ họ tên)'], ['', ''], [o.approverName || 'Phạm Thị Thu Trang', o.homeroomTeacher || 'Nguyễn Văn Sang']]));
     page();
   }
   if (!sections.length) throw new Error('Phạm vi hiện tại không có nội dung để xuất.');

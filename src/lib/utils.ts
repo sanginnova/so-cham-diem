@@ -1,4 +1,4 @@
-import * as XLSX from 'xlsx';
+import XLSX from 'xlsx-js-style';
 import { RankLevel, RankThresholds } from '../types';
 
 /**
@@ -151,14 +151,160 @@ export function getRankBadgeClass(rank: RankLevel): { bg: string; text: string; 
   }
 }
 
+const FONT_NAME = 'Times New Roman';
+
+const thinBorder = {
+  top: { style: 'thin', color: { rgb: '000000' } },
+  bottom: { style: 'thin', color: { rgb: '000000' } },
+  left: { style: 'thin', color: { rgb: '000000' } },
+  right: { style: 'thin', color: { rgb: '000000' } },
+};
+
+function shouldSuppressZero(headerKey: string): boolean {
+  const normalized = headerKey.toLowerCase().trim();
+  const suppressedPatterns = [
+    'vi phạm',
+    'lỗi',
+    'trừ điểm',
+    'chưa nộp',
+    'còn thiếu',
+    'nợ',
+    'bỏ tiết',
+    'không phép',
+    'nghỉ kp',
+    'nghỉ bt',
+    'miễn/giảm',
+    'nộp dư',
+    'số lần vi phạm',
+    'số lỗi',
+  ];
+  return suppressedPatterns.some((p) => normalized.includes(p));
+}
+
 /**
- * Export data array to Excel (.xlsx) file and trigger download
+ * Xuất dữ liệu ra file Excel (.xlsx) chuẩn mẫu Sư phạm:
+ * - 100% Font Times New Roman trên mọi ô
+ * - Tiêu đề bảng in đậm, căn giữa, nền xám trang nhã (#E2E8F0), viền đen nét mảnh
+ * - Toàn bộ ô dữ liệu có viền kẻ bảng sắc nét
+ * - Căn chỉnh thông minh: số căn phải, ngày/mã/xếp loại/giới tính căn giữa, văn bản căn trái
+ * - "Chưa nộp=0 thì để trống": Tự động để trống ô = 0 ở các cột lỗi vi phạm, trừ điểm, nợ phí để dễ rà soát
+ * - Tự động tính độ rộng cột vừa vặn nội dung
  */
 export function exportToExcel(data: Record<string, any>[], fileName: string, sheetName: string = 'Sheet1') {
-  const worksheet = XLSX.utils.json_to_sheet(data);
+  if (!data || data.length === 0) {
+    const workbook = XLSX.utils.book_new();
+    const worksheet = XLSX.utils.json_to_sheet([{ 'Thông báo': 'Không có dữ liệu' }]);
+    XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
+    XLSX.writeFile(workbook, `${fileName.replace(/[\\/:*?"<>|]/g, '_')}.xlsx`);
+    return;
+  }
+
+  const keys = Object.keys(data[0]);
   const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, sheetName);
-  XLSX.writeFile(workbook, `${fileName}.xlsx`);
+  const ws: XLSX.WorkSheet = {};
+
+  // 1. Dòng tiêu đề cột (Row 0)
+  const headerStyle = {
+    font: { name: FONT_NAME, sz: 11, bold: true, color: { rgb: '0F172A' } },
+    alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+    fill: { fgColor: { rgb: 'E2E8F0' } },
+    border: thinBorder,
+  };
+
+  keys.forEach((key, colIdx) => {
+    const ref = XLSX.utils.encode_cell({ r: 0, c: colIdx });
+    ws[ref] = { t: 's', v: key, s: headerStyle };
+  });
+
+  const colLengths = keys.map((k) => k.length);
+
+  // 2. Các dòng dữ liệu (Row 1 trở đi)
+  data.forEach((row, rowIdx) => {
+    const r = rowIdx + 1;
+    keys.forEach((key, colIdx) => {
+      let val = row[key];
+      const ref = XLSX.utils.encode_cell({ r, c: colIdx });
+
+      if (val === null || val === undefined) {
+        val = '';
+      }
+
+      const isZero = val === 0 || val === '0' || val === '0đ' || val === '0 đ';
+      if (isZero && shouldSuppressZero(key)) {
+        val = '';
+      }
+
+      const isNum = typeof val === 'number';
+      let horizAlign: 'left' | 'center' | 'right' = 'left';
+
+      if (isNum) {
+        horizAlign = 'right';
+      } else {
+        const strVal = String(val).trim();
+        if (/^\d{1,4}[\/\-\.]\d{1,2}[\/\-\.]\d{1,4}$/.test(strVal)) {
+          horizAlign = 'center';
+        } else if (
+          /^(nam|nữ|active|inactive|đã nộp|chưa nộp|đạt|tốt|khá|xuất sắc|yếu|trung bình|không đạt|tổ \d+|hs\d+)$/i.test(
+            strVal
+          ) ||
+          key.toLowerCase().includes('mã') ||
+          key.toLowerCase().includes('ngày') ||
+          key.toLowerCase().includes('thứ') ||
+          key.toLowerCase().includes('tiết') ||
+          key.toLowerCase().includes('tuần') ||
+          key.toLowerCase().includes('tháng') ||
+          key.toLowerCase().includes('stt') ||
+          key.toLowerCase().includes('tt') ||
+          key.toLowerCase().includes('giới tính')
+        ) {
+          horizAlign = 'center';
+        }
+      }
+
+      const cellStyle = {
+        font: { name: FONT_NAME, sz: 11, color: { rgb: '000000' } },
+        alignment: { horizontal: horizAlign, vertical: 'center' },
+        border: thinBorder,
+      };
+
+      if (isNum) {
+        ws[ref] = {
+          t: 'n',
+          v: val,
+          s: cellStyle,
+          z: Number.isInteger(val) ? '#,##0' : '0.0',
+        };
+      } else {
+        ws[ref] = {
+          t: 's',
+          v: String(val),
+          s: cellStyle,
+        };
+      }
+
+      const strLen = String(val).length;
+      if (strLen > colLengths[colIdx]) {
+        colLengths[colIdx] = strLen;
+      }
+    });
+  });
+
+  // Chiều cao dòng
+  ws['!rows'] = [
+    { hpt: 26 },
+    ...data.map(() => ({ hpt: 21 })),
+  ];
+
+  // Độ rộng cột tự động
+  ws['!cols'] = colLengths.map((len) => ({
+    wch: Math.min(Math.max(len + 4, 8), 60),
+  }));
+
+  ws['!ref'] = `A1:${XLSX.utils.encode_col(keys.length - 1)}${data.length + 1}`;
+
+  XLSX.utils.book_append_sheet(workbook, ws, sheetName.slice(0, 31));
+  const cleanFileName = `${fileName.replace(/[\\/:*?"<>|]/g, '_')}.xlsx`;
+  XLSX.writeFile(workbook, cleanFileName);
 }
 
 /**
@@ -179,19 +325,15 @@ export function exportToCsv(data: Record<string, any>[], fileName: string) {
 }
 
 /**
- * Download a blank sample Excel file for student imports
+ * Tải file Excel mẫu danh sách học sinh chuẩn font Times New Roman, kẻ bảng viền đen
  */
 export function downloadStudentTemplate() {
   const template = [
-    { 'Mã học sinh': '419', 'Họ đệm': 'Nguyễn Văn', 'Tên': 'Trọng', 'Giới tính': 'Nam', 'Dân tộc': 'Dao', 'Ngày sinh': '16/05/2011', 'Điện thoại phụ huynh': '0912345678', 'Tên phụ huynh': 'Nguyễn Văn Hùng' },
-    { 'Mã học sinh': '421', 'Họ đệm': 'Chu Văn', 'Tên': 'Thương', 'Giới tính': 'Nam', 'Dân tộc': 'Cao Lan', 'Ngày sinh': '15/01/2011', 'Điện thoại phụ huynh': '0987654321', 'Tên phụ huynh': 'Lê Thị Mai' },
-    { 'Mã học sinh': '1257', 'Họ đệm': 'Nguyễn Thị', 'Tên': 'Linh', 'Giới tính': 'Nữ', 'Dân tộc': 'Tày', 'Ngày sinh': '24/10/2011', 'Điện thoại phụ huynh': '', 'Tên phụ huynh': '' },
+    { 'STT': 1, 'Mã học sinh': '419', 'Họ đệm': 'Nguyễn Văn', 'Tên': 'Trọng', 'Giới tính': 'Nam', 'Dân tộc': 'Dao', 'Ngày sinh': '16/05/2011', 'Điện thoại phụ huynh': '0912345678', 'Tên phụ huynh': 'Nguyễn Văn Hùng' },
+    { 'STT': 2, 'Mã học sinh': '421', 'Họ đệm': 'Chu Văn', 'Tên': 'Thương', 'Giới tính': 'Nam', 'Dân tộc': 'Cao Lan', 'Ngày sinh': '15/01/2011', 'Điện thoại phụ huynh': '0987654321', 'Tên phụ huynh': 'Lê Thị Mai' },
+    { 'STT': 3, 'Mã học sinh': '1257', 'Họ đệm': 'Nguyễn Thị', 'Tên': 'Linh', 'Giới tính': 'Nữ', 'Dân tộc': 'Tày', 'Ngày sinh': '24/10/2011', 'Điện thoại phụ huynh': '', 'Tên phụ huynh': '' },
   ];
-  const worksheet = XLSX.utils.json_to_sheet(template);
-  worksheet['!cols'] = [14, 22, 16, 12, 14, 14, 25, 25].map((wch) => ({ wch }));
-  const workbook = XLSX.utils.book_new();
-  XLSX.utils.book_append_sheet(workbook, worksheet, 'DanhSachHocSinh');
-  XLSX.writeFile(workbook, 'Mau_nhap_danh_sach_hoc_sinh.xlsx');
+  exportToExcel(template, 'Mau_nhap_danh_sach_hoc_sinh', 'DanhSachHocSinh');
 }
 /**
  * Flexible date parser for Excel/CSV inputs

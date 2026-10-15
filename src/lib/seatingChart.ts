@@ -516,7 +516,7 @@ export async function generateSeatingChartDocx(options: SeatingChartDocxOptions)
                       p('(Ký và ghi rõ họ tên)', false, true, 10),
                       p(''),
                       p(''),
-                      p(options.homeroomTeacher || '..................................................', true, true, 11),
+                      p(options.homeroomTeacher || 'Nguyễn Văn Sang', true, true, 11),
                     ],
                   }),
                 ],

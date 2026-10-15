@@ -97,6 +97,7 @@ export function exportConductSheetToExcel(options: ConductReportExportOptions) {
   const headerStyle = {
     font: { name: 'Times New Roman', sz: 11, bold: true, color: { rgb: '000000' } },
     alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+    fill: { fgColor: { rgb: 'E2E8F0' } },
     border: thinBorder,
   };
 
@@ -217,6 +218,9 @@ export function exportConductSheetToWord(options: ConductReportExportOptions) {
     })
     .join('');
 
+  const teacherDisplayName = options.homeroomTeacher || 'Nguyễn Văn Sang';
+  const schoolYearStr = options.schoolYear || '2026 - 2027';
+
   const htmlContent = `
     <html xmlns:o="urn:schemas-microsoft-com:office:office"
           xmlns:w="urn:schemas-microsoft-com:office:word"
@@ -232,23 +236,27 @@ export function exportConductSheetToWord(options: ConductReportExportOptions) {
         body {
           font-family: 'Times New Roman', Times, serif;
           font-size: 11pt;
+          line-height: 1.25;
           color: #000;
         }
         h2 {
           text-align: center;
           font-size: 14pt;
           font-weight: bold;
-          margin: 0 0 16px;
+          margin: 10px 0 4px;
           text-transform: uppercase;
+          color: #0f172a;
         }
-        table {
+        table.data-table {
           width: 100%;
           border-collapse: collapse;
+          margin-top: 10px;
         }
-        th, td {
+        table.data-table th, table.data-table td {
           border: 1px solid #000;
         }
-        th {
+        table.data-table th {
+          background-color: #e2e8f0;
           font-weight: bold;
           text-align: center;
           padding: 6px;
@@ -257,9 +265,27 @@ export function exportConductSheetToWord(options: ConductReportExportOptions) {
       </style>
     </head>
     <body>
-      <h2>KẾT QUẢ RÈN LUYỆN LỚP ${className}</h2>
+      <table style="width: 100%; border: none; margin-bottom: 12px;">
+        <tr>
+          <td style="border: none; text-align: center; width: 45%; vertical-align: top;">
+            <div style="font-weight: bold; font-size: 10pt;">TRƯỜNG CAO ĐẲNG NGHỀ SỐ 1 - BQP</div>
+            <div style="font-weight: bold; font-size: 10pt; color: #1e3a8a;">KHOA CƠ BẢN</div>
+            <div style="font-size: 9pt;">-----------------</div>
+          </td>
+          <td style="border: none; text-align: center; width: 55%; vertical-align: top;">
+            <div style="font-weight: bold; font-size: 10pt;">CỘNG HÒA XÃ HỘI CHỦ NGHĨA VIỆT NAM</div>
+            <div style="font-weight: bold; font-style: italic; font-size: 10pt;">Độc lập - Tự do - Hạnh phúc</div>
+            <div style="font-size: 9pt;">-----------------</div>
+          </td>
+        </tr>
+      </table>
 
-      <table>
+      <h2>KẾT QUẢ RÈN LUYỆN LỚP ${className}</h2>
+      <div style="text-align: center; font-style: italic; font-size: 10.5pt; color: #334155; margin-bottom: 14px;">
+        Năm học: ${schoolYearStr} &nbsp;|&nbsp; Thời gian: ${periodLabel} &nbsp;|&nbsp; GVCN: ${teacherDisplayName}
+      </div>
+
+      <table class="data-table">
         <thead>
           <tr>
             <th rowspan="2" style="width: 35px;">TT</th>
@@ -275,6 +301,22 @@ export function exportConductSheetToWord(options: ConductReportExportOptions) {
         <tbody>
           ${tableRowsHtml}
         </tbody>
+      </table>
+
+      <table style="width: 100%; border: none; margin-top: 28px;">
+        <tr>
+          <td style="border: none; text-align: center; width: 50%; vertical-align: top;">
+            <div style="font-weight: bold; font-size: 11pt;">NGƯỜI LẬP BIỂU</div>
+            <div style="font-style: italic; font-size: 10pt; color: #64748b;">(Ký và ghi rõ họ tên)</div>
+          </td>
+          <td style="border: none; text-align: center; width: 50%; vertical-align: top;">
+            <div style="font-style: italic; font-size: 10.5pt; margin-bottom: 4px;">Thái Nguyên, ngày ..... tháng ..... năm 202...</div>
+            <div style="font-weight: bold; font-size: 11pt;">GIÁO VIÊN CHỦ NHIỆM</div>
+            <div style="font-style: italic; font-size: 10pt; color: #64748b;">(Ký và ghi rõ họ tên)</div>
+            <div style="height: 55px;"></div>
+            <div style="font-weight: bold; font-size: 11pt;">${teacherDisplayName}</div>
+          </td>
+        </tr>
       </table>
     </body>
     </html>
