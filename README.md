@@ -61,3 +61,31 @@ Quản trị viên đầu tiên được cấp qua Firebase Console/Admin API: t
 Bản sao lưu JSON được nhập theo cách bổ sung: ID học sinh/danh mục/nhật ký được gắn tiền tố UID người nhận, tham chiếu học sinh được đổi tương ứng. Có thể thử lại cùng tệp nếu kết nối gián đoạn; ứng dụng không tự xóa dữ liệu đã có. Dữ liệu project cũ chưa được chuyển sang project mới.
 
 Tra cứu phụ huynh dùng báo cáo riêng `familyReports` có thời hạn, gắn với email Google đã xác minh; khách không được đọc collection lớp. Đề nghị điều chỉnh lưu tại `correctionRequests`, giáo viên duyệt; `disciplineTrash` lưu bản ghi đã xóa. Cách thu hồi tài khoản giáo viên là khóa hồ sơ, giữ lịch sử lớp và UID để không cho tài khoản tự tạo lại hồ sơ nhằm vượt qua khóa. Hệ thống phân cấp v2 mở rộng chưa được triển khai cho dữ liệu thật.
+
+## Xuất Sổ công tác giáo viên chủ nhiệm
+
+Mở **Xuất Sổ Chủ Nhiệm (.docx)** trên thanh công cụ hoặc thanh bên. Chọn cả năm, học kỳ hoặc tháng và các phần cần xuất; nhập tên trường, khoa, người phê duyệt trong thông tin cán bộ. Tab **Nội dung sổ** cho nhập giáo viên bộ môn, phân tổ, sơ đồ chỗ ngồi, đặc điểm lớp, kế hoạch năm, chỉ tiêu, kế hoạch tháng, học tập/nhận xét tuần và nội dung phối hợp phụ huynh. Bản nháp được lưu cục bộ theo giáo viên/lớp khi bấm tải, chưa đồng bộ sang thiết bị khác.
+
+Tệp Word dựng lại các mục của mẫu Sổ chủ nhiệm do giáo viên cung cấp, dùng Times New Roman, giấy A4 và bảng học sinh nằm ngang; không phải bản sao nguyên trạng từng trang mẫu. Danh sách, nhật ký và điểm thi đua lấy từ lớp đang chọn. Những trường chưa có trong hồ sơ (địa chỉ, nghề nghiệp phụ huynh, diện chính sách), kết quả học tập/rèn luyện chính thức và nội dung chưa nhập để trống để bổ sung trong Word. Không tự tạo tên cán bộ, kết quả học tập, tỷ lệ dự họp hoặc nhận xét cá nhân. Phần văn bản quy định giữ theo tài liệu mẫu, không phải xác nhận tính cập nhật pháp lý.
+
+## Trợ lý GVCN
+
+Menu **Trợ lý GVCN** có hồ sơ mở rộng (địa chỉ, người giám hộ, phân tổ, chính sách), nhật ký liên hệ phụ huynh và hẹn theo dõi, biên bản sinh hoạt theo tuần, công việc chủ nhiệm và kế hoạch hỗ trợ học sinh. Trang tổng quan liệt kê việc đến hạn/quá hạn từ dữ liệu đã nhập; chưa có thông báo nền hay gọi AI bên ngoài.
+
+Hồ sơ lưu ở `homeroomRecords`, tách `teacherId`/`classId`, giáo viên sở hữu và quản trị viên được truy cập; lớp trưởng và người nhận báo cáo phụ huynh không được đọc. Khi không tải được dữ liệu, ứng dụng báo lỗi và không tự chuyển sang localStorage. Chỉ chế độ local chủ động dùng bản lưu trên thiết bị. Bản sao lưu JSON bao gồm hồ sơ GVCN và remap tham chiếu học sinh khi nhập sang lớp khác.
+
+Sổ Word lấy thông tin bổ sung vào bảng học sinh, phân tổ, nội dung trao đổi phụ huynh, kế hoạch hỗ trợ và biên bản tuần trong khoảng được chọn. Những mục chưa nhập vẫn để trống.
+
+Trước khi dùng với database thật, cần triển khai `firestore.rules` mới; đây là bước riêng với việc chạy localhost. Kiểm tra bằng `npm run test:homeroom`, `npm run test:backup`, `npm run test:rules`, `npm run lint` và `npm run build`.
+
+## Các khoản thu
+
+Menu **Các khoản thu** dành cho giáo viên và quản trị viên. Tạo đợt thu với tên, mức thu nguyên đồng, ngày bắt đầu, hạn nộp và danh sách áp dụng; mặc định chọn học sinh đang học. Danh sách áp dụng và mức thu được giữ sau khi tạo. Học sinh mới vào lớp không tự nhận nghĩa vụ của đợt cũ.
+
+Ghi nhận nhiều lần nộp cho mỗi học sinh, phương thức tiền mặt/chuyển khoản/khác; tổng hợp mức phải nộp, đã nộp, còn thiếu và nộp dư. Hỗ trợ giảm tiền, miễn toàn bộ, không áp dụng và khôi phục mức bình thường, kèm lý do. Kết thúc đợt thu để ngừng nhập qua giao diện; có thể mở lại. Phiếu thu đã ghi nhận không sửa số tiền hoặc xóa; hủy kèm lý do và giữ phiếu gốc trong lịch sử. Chưa có nghiệp vụ hoàn trả tiền thực tế hoặc kết nối ngân hàng.
+
+Xuất Excel gồm ba sheet: theo dõi học sinh, lịch sử các lần nộp (gồm phiếu hủy), thông tin/tổng hợp đợt thu. Các tổng tính trên toàn bộ danh sách áp dụng, không chỉ kết quả đang lọc.
+
+Dữ liệu dùng các loại `collection`, `payment`, `allowance` trong `homeroomRecords`, cùng phân quyền riêng của giáo viên và lớp; đã được bổ sung vào sao lưu và đổi tham chiếu khi nhập sang lớp khác. Học sinh có hồ sơ hoặc nằm trong đợt thu cần chuyển trạng thái ngừng học để giữ lịch sử thay vì xóa. Cần triển khai `firestore.rules` mới để lưu với database thật; chưa tự triển khai trong lần sửa này.
+
+Kiểm thử nghiệp vụ: `npm run test:collections`. Kiểm thử server nằm trong `npm run test:rules`.

@@ -25,9 +25,11 @@ import {
   SlidersHorizontal,
   LogIn,
   UserX,
+  BookOpen,
 } from 'lucide-react';
 import { TabType } from './Navbar';
 import { useApp } from '../context/AppContext';
+import { APP_VERSION } from '../version';
 
 interface SidebarProps {
   activeTab: TabType;
@@ -75,6 +77,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
 
   // Define modules in sidebar
   const menuGroups: MenuGroup[] = [
+    ...(['teacher', 'admin', 'owner'].includes(userRole) ? [{ id: 'homeroom', label: 'Trợ lý GVCN', icon: BookOpen, directTab: 'homeroom' as TabType }, { id: 'collections', label: 'Các khoản thu', icon: BookOpen, directTab: 'collections' as TabType }] : []),
     {
       id: 'dashboard',
       label: 'Tổng quan',
@@ -234,9 +237,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
           {(!isCollapsed || isOpenMobile) && (
             <div className="min-w-0 transition-opacity duration-200">
-              <h1 className="text-sm font-black tracking-tight text-white uppercase truncate">
-                SỔ CHẤM ĐIỂM
-              </h1>
+              <div className="flex items-center gap-1.5">
+                <h1 className="text-sm font-black tracking-tight text-white uppercase truncate">
+                  SỔ CHẤM ĐIỂM
+                </h1>
+                <span className="text-[9px] font-bold px-1.5 py-0.5 rounded-full bg-blue-500/25 text-blue-300 border border-blue-400/30">
+                  v{APP_VERSION}
+                </span>
+              </div>
               <p className="text-[11px] text-blue-400 font-medium truncate">
                 Năm học {classConfig.schoolYear || currentSchoolYear()}
               </p>
@@ -366,6 +374,28 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </React.Fragment>
           );
         })}
+
+        {/* ── Nút Xuất Sổ Chủ Nhiệm CĐN01 Nổi Bật ── */}
+        {userRole !== 'monitor' && (
+          <div className="pt-2">
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-homeroom-book-modal'))}
+              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gradient-to-r from-red-600/20 via-rose-600/20 to-amber-600/20 hover:from-red-600/30 hover:via-rose-600/30 hover:to-amber-600/30 text-rose-300 border border-red-500/30 text-xs font-bold transition shadow-xs cursor-pointer group active:scale-95 ${
+                isCollapsed && !isOpenMobile ? 'justify-center p-2' : ''
+              }`}
+              title="Xuất Sổ công tác giáo viên chủ nhiệm (.docx)"
+            >
+              <BookOpen className="h-4 w-4 text-rose-400 group-hover:scale-110 transition shrink-0" />
+              {(!isCollapsed || isOpenMobile) && (
+                <div className="text-left flex-1 min-w-0">
+                  <div className="text-white font-bold truncate">Sổ Chủ Nhiệm (.docx)</div>
+                  <div className="text-[10px] text-rose-300/80 truncate">Theo mẫu sổ GVCN</div>
+                </div>
+              )}
+            </button>
+          </div>
+        )}
       </nav>
 
       {/* ── Bottom Section: Profile Card & Collapse Toggle ── */}
@@ -433,6 +463,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             </>
           )}
         </button>
+
+        {(!isCollapsed || isOpenMobile) && (
+          <div className="text-center pt-0.5 text-[10px] text-slate-500 font-mono tracking-tight select-text">
+            Phiên bản v{APP_VERSION} • Online
+          </div>
+        )}
       </div>
 
       {/* Floating flyout menu when hovering collapsed group on desktop */}

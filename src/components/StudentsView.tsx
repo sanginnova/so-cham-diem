@@ -103,9 +103,14 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
 
   // Modals
   const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [editingStudent, setEditingStudent] = useState<Student | null>(null);
   const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
+  const [viewingMode, setViewingMode] = useState<'view' | 'edit'>('view');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+
+  const handleOpenStudentDetail = (student: Student, mode: 'view' | 'edit' = 'view') => {
+    setViewingStudent(student);
+    setViewingMode(mode);
+  };
 
   // Add student form
   const [studentCode, setStudentCode] = useState('');
@@ -672,14 +677,27 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
                       <td className="py-3 px-2 text-center text-slate-400 font-mono">
                         {idx + 1}
                       </td>
-                      <td className="py-3 px-3 font-mono font-bold text-blue-600 dark:text-blue-400">
-                        {s.studentCode}
+                      <td className="py-3 px-3">
+                        <button
+                          type="button"
+                          onClick={() => handleOpenStudentDetail(s, 'view')}
+                          className="font-mono font-bold text-blue-600 dark:text-blue-400 hover:text-blue-700 dark:hover:text-blue-300 hover:underline transition cursor-pointer text-left"
+                          title="Bấm để xem & sửa chi tiết học sinh"
+                        >
+                          {s.studentCode}
+                        </button>
                       </td>
                       <td className="py-3 px-3">
                         <div className="flex items-center gap-2">
-                          <span className="font-bold text-slate-900 dark:text-white block text-sm">
-                            {s.fullName}
-                          </span>
+                          <button
+                            type="button"
+                            onClick={() => handleOpenStudentDetail(s, 'view')}
+                            className="font-bold text-slate-900 dark:text-white text-sm text-left hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition cursor-pointer flex items-center gap-1.5 group"
+                            title="Bấm vào tên để xem & sửa chi tiết học sinh"
+                          >
+                            <span>{s.fullName}</span>
+                            <Edit2 className="h-3 w-3 text-slate-400 opacity-0 group-hover:opacity-100 transition-opacity" />
+                          </button>
                           {(s.id === monitorAccount?.studentId || (monitorAccount && s.fullName.toLowerCase() === monitorAccount.displayName.toLowerCase()) || (classConfig.classPresident && s.fullName.toLowerCase() === classConfig.classPresident.toLowerCase())) && (
                             <span className="inline-flex items-center gap-1 px-2 py-0.5 rounded-full text-[10px] font-bold bg-amber-100 text-amber-900 dark:bg-amber-950 dark:text-amber-200 border border-amber-300 dark:border-amber-800 shrink-0" title="Lớp trưởng được phân quyền chấm điểm nề nếp">
                               <Star className="h-3 w-3 fill-amber-400 text-amber-500" />
@@ -758,7 +776,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
                       <td className="py-3 px-3 text-center whitespace-nowrap">
                         <div className="flex items-center justify-center gap-1">
                           <button
-                            onClick={() => setViewingStudent(s)}
+                            onClick={() => handleOpenStudentDetail(s, 'view')}
                             className="p-1 text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded transition cursor-pointer"
                             title="Xem chi tiết hồ sơ & tiến trình rèn luyện"
                           >
@@ -767,7 +785,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
                           {userRole !== 'monitor' && (
                             <>
                               <button
-                                onClick={() => setEditingStudent(s)}
+                                onClick={() => handleOpenStudentDetail(s, 'edit')}
                                 className="p-1 text-slate-600 hover:bg-slate-100 dark:hover:bg-slate-700 rounded transition cursor-pointer"
                                 title="Sửa thông tin học sinh"
                               >
@@ -923,105 +941,17 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
         </div>
       )}
 
-      {/* MODAL: Chỉnh sửa học sinh */}
-      {editingStudent && (
-        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
-          <div className="mobile-dialog-panel bg-white dark:bg-slate-800 rounded-2xl max-w-lg w-full p-5 shadow-2xl border border-slate-200 dark:border-slate-700">
-            <h3 className="text-base font-bold text-slate-900 dark:text-white mb-3 flex items-center gap-2">
-              <Edit2 className="h-5 w-5 text-blue-600" />
-              <span>Chỉnh Sửa Hồ Sơ Học Sinh</span>
-            </h3>
-
-            <div className="space-y-3 text-xs">
-              <div>
-                <label className="block font-semibold mb-1">Mã học sinh</label>
-                <input
-                  type="text"
-                  value={editingStudent.studentCode}
-                  disabled
-                  className="w-full px-3 py-2 bg-slate-100 dark:bg-slate-700 border border-slate-200 dark:border-slate-600 rounded-xl font-mono text-slate-500 cursor-not-allowed"
-                />
-              </div>
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">Họ đệm</label>
-                  <input
-                    type="text"
-                    value={editingStudent.lastName}
-                    onChange={(e) => setEditingStudent({ ...editingStudent, lastName: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">Tên</label>
-                  <input
-                    type="text"
-                    value={editingStudent.firstName}
-                    onChange={(e) => setEditingStudent({ ...editingStudent, firstName: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl"
-                  />
-                </div>
-              </div>
-
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                <div>
-                  <label className="block font-semibold mb-1">Họ tên phụ huynh</label>
-                  <input
-                    type="text"
-                    value={editingStudent.parentName || ''}
-                    onChange={(e) => setEditingStudent({ ...editingStudent, parentName: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl"
-                  />
-                </div>
-                <div>
-                  <label className="block font-semibold mb-1">SĐT phụ huynh</label>
-                  <input
-                    type="tel"
-                    value={editingStudent.parentPhone || ''}
-                    onChange={(e) => setEditingStudent({ ...editingStudent, parentPhone: e.target.value })}
-                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl"
-                  />
-                </div>
-              </div>
-            </div>
-
-            <div className="mt-5 pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2">
-              <button
-                onClick={() => setEditingStudent(null)}
-                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold"
-              >
-                Hủy
-              </button>
-              <button
-                onClick={async () => {
-                  await updateStudent(editingStudent.id, {
-                    lastName: editingStudent.lastName,
-                    firstName: editingStudent.firstName,
-                    fullName: `${editingStudent.lastName} ${editingStudent.firstName}`,
-                    parentName: editingStudent.parentName,
-                    parentPhone: editingStudent.parentPhone,
-                  });
-                  setEditingStudent(null);
-                }}
-                className="px-4 py-2 bg-blue-600 text-white rounded-xl text-xs font-bold hover:bg-blue-500"
-              >
-                Lưu thay đổi
-              </button>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* V2 MODAL: Chi tiết học sinh & Quản lý mã tra cứu phụ huynh */}
+      {/* V2 MODAL: Chi tiết học sinh & Quản lý thông tin hồ sơ & Mã tra cứu */}
       {viewingStudent && (
         <StudentDetailModalV2
           isOpen={!!viewingStudent}
           onClose={() => setViewingStudent(null)}
-          student={viewingStudent}
+          student={students.find((s) => s.id === viewingStudent.id) || viewingStudent}
           logs={getStudentLogs(viewingStudent.id)}
           currentScore={getStudentCurrentScore(viewingStudent.id)}
           currentRank={calculateRank(getStudentCurrentScore(viewingStudent.id), classConfig.rankThresholds)}
           onUpdateStudent={updateStudent}
+          initialMode={viewingMode}
         />
       )}
 

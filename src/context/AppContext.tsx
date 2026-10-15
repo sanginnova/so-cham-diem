@@ -1,3 +1,5 @@
+import { collectionMembers } from '../lib/collections';
+import { useHomeroomRecords } from '../hooks/useHomeroomRecords';
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, ReactNode } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
 import { resolveLoginIdentifier } from '../lib/loginIdentifier';
@@ -79,7 +81,7 @@ import { scopeBackup } from '../lib/scopedBackup';
 import { calculateRank, clampScore } from '../lib/utils';
 import { calculateAttendanceStats, formatAttendanceBadgeText, formatAttendanceDetailText } from '../lib/attendanceStats';
 
-interface AppContextType {
+interface AppContextType extends ReturnType<typeof useHomeroomRecords> {
   workspaceClasses: ClassConfig[];
   selectWorkspaceClass: (id: string) => void;
   createWorkspaceClass: (name: string, year: string, start: string, ownerUid?: string) => Promise<void>;
@@ -264,6 +266,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [lockedPeriods, setLockedPeriods] = useState<PeriodLockStatus[]>([]);
   const [userRole, setUserRole] = useState<UserRole>('guest');
   const [activeAccount, setActiveAccount] = useState<UserAccount | null>(null);
+  const homeroom = useHomeroomRecords(classConfig, students, currentUser?.uid || '', userRole, isLocalMode);
   const [inspectorModeClass, setInspectorModeClass] = useState<SchoolClass | null>(null);
   const [workspaceClasses, setWorkspaceClasses] = useState<ClassConfig[]>([]);
   const [selectedConfigId, setSelectedConfigId] = useState('');
@@ -1131,6 +1134,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     if (!ids || ids.length === 0) return { count: 0 };
     const idSet = new Set(ids);
+    if (homeroom.homeroomLoading || homeroom.homeroomError) throw new Error('Chờ tải hồ sơ GVCN và khoản thu trước khi xóa học sinh.');
+    if (homeroom.homeroomRecords.some(r => idSet.has(r.studentId) || (r.kind === 'collection' && collectionMembers(r).some(id => idSet.has(id))))) throw new Error('Học sinh có hồ sơ GVCN hoặc thuộc danh sách khoản thu. Chuyển sang ngừng học để giữ lịch sử thay vì xóa.');
 
     const relatedLogs = deleteRelatedLogs ? disciplineLogs.filter(log => idSet.has(log.studentId)) : [];
     for (const log of relatedLogs) {
@@ -2010,6 +2015,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Export full backup JSON
   const exportFullBackupJson = (): string => {
+    if (homeroom.homeroomLoading || homeroom.homeroomError) throw new Error(homeroom.homeroomError || 'Chờ tải đầy đủ hồ sơ GVCN trước khi sao lưu.');
     const backupObj = {
       version: '1.0',
       exportedAt: new Date().toISOString(),
@@ -2017,6 +2023,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       students,
       behaviorCategories,
       disciplineLogs,
+      homeroomRecords: homeroom.homeroomRecords,
     };
     return JSON.stringify(backupObj, null, 2);
   };
@@ -2031,8 +2038,8 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const data = scopeBackup(parsed, teacherId, auth.currentUser!.uid, classConfig);
       await saveClassConfigToCloud(data.classConfig);
       // Students are committed first so log rules can validate their references.
-      for (const [name, records] of [['students', data.students], ['behaviorCategories', data.behaviorCategories], ['disciplineLogs', data.disciplineLogs]] as const) {
-        const size = name === 'disciplineLogs' ? 10 : 400;
+      for (const [name, records] of [['students', data.students], ['behaviorCategories', data.behaviorCategories], ['disciplineLogs', data.disciplineLogs], ['homeroomRecords', [...data.homeroomRecords].sort((a,b) => Number(b.kind === 'collection') - Number(a.kind === 'collection'))]] as const) {
+        const size = name === 'disciplineLogs' || name === 'homeroomRecords' ? 10 : 400;
         for (let offset = 0; offset < records.length; offset += size) {
           const batch = writeBatch(db);
           records.slice(offset, offset + size).forEach((record) => batch.set(doc(db, name, record.id), record));
@@ -2056,6 +2063,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   return (
     <AppContext.Provider
       value={{
+        ...homeroom,
         currentUser,
         isAuthLoading,
         isLocalMode,

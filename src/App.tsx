@@ -1,3 +1,5 @@
+import { CollectionsView } from './components/CollectionsView';
+import { HomeroomAssistantView } from './components/HomeroomAssistantView';
 import React, { useState, useEffect } from 'react';
 import { currentSchoolYear } from './lib/classScope';
 import { AppProvider, useApp } from './context/AppContext';
@@ -18,11 +20,14 @@ import { ZaloMessageComposerView } from './components/ZaloMessageComposerView';
 import { SettingsBackupView } from './components/SettingsBackupView';
 import { EditClassTeacherModal } from './components/EditClassTeacherModal';
 import { PublicPortalView } from './components/PublicPortalView';
+import { PublicLiveScoreboardView } from './components/PublicLiveScoreboardView';
+import { PublicScoreboardModal } from './components/PublicScoreboardModal';
 import { AdminDashboardView } from './components/AdminDashboardView';
 import { InspectorBanner } from './components/InspectorBanner';
 import { LoginModal } from './components/LoginModal';
 import { CommandPalette } from './components/CommandPalette';
 import { MobileBottomNav } from './components/MobileBottomNav';
+import { HomeroomBookExportModal } from './components/HomeroomBookExportModal';
 import { initNativeShell } from './lib/nativeBridge';
 
 function MainApp() {
@@ -45,6 +50,8 @@ function MainApp() {
   const [isEditClassModalOpen, setIsEditClassModalOpen] = useState(false);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState(false);
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
+  const [isPublicScoreboardModalOpen, setIsPublicScoreboardModalOpen] = useState(false);
+  const [isHomeroomBookModalOpen, setIsHomeroomBookModalOpen] = useState(false);
   const [reportStudentId, setReportStudentId] = useState<string | null>(null);
   const [reportPeriodSelection, setReportPeriodSelection] = useState<import('./lib/weeklyPeriod').ReportPeriodSelection | undefined>();
   const [zaloNavParams, setZaloNavParams] = useState<{
@@ -79,7 +86,9 @@ function MainApp() {
         activeTab === 'admin' ||
         activeTab === 'settings' ||
         activeTab === 'zalo-composer' ||
-        activeTab === 'parent-report'
+        activeTab === 'parent-report' ||
+        activeTab === 'homeroom' ||
+        activeTab === 'collections'
       ) {
         setActiveTab('daily-log');
       }
@@ -91,6 +100,20 @@ function MainApp() {
     const handleOpenCommandPalette = () => setIsCommandPaletteOpen(true);
     window.addEventListener('open-command-palette', handleOpenCommandPalette);
     return () => window.removeEventListener('open-command-palette', handleOpenCommandPalette);
+  }, []);
+
+  // Public Scoreboard Modal listener
+  useEffect(() => {
+    const handleOpenScoreboard = () => setIsPublicScoreboardModalOpen(true);
+    window.addEventListener('open-public-scoreboard-modal', handleOpenScoreboard);
+    return () => window.removeEventListener('open-public-scoreboard-modal', handleOpenScoreboard);
+  }, []);
+
+  // Homeroom Book Modal listener
+  useEffect(() => {
+    const handleOpenHomeroomBook = () => setIsHomeroomBookModalOpen(true);
+    window.addEventListener('open-homeroom-book-modal', handleOpenHomeroomBook);
+    return () => window.removeEventListener('open-homeroom-book-modal', handleOpenHomeroomBook);
   }, []);
 
   // Pro-Max Keyboard Shortcuts: Press 'N' to open new log modal
@@ -138,6 +161,27 @@ function MainApp() {
     handleNavigateToZalo({ studentId });
   };
 
+  const liveClassId =
+    new URLSearchParams(window.location.search).get('live') ||
+    new URLSearchParams(window.location.search).get('scoreboard') ||
+    new URLSearchParams(window.location.search).get('share');
+
+  // Nếu người dùng truy cập link bảng điểm trực tiếp công khai
+  if (liveClassId) {
+    return (
+      <>
+        <PublicLiveScoreboardView
+          classId={liveClassId}
+          onOpenLoginModal={() => setIsLoginModalOpen(true)}
+        />
+        <LoginModal
+          isOpen={isLoginModalOpen}
+          onClose={() => setIsLoginModalOpen(false)}
+        />
+      </>
+    );
+  }
+
   if (isAuthLoading) {
     return (
       <main className="min-h-screen flex items-center justify-center bg-slate-50 px-6" aria-busy="true">
@@ -178,6 +222,7 @@ function MainApp() {
           onOpenLoginModal={() => setIsLoginModalOpen(true)}
           onToggleMobileSidebar={() => setIsMobileSidebarOpen(true)}
           onNavigateTab={setActiveTab}
+          onOpenPublicScoreboardModal={() => setIsPublicScoreboardModalOpen(true)}
         />
 
         {/* Main Content Area */}
@@ -244,6 +289,8 @@ function MainApp() {
             />
           )}
 
+          {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'collections' && <CollectionsView key={classConfig.id} />}
+          {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'homeroom' && <HomeroomAssistantView key={classConfig.id} />}
           {userRole !== 'guest' && activeTab === 'categories' && <BehaviorCatalogView />}
 
           {userRole !== 'guest' && activeTab === 'parent-report' && (
@@ -296,6 +343,18 @@ function MainApp() {
             onNavigateTab={setActiveTab}
             onOpenNewLogModal={() => setIsNewLogModalOpen(true)}
             onSelectStudentForReport={handleSelectStudentForReport}
+          />
+
+          {/* Public Scoreboard Real-time Live Share Modal */}
+          <PublicScoreboardModal
+            isOpen={isPublicScoreboardModalOpen}
+            onClose={() => setIsPublicScoreboardModalOpen(false)}
+          />
+
+          {/* Sổ Chủ Nhiệm (.docx) Export Modal chuẩn CĐN01 */}
+          <HomeroomBookExportModal
+            isOpen={isHomeroomBookModalOpen}
+            onClose={() => setIsHomeroomBookModalOpen(false)}
           />
         </main>
 

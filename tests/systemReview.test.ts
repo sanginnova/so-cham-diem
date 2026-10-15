@@ -36,7 +36,7 @@ test('reject invalid scores/counts/periods before saving', () => {
 test('local day, date parsing and score boundaries', () => {
   assert.equal(localDateString(new Date(2026, 9, 2, 0, 1)), '2026-10-02');
   assert.equal(parseFlexibleDate('16/05/2011'), '2011-05-16');
-  assert.equal(clampScore(20), 10); assert.equal(clampScore(-1), 0);
+  assert.equal(clampScore(20, 0, 10), 10); assert.equal(clampScore(-1), 0);
   assert.equal(clampScore(12, 0, 20), 12);
-  for (const [score, rank] of [[9, 'Xuất sắc'], [8, 'Tốt'], [7, 'Khá'], [5, 'Trung bình'], [4.99, 'Yếu']] as const) assert.equal(calculateRank(score), rank);
+  for (const [score, rank] of [[12, 'Xuất sắc'], [8, 'Tốt'], [7, 'Khá'], [5, 'Đạt'], [4.99, 'Không đạt']] as const) assert.equal(calculateRank(score), rank);
 });

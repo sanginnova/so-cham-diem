@@ -40,6 +40,7 @@ import { formatVietnameseDate, formatVietnameseNumber, getRankRangeDescription }
 import { BehaviorCategory, AchievementBonusRule } from '../types';
 import { ClassMonitorManagementCard } from './v2/ClassMonitorManagementCard';
 import { defaultWeekOneStart, schoolWeeksFrom } from '../lib/classScope';
+import { APP_VERSION, APP_RELEASE_DATE, APP_CODENAME } from '../version';
 
 export const SettingsBackupView: React.FC = () => {
   const {
@@ -174,7 +175,8 @@ export const SettingsBackupView: React.FC = () => {
   };
 
   const handleExportJson = () => {
-    const json = exportFullBackupJson();
+    let json: string;
+    try { json = exportFullBackupJson(); } catch (error) { alert((error as Error).message); return; }
     const blob = new Blob([json], { type: 'application/json;charset=utf-8;' });
     const url = URL.createObjectURL(blob);
     const a = document.createElement('a');
@@ -1143,6 +1145,26 @@ export const SettingsBackupView: React.FC = () => {
           </div>
         </div>
       )}
+
+      {/* Thông tin phiên bản hệ thống */}
+      <div className="max-w-4xl p-4 bg-slate-50 dark:bg-slate-800/60 rounded-2xl border border-slate-200 dark:border-slate-700/80 flex flex-wrap items-center justify-between gap-3 text-xs text-slate-500 dark:text-slate-400">
+        <div className="flex items-center gap-2.5">
+          <span className="h-2 w-2 rounded-full bg-emerald-500 animate-pulse" />
+          <span className="font-semibold text-slate-700 dark:text-slate-300">
+            Hệ thống Sổ chấm điểm & Trợ lý GVCN
+          </span>
+          <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-900/40 text-blue-700 dark:text-blue-300 font-bold font-mono">
+            v{APP_VERSION}
+          </span>
+        </div>
+        <div className="flex items-center gap-4 text-[11px]">
+          <span>Phát hành: <strong className="text-slate-700 dark:text-slate-300">{APP_RELEASE_DATE}</strong></span>
+          <span>•</span>
+          <span>Bản dựng: <strong className="text-slate-700 dark:text-slate-300">{APP_CODENAME}</strong></span>
+          <span>•</span>
+          <span className="text-emerald-600 dark:text-emerald-400 font-semibold">Trực tuyến (Online)</span>
+        </div>
+      </div>
     </div>
   );
 };

@@ -37,7 +37,8 @@ import {
   UserX,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
-import { AchievementBonusRule, StudentWeeklySummary, DisciplineLog } from '../types';
+import { AchievementBonusRule, StudentWeeklySummary, DisciplineLog, Student } from '../types';
+import { StudentDetailModalV2 } from './v2/StudentDetailModalV2';
 import {
   formatVietnameseDate,
   formatVietnameseNumber,
@@ -90,6 +91,8 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
     moveDisciplineLogToWeek,
     batchMoveDisciplineLogsToWeek,
     activeAccount,
+    updateStudent,
+    getStudentLogs,
   } = useApp();
 
   const [selectedMonth, setSelectedMonth] = useState<number>(() => currentSchoolWeek(classConfig.weeks)?.month ?? 9);
@@ -108,6 +111,8 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
   const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
   const [tableSelectedStudentIds, setTableSelectedStudentIds] = useState<Set<string>>(new Set());
   const [modalStudentSearch, setModalStudentSearch] = useState<string>('');
+  const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
+  const [viewingMode, setViewingMode] = useState<'view' | 'edit'>('view');
   const [selectedRuleId, setSelectedRuleId] = useState<string>('');
   const [customScoreInput, setCustomScoreInput] = useState<number>(1.0);
   const [customNoteInput, setCustomNoteInput] = useState<string>('');
@@ -733,6 +738,19 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
           </button>
 
           <button
+            onClick={() => window.dispatchEvent(new CustomEvent('open-public-scoreboard-modal'))}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
+            title="Xuất link xem điểm số công khai, luôn cập nhật thời gian thực"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-200 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-300" />
+            </span>
+            <Share2 className="h-3.5 w-3.5" />
+            <span>Link xem điểm trực tiếp</span>
+          </button>
+
+          <button
             onClick={() => setIsZaloModalOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
             title="Sao chép hình ảnh Tổng kết Tuần để dán gửi nhóm Zalo phụ huynh"
@@ -1320,9 +1338,20 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
                     </td>
                     <td className="py-2.5 px-3">
                       <div className="flex items-center gap-1.5 flex-wrap">
-                        <span className="font-bold text-slate-900 dark:text-white">
+                        <button
+                          type="button"
+                          onClick={() => {
+                            const found = students.find((st) => st.id === s.studentId);
+                            if (found) {
+                              setViewingStudent(found);
+                              setViewingMode('view');
+                            }
+                          }}
+                          className="font-bold text-slate-900 dark:text-white text-left hover:text-blue-600 dark:hover:text-blue-400 hover:underline transition cursor-pointer"
+                          title="Bấm vào tên để xem & sửa chi tiết hồ sơ học sinh"
+                        >
                           {s.fullName}
-                        </span>
+                        </button>
                         {hasAchievement && (
                           <span
                             className="inline-flex items-center text-amber-500"
@@ -2484,6 +2513,18 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
         onSuccessToast={message => setAwardingResult(message)}
       />}
       {editPointsStudentId && <StudentPointEditor studentId={editPointsStudentId} weekNumber={selectedWeek} onClose={() => setEditPointsStudentId(null)} />}
+      {viewingStudent && (
+        <StudentDetailModalV2
+          isOpen={!!viewingStudent}
+          onClose={() => setViewingStudent(null)}
+          student={students.find((st) => st.id === viewingStudent.id) || viewingStudent}
+          logs={getStudentLogs(viewingStudent.id)}
+          currentScore={weeklyData.find((w) => w.studentId === viewingStudent.id)?.finalScore ?? classConfig.baseScore}
+          currentRank={weeklyData.find((w) => w.studentId === viewingStudent.id)?.rank ?? 'Tốt'}
+          onUpdateStudent={updateStudent}
+          initialMode={viewingMode}
+        />
+      )}
     </div>
   );
 };

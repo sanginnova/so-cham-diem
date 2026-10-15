@@ -579,6 +579,19 @@ export const MonthlySummaryView: React.FC<MonthlySummaryViewProps> = ({
           </button>
 
           <button
+            onClick={() => window.dispatchEvent(new CustomEvent('open-public-scoreboard-modal'))}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
+            title="Xuất link xem điểm số công khai, luôn cập nhật thời gian thực"
+          >
+            <span className="relative flex h-2 w-2">
+              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-200 opacity-75" />
+              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-300" />
+            </span>
+            <Share2 className="h-3.5 w-3.5" />
+            <span>Link xem điểm trực tiếp</span>
+          </button>
+
+          <button
             onClick={() => setIsZaloModalOpen(true)}
             className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
             title="Sao chép hình ảnh Tổng kết Tháng để dán gửi nhóm Zalo phụ huynh"

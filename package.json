@@ -1,7 +1,7 @@
 {
   "name": "react-example",
   "private": true,
-  "version": "0.0.0",
+  "version": "2.1.0",
   "type": "module",
   "scripts": {
     "dev": "vite --port=3000 --host=0.0.0.0",
@@ -9,6 +9,8 @@
     "preview": "vite preview",
     "clean": "rm -rf dist server.js",
     "lint": "tsc --noEmit",
+    "test:collections": "tsx --test tests/collections.test.ts",
+    "test:homeroom": "tsx --test tests/homeroom.test.ts",
     "test:scoring": "node --test tests/scoring.test.mjs",
     "test:rules": "firebase emulators:exec --only firestore --project demo-so-cham-diem --config firebase.emulators.json \"node --test tests/firestore.rules.test.mjs\"",
     "test:backup": "tsx --test tests/scopedBackup.test.ts",
@@ -28,6 +30,7 @@
     "@google/genai": "^2.4.0",
     "@tailwindcss/vite": "^4.3.3",
     "@vitejs/plugin-react": "^6.1.1",
+    "docx": "^9.11.0",
     "dotenv": "^17.2.3",
     "express": "^4.21.2",
     "firebase": "^12.19.0",

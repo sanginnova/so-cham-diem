@@ -73,6 +73,14 @@ export interface Student {
   status: StudentStatus;
   teacherId: string;
   classId: string;
+  address?: string;
+  hometown?: string;
+  group?: string;
+  duty?: string;
+  parentOccupation?: string;
+  policy?: string;
+  disabilityOrOrphan?: string;
+  martyrFamily?: string;
   parentName?: string;
   parentPhone?: string;
   parentLookupToken?: string;

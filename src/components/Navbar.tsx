@@ -32,6 +32,8 @@ import { PWAInstallButton } from './PWAInstallButton';
 export type TabType =
   | 'portal'
   | 'dashboard'
+  | 'homeroom'
+  | 'collections'
   | 'daily-log'
   | 'weekly'
   | 'monthly'

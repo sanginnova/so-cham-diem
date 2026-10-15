@@ -167,3 +167,43 @@ test('trash survives deletion, is scoped to owner, restores atomically and respe
   await assertSucceeds(restore());
   assert.equal((await getDoc(doc(dbFor('admin'), 'disciplineTrash', 'old'))).exists(), false);
 });
+
+test('private homeroom records are scoped and hidden from monitors and guests', async () => {
+  const record = { id:'private-a', teacherId:'a', classId:'cfg-a', studentId:'student-a', kind:'contact', date:'2026-10-15', data:{ summary:'Private parent discussion' }, createdAt:'now', updatedAt:'now', createdBy:'a' };
+  await assertSucceeds(setDoc(doc(dbFor('a'), 'homeroomRecords', record.id), record));
+  await assertSucceeds(getDoc(doc(dbFor('a'), 'homeroomRecords', record.id)));
+  await assertSucceeds(getDocs(query(collection(dbFor('a'), 'homeroomRecords'), where('teacherId','==','a'), where('classId','==','cfg-a'))));
+  for (const db of [dbFor('b'), dbFor('monitor'), dbFor('disabled'), env.unauthenticatedContext().firestore()]) {
+    await assertFails(getDoc(doc(db, 'homeroomRecords', record.id)));
+    await assertFails(setDoc(doc(db, 'homeroomRecords', 'forged'), { ...record, id:'forged' }));
+  }
+  await assertFails(updateDoc(doc(dbFor('a'), 'homeroomRecords', record.id), { studentId:'student-b' }));
+  await assertFails(setDoc(doc(dbFor('a'), 'homeroomRecords', 'wrong-class'), { ...record, id:'wrong-class', classId:'cfg-b' }));
+  await assertFails(updateDoc(doc(dbFor('a'), 'homeroomRecords', record.id), { teacherId:'b' }));
+  await assertSucceeds(updateDoc(doc(dbFor('a'), 'homeroomRecords', record.id), { data:{ summary:'Updated by teacher' } }));
+});
+
+test('collection ledger validates links, preserves amounts and keeps voided history', async () => {
+  const db = dbFor('a');
+  const base = {teacherId:'a',classId:'cfg-a',date:'2026-10-15',createdBy:'a',createdAt:'now',updatedAt:'now'};
+  const fund = {...base,id:'fund-a',kind:'collection',studentId:'',data:{name:'Test collection',amount:'100000',studentIds:'["student-a"]',studentNames:'{}',status:'Đang thu'}};
+  const payment = {...base,id:'payment-a',kind:'payment',studentId:'student-a',data:{collectionId:'fund-a',amount:'30000',method:'Tiền mặt',state:'Đã ghi nhận',note:''}};
+  const batch=writeBatch(db);batch.set(doc(db,'homeroomRecords',fund.id),fund);batch.set(doc(db,'homeroomRecords',payment.id),payment);
+  await assertSucceeds(batch.commit());
+  await assertSucceeds(setDoc(doc(db,'homeroomRecords',payment.id),payment));
+  await assertFails(updateDoc(doc(db,'homeroomRecords',payment.id),{'data.amount':'40000'}));
+  await assertFails(updateDoc(doc(db,'homeroomRecords',fund.id),{'data.amount':'200000'}));
+  await assertFails(updateDoc(doc(db,'homeroomRecords',fund.id),{'data.studentIds':'[]'}));
+  await assertFails(deleteDoc(doc(db,'homeroomRecords',payment.id)));
+  await assertFails(deleteDoc(doc(db,'homeroomRecords',fund.id)));
+  await assertFails(setDoc(doc(db,'homeroomRecords','negative'),{...payment,id:'negative',data:{...payment.data,amount:'-1'}}));
+  await assertFails(setDoc(doc(db,'homeroomRecords','foreign-student'),{...payment,id:'foreign-student',studentId:'student-b'}));
+  await assertFails(setDoc(doc(db,'homeroomRecords','missing-fund'),{...payment,id:'missing-fund',data:{...payment.data,collectionId:'missing'}}));
+  for(const uid of ['b','monitor']) await assertFails(getDoc(doc(dbFor(uid),'homeroomRecords',fund.id)));
+  await assertFails(updateDoc(doc(db,'homeroomRecords',payment.id),{'data.state':'Đã hủy'}));
+  await assertSucceeds(updateDoc(doc(db,'homeroomRecords',payment.id),{'data.state':'Đã hủy','data.voidReason':'Duplicate entry'}));
+  const canceled={...payment,data:{...payment.data,state:'Đã hủy',voidReason:'Duplicate entry'}};
+  await assertSucceeds(setDoc(doc(db,'homeroomRecords',payment.id),canceled));
+  await assertFails(updateDoc(doc(db,'homeroomRecords',payment.id),{'data.state':'Đã ghi nhận'}));
+  await assertSucceeds(setDoc(doc(db,'homeroomRecords','discount-a'),{...base,id:'discount-a',kind:'allowance',studentId:'student-a',data:{collectionId:'fund-a',amount:'20000',mode:'Giảm',reason:'Approved'}}));
+});

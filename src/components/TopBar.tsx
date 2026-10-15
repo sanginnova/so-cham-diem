@@ -14,10 +14,14 @@ import {
   Sparkles,
   LogIn,
   School,
+  Share2,
+  Radio,
+  BookOpen,
 } from 'lucide-react';
 import { TabType } from './Navbar';
 import { useApp } from '../context/AppContext';
 import { PWAInstallButton } from './PWAInstallButton';
+import { APP_VERSION } from '../version';
 
 interface TopBarProps {
   activeTab: TabType;
@@ -26,12 +30,15 @@ interface TopBarProps {
   onOpenLoginModal?: () => void;
   onToggleMobileSidebar: () => void;
   onNavigateTab: (tab: TabType) => void;
+  onOpenPublicScoreboardModal?: () => void;
 }
 
 // Map active tab to human readable breadcrumb label
 const TAB_LABELS: Record<TabType, { section: string; title: string }> = {
   portal: { section: 'Trang chủ', title: 'Cổng tra cứu học sinh' },
   dashboard: { section: 'Tổng quan', title: 'Bảng điều khiển lớp học' },
+  collections: { section: 'Chủ nhiệm', title: 'Các khoản thu của lớp' },
+  homeroom: { section: 'Chủ nhiệm', title: 'Trợ lý giáo viên chủ nhiệm' },
   'daily-log': { section: 'Nhật ký', title: 'Chấm điểm hằng ngày' },
   weekly: { section: 'Báo cáo', title: 'Tổng kết tuần' },
   monthly: { section: 'Báo cáo', title: 'Tổng kết tháng' },
@@ -52,6 +59,7 @@ export const TopBar: React.FC<TopBarProps> = ({
   onOpenLoginModal,
   onToggleMobileSidebar,
   onNavigateTab,
+  onOpenPublicScoreboardModal,
 }) => {
   const {
     currentUser,
@@ -146,6 +154,36 @@ export const TopBar: React.FC<TopBarProps> = ({
             </button>
           )}
 
+          {/* Public Live Scoreboard Link button */}
+          {!isGuestOrPortal && onOpenPublicScoreboardModal && (
+            <button
+              type="button"
+              onClick={onOpenPublicScoreboardModal}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-emerald-500/10 to-teal-500/10 hover:from-emerald-500/20 hover:to-teal-500/20 text-emerald-700 dark:text-emerald-300 border border-emerald-300/60 dark:border-emerald-700/60 text-xs font-bold transition active:scale-95 cursor-pointer shadow-2xs"
+              title="Xuất link xem điểm số công khai, luôn cập nhật thời gian thực"
+            >
+              <span className="relative flex h-2 w-2">
+                <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+              </span>
+              <Share2 className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              <span className="hidden md:inline">Link xem điểm</span>
+            </button>
+          )}
+
+          {/* Sổ Chủ Nhiệm (.docx) Export Modal Button */}
+          {!isGuestOrPortal && userRole !== 'monitor' && (
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-homeroom-book-modal'))}
+              className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl bg-gradient-to-r from-rose-500/10 to-red-500/10 hover:from-rose-500/20 hover:to-red-500/20 text-rose-700 dark:text-rose-300 border border-rose-300/60 dark:border-rose-700/60 text-xs font-bold transition active:scale-95 cursor-pointer shadow-2xs"
+              title="Xuất Sổ công tác giáo viên chủ nhiệm (.docx)"
+            >
+              <BookOpen className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
+              <span className="hidden lg:inline">Sổ Chủ Nhiệm</span>
+            </button>
+          )}
+
           {/* Prominent Primary CTA Button '+ GHI NHẬN' */}
           {!inspectorModeClass && userRole !== 'guest' && (
             <button
@@ -228,6 +266,20 @@ export const TopBar: React.FC<TopBarProps> = ({
 
                   {/* Menu items */}
                   <div className="py-1">
+                    {userRole !== 'monitor' && onOpenPublicScoreboardModal && (
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setIsProfileOpen(false);
+                          onOpenPublicScoreboardModal();
+                        }}
+                        className="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-emerald-700 dark:text-emerald-400 flex items-center gap-2.5 transition cursor-pointer font-semibold"
+                      >
+                        <Share2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
+                        <span>Xuất link xem điểm trực tiếp</span>
+                      </button>
+                    )}
+
                     {userRole !== 'monitor' && onOpenEditClassTeacherModal && (
                       <button
                         type="button"
@@ -286,6 +338,10 @@ export const TopBar: React.FC<TopBarProps> = ({
                   </div>
 
                   <div className="border-t border-slate-100 dark:border-slate-800 pt-1">
+                    <div className="px-3.5 py-1 text-[10px] text-slate-400 dark:text-slate-500 font-mono flex items-center justify-between">
+                      <span>Phiên bản:</span>
+                      <span className="font-bold text-slate-600 dark:text-slate-300">v{APP_VERSION}</span>
+                    </div>
                     <button
                       type="button"
                       onClick={() => {
