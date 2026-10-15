@@ -367,6 +367,7 @@ function MainApp() {
             activeTab={activeTab}
             onNavigateTab={setActiveTab}
             onOpenNewLogModal={() => setIsNewLogModalOpen(true)}
+            onToggleMobileSidebar={() => setIsMobileSidebarOpen((prev) => !prev)}
           />
         )}
 

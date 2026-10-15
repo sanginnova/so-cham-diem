@@ -100,8 +100,9 @@ export const TopBar: React.FC<TopBarProps> = ({
             <button
               type="button"
               onClick={onToggleMobileSidebar}
-              className="md:hidden p-2 rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
-              aria-label="Mở menu danh mục"
+              className="md:hidden p-2 rounded-xl bg-slate-100 dark:bg-slate-800/80 hover:bg-slate-200 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 shadow-2xs transition active:scale-90 cursor-pointer shrink-0"
+              aria-label="Mở menu danh mục cạnh trái"
+              title="Mở menu danh mục"
             >
               <Menu className="h-5 w-5" />
             </button>

@@ -235,6 +235,56 @@ export const Sidebar: React.FC<SidebarProps> = ({
     setHoveredGroup(null);
   };
 
+  // ── Mobile Left-Edge Swipe & Drawer Gestures ──
+  const touchStartRef = React.useRef<{ x: number; y: number }>({ x: 0, y: 0 });
+
+  useEffect(() => {
+    const handleTouchStart = (e: TouchEvent) => {
+      if (e.touches.length === 1) {
+        touchStartRef.current = {
+          x: e.touches[0].clientX,
+          y: e.touches[0].clientY,
+        };
+      }
+    };
+
+    const handleTouchEnd = (e: TouchEvent) => {
+      if (e.changedTouches.length === 1) {
+        const deltaX = e.changedTouches[0].clientX - touchStartRef.current.x;
+        const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartRef.current.y);
+
+        // Vuốt từ mép trái màn hình (x <= 28px) sang phải để mở menu
+        if (!isOpenMobile && touchStartRef.current.x <= 28 && deltaX > 45 && deltaY < 60) {
+          setIsOpenMobile(true);
+        }
+      }
+    };
+
+    window.addEventListener('touchstart', handleTouchStart, { passive: true });
+    window.addEventListener('touchend', handleTouchEnd, { passive: true });
+
+    return () => {
+      window.removeEventListener('touchstart', handleTouchStart);
+      window.removeEventListener('touchend', handleTouchEnd);
+    };
+  }, [isOpenMobile, setIsOpenMobile]);
+
+  const handleDrawerTouchStart = (e: React.TouchEvent) => {
+    touchStartRef.current = {
+      x: e.touches[0].clientX,
+      y: e.touches[0].clientY,
+    };
+  };
+
+  const handleDrawerTouchEnd = (e: React.TouchEvent) => {
+    const deltaX = e.changedTouches[0].clientX - touchStartRef.current.x;
+    const deltaY = Math.abs(e.changedTouches[0].clientY - touchStartRef.current.y);
+    // Vuốt từ phải sang trái trong drawer để đóng
+    if (deltaX < -50 && deltaY < 80) {
+      setIsOpenMobile(false);
+    }
+  };
+
   const sidebarContent = (
     <div className="flex flex-col h-full bg-slate-900 text-slate-200 border-r border-slate-800 select-none">
       {/* ── Top Header / Brand ── */}
@@ -527,21 +577,45 @@ export const Sidebar: React.FC<SidebarProps> = ({
         {sidebarContent}
       </aside>
 
-      {/* Mobile Drawer (☰ Slide-over overlay) */}
-      {isOpenMobile && (
-        <div className="md:hidden fixed inset-0 z-50 flex">
-          {/* Backdrop */}
-          <div
-            className="fixed inset-0 bg-slate-950/70 backdrop-blur-xs transition-opacity"
-            onClick={() => setIsOpenMobile(false)}
-          />
-
-          {/* Drawer Panel */}
-          <div className="relative w-72 max-w-[85vw] h-full shadow-2xl z-10 animate-in slide-in-from-left duration-200">
-            {sidebarContent}
-          </div>
-        </div>
+      {/* Floating Left-edge Pull Handle for Mobile (Nút ẩn/hiện cạnh trái) */}
+      {!isOpenMobile && (
+        <button
+          type="button"
+          onClick={() => setIsOpenMobile(true)}
+          className="md:hidden fixed left-0 top-1/2 -translate-y-1/2 z-30 flex items-center justify-center p-2 pl-1 rounded-r-2xl bg-slate-900/90 hover:bg-slate-850 text-slate-300 hover:text-white border-y border-r border-slate-700/80 shadow-xl backdrop-blur-md transition-all active:scale-95 cursor-pointer group"
+          title="Mở menu danh mục bên trái (hoặc vuốt từ mép trái màn hình)"
+          aria-label="Mở menu cạnh trái"
+        >
+          <ChevronRight className="h-4 w-4 text-blue-400 group-hover:translate-x-0.5 transition-transform" />
+        </button>
       )}
+
+      {/* Mobile Drawer (Ẩn/Hiện cạnh trái với hiệu ứng trượt mượt mà) */}
+      <div
+        className={`md:hidden fixed inset-0 z-50 transition-all duration-300 ${
+          isOpenMobile ? 'visible opacity-100 pointer-events-auto' : 'invisible opacity-0 pointer-events-none'
+        }`}
+        aria-hidden={!isOpenMobile}
+      >
+        {/* Backdrop (Nhấp để đóng) */}
+        <div
+          className={`fixed inset-0 bg-slate-950/75 backdrop-blur-xs transition-opacity duration-300 ease-in-out ${
+            isOpenMobile ? 'opacity-100' : 'opacity-0'
+          }`}
+          onClick={() => setIsOpenMobile(false)}
+        />
+
+        {/* Drawer Panel (Trượt mượt mà từ mép trái) */}
+        <div
+          onTouchStart={handleDrawerTouchStart}
+          onTouchEnd={handleDrawerTouchEnd}
+          className={`relative w-72 max-w-[85vw] h-full shadow-2xl z-10 transform transition-transform duration-300 ease-out ${
+            isOpenMobile ? 'translate-x-0' : '-translate-x-full'
+          }`}
+        >
+          {sidebarContent}
+        </div>
+      </div>
     </>
   );
 };

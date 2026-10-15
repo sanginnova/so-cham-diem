@@ -605,13 +605,19 @@ export function SeatingChartView() {
                 </div>
               </div>
 
-              {/* Grid of Columns (Dãy bàn) */}
-              <div
-                className="grid gap-3 sm:gap-4 max-w-5xl mx-auto"
-                style={{
-                  gridTemplateColumns: `repeat(${config.columns}, minmax(0, 1fr))`,
-                }}
-              >
+              {/* Mobile Swipe Hint */}
+              <div className="sm:hidden text-center text-[11px] text-indigo-600 dark:text-indigo-400 font-medium bg-indigo-50 dark:bg-indigo-950/40 py-1.5 px-3 rounded-xl border border-indigo-200 dark:border-indigo-800">
+                💡 Vuốt ngang để xem đủ {config.columns} dãy bàn trên điện thoại
+              </div>
+
+              {/* Grid of Columns (Dãy bàn) with horizontal scroll support on small screens */}
+              <div className="overflow-x-auto pb-3 -mx-2 sm:mx-0 px-2 sm:px-0 scrollbar-thin">
+                <div
+                  className="grid gap-3 sm:gap-4 min-w-[620px] max-w-5xl mx-auto"
+                  style={{
+                    gridTemplateColumns: `repeat(${config.columns}, minmax(0, 1fr))`,
+                  }}
+                >
                 {Array.from({ length: config.columns }, (_, cIdx) => {
                   const col = cIdx + 1;
                   return (
@@ -731,6 +737,7 @@ export function SeatingChartView() {
                     </div>
                   );
                 })}
+                </div>
               </div>
             </div>
 

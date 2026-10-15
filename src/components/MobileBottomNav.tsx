@@ -4,8 +4,7 @@ import {
   CalendarDays,
   Plus,
   Users,
-  MessageSquareShare,
-  FileSpreadsheet,
+  Menu,
 } from 'lucide-react';
 import { TabType } from './Navbar';
 import { useApp } from '../context/AppContext';
@@ -14,17 +13,21 @@ interface MobileBottomNavProps {
   activeTab: TabType;
   onNavigateTab: (tab: TabType) => void;
   onOpenNewLogModal: () => void;
+  onToggleMobileSidebar: () => void;
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   activeTab,
   onNavigateTab,
   onOpenNewLogModal,
+  onToggleMobileSidebar,
 }) => {
   const { userRole, inspectorModeClass } = useApp();
 
   // Hide on public guest portal or inspector mode
   if (userRole === 'guest') return null;
+
+  const isMenuTabActive = !['dashboard', 'daily-log', 'students'].includes(activeTab);
 
   return (
     <nav
@@ -88,18 +91,24 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           <span className="text-[10px] mt-1">Học sinh</span>
         </button>
 
-        {/* Tab 4: Zalo Composer / Weekly */}
+        {/* Tab 4: Left Drawer Menu Toggle */}
         <button
           type="button"
-          onClick={() => onNavigateTab('zalo-composer')}
+          onClick={onToggleMobileSidebar}
           className={`flex flex-col items-center justify-center flex-1 py-1 transition cursor-pointer ${
-            activeTab === 'zalo-composer'
+            isMenuTabActive
               ? 'text-blue-600 dark:text-blue-400 font-bold'
-              : 'text-slate-500 dark:text-slate-400 font-medium'
+              : 'text-slate-500 dark:text-slate-400 font-medium hover:text-slate-700 dark:hover:text-slate-200'
           }`}
+          aria-label="Mở menu danh mục bên trái"
         >
-          <MessageSquareShare className={`h-5 w-5 ${activeTab === 'zalo-composer' ? 'scale-110' : ''} transition-transform`} />
-          <span className="text-[10px] mt-1">Báo Zalo</span>
+          <div className="relative">
+            <Menu className={`h-5 w-5 ${isMenuTabActive ? 'scale-110' : ''} transition-transform`} />
+            {isMenuTabActive && (
+              <span className="absolute -top-1 -right-1 w-2 h-2 rounded-full bg-blue-500 ring-2 ring-white dark:ring-slate-900" />
+            )}
+          </div>
+          <span className="text-[10px] mt-1">{isMenuTabActive ? 'Menu' : 'Danh mục'}</span>
         </button>
       </div>
     </nav>
