@@ -57,6 +57,16 @@ interface MenuGroup {
   icon: React.FC<{ className?: string }>;
   directTab?: TabType;
   subItems?: SubMenuItem[];
+  badge?: string;
+  badgeClass?: string;
+}
+
+interface MenuSection {
+  id: string;
+  title: string;
+  badge?: string;
+  badgeClass?: string;
+  groups: MenuGroup[];
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
@@ -77,129 +87,169 @@ export const Sidebar: React.FC<SidebarProps> = ({
     logout,
   } = useApp();
 
-  // Define modules in sidebar
-  const menuGroups: MenuGroup[] = [
+  // ── Phân chia rành mạch 2 Phân hệ lớn: ĐIỂM HỌC LỰC vs ĐIỂM RÈN LUYỆN ──
+  const menuSections: MenuSection[] = [
+    // ── PHÂN HỆ 1: CHẤM ĐIỂM HỌC LỰC (BỘ MÔN) ──
     ...(['teacher', 'admin', 'owner'].includes(userRole)
       ? [
-          { id: 'homeroom', label: 'Trợ lý GVCN', icon: BookOpen, directTab: 'homeroom' as TabType },
-          { id: 'seating-chart', label: 'Xếp tổ & Sơ đồ lớp', icon: LayoutGrid, directTab: 'seating-chart' as TabType },
-          { id: 'collections', label: 'Các khoản thu', icon: Wallet, directTab: 'collections' as TabType },
-        ]
-      : []),
-    {
-      id: 'dashboard',
-      label: 'Tổng quan',
-      icon: LayoutDashboard,
-      directTab: 'dashboard',
-    },
-    {
-      id: 'daily-log',
-      label: 'Nhật ký chấm điểm',
-      icon: FileSpreadsheet,
-      directTab: 'daily-log',
-    },
-    {
-      id: 'students-group',
-      label: 'Học sinh',
-      icon: Users,
-      subItems: [
-        {
-          id: 'students',
-          label: 'Danh sách học sinh',
-          shortLabel: 'Danh sách',
-          icon: Users,
-        },
-        ...(userRole !== 'monitor'
-          ? [
-              {
-                id: 'zalo-composer' as TabType,
-                label: 'Liên hệ phụ huynh (Zalo)',
-                shortLabel: 'Gửi Zalo',
-                icon: MessageSquareText,
-              },
-              {
-                id: 'parent-report' as TabType,
-                label: 'Phiếu báo phụ huynh',
-                shortLabel: 'Phiếu báo PH',
-                icon: MessageSquareShare,
-              },
-            ]
-          : []),
-      ],
-    },
-    {
-      id: 'reports-group',
-      label: 'Báo cáo',
-      icon: CalendarCheck,
-      subItems: [
-        {
-          id: 'weekly',
-          label: 'Tổng kết tuần',
-          shortLabel: 'Tuần',
-          icon: CalendarCheck,
-        },
-        {
-          id: 'monthly',
-          label: 'Tổng kết tháng',
-          shortLabel: 'Tháng',
-          icon: CalendarRange,
-        },
-        {
-          id: 'semester',
-          label: 'Học kỳ & Cả năm',
-          shortLabel: 'Học kỳ',
-          icon: Award,
-        },
-        {
-          id: 'attendance-report',
-          label: 'Báo cáo HS nghỉ học',
-          shortLabel: 'Nghỉ học',
-          icon: UserX,
-        },
-      ],
-    },
-    {
-      id: 'system-group',
-      label: 'Hệ thống',
-      icon: Settings,
-      subItems: [
-        {
-          id: 'categories',
-          label: 'Quy chế & Biểu điểm',
-          shortLabel: 'Biểu điểm',
-          icon: Tag,
-        },
-        ...(userRole !== 'monitor'
-          ? [
-              {
-                id: 'settings' as TabType,
-                label: 'Cài đặt & Sao lưu',
-                shortLabel: 'Cài đặt',
-                icon: Settings,
-              },
-            ]
-          : []),
-      ],
-    },
-    // RBAC: Khối Quản trị độc lập, chỉ Admin / Chủ hệ thống mới thấy (Teacher ẩn hoàn toàn)
-    ...(userRole === 'admin' || userRole === 'owner'
-      ? [
           {
-            id: 'admin-group',
-            label: 'Quản trị',
-            icon: ShieldCheck,
-            subItems: [
+            id: 'academic',
+            title: 'ĐIỂM HỌC LỰC (BỘ MÔN)',
+            badge: "15' · 30' · 1 TIẾT · CK",
+            badgeClass: 'bg-purple-900/60 text-purple-300 border-purple-700/60',
+            groups: [
               {
-                id: 'admin' as TabType,
-                label: 'Toàn trường & Phân quyền',
-                shortLabel: 'Quản trị',
-                icon: ShieldCheck,
+                id: 'gradebook',
+                label: `Sổ điểm môn ${classConfig.subjectName || classConfig.teachingSubject || 'Toán'}`,
+                icon: BookOpen,
+                directTab: 'gradebook' as TabType,
+                badge: 'TT 22',
+                badgeClass: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
               },
             ],
           },
         ]
       : []),
+
+    // ── PHÂN HỆ 2: CHẤM ĐIỂM RÈN LUYỆN (NỀ NẾP & HẠNH KIỂM) ──
+    {
+      id: 'conduct',
+      title: 'ĐIỂM RÈN LUYỆN (NỀ NẾP)',
+      badge: 'THI ĐUA · HẠNH KIỂM',
+      badgeClass: 'bg-blue-900/60 text-blue-300 border-blue-700/60',
+      groups: [
+        {
+          id: 'daily-log',
+          label: 'Chấm nề nếp hàng ngày',
+          icon: FileSpreadsheet,
+          directTab: 'daily-log',
+        },
+        {
+          id: 'dashboard',
+          label: 'Tổng quan nề nếp',
+          icon: LayoutDashboard,
+          directTab: 'dashboard',
+        },
+        {
+          id: 'reports-group',
+          label: 'Tổng kết & Báo cáo thi đua',
+          icon: CalendarCheck,
+          subItems: [
+            {
+              id: 'weekly',
+              label: 'Tổng kết tuần',
+              shortLabel: 'Tuần',
+              icon: CalendarCheck,
+            },
+            {
+              id: 'monthly',
+              label: 'Tổng kết tháng',
+              shortLabel: 'Tháng',
+              icon: CalendarRange,
+            },
+            {
+              id: 'semester',
+              label: 'Đánh giá rèn luyện học kỳ',
+              shortLabel: 'Học kỳ',
+              icon: Award,
+            },
+            {
+              id: 'attendance-report',
+              label: 'Báo cáo HS nghỉ học',
+              shortLabel: 'Nghỉ học',
+              icon: UserX,
+            },
+          ],
+        },
+        {
+          id: 'students-group',
+          label: 'Học sinh & Phụ huynh',
+          icon: Users,
+          subItems: [
+            {
+              id: 'students',
+              label: 'Danh sách học sinh',
+              shortLabel: 'Danh sách',
+              icon: Users,
+            },
+            ...(userRole !== 'monitor'
+              ? [
+                  {
+                    id: 'zalo-composer' as TabType,
+                    label: 'Liên hệ phụ huynh (Zalo)',
+                    shortLabel: 'Gửi Zalo',
+                    icon: MessageSquareText,
+                  },
+                  {
+                    id: 'parent-report' as TabType,
+                    label: 'Phiếu báo phụ huynh',
+                    shortLabel: 'Phiếu báo PH',
+                    icon: MessageSquareShare,
+                  },
+                ]
+              : []),
+          ],
+        },
+        ...(classConfig.classType !== 'subject' && ['teacher', 'admin', 'owner'].includes(userRole)
+          ? [
+              { id: 'homeroom', label: 'Trợ lý GVCN', icon: GraduationCap, directTab: 'homeroom' as TabType },
+              { id: 'seating-chart', label: 'Xếp tổ & Sơ đồ lớp', icon: LayoutGrid, directTab: 'seating-chart' as TabType },
+              { id: 'collections', label: 'Các khoản thu của lớp', icon: Wallet, directTab: 'collections' as TabType },
+            ]
+          : []),
+      ],
+    },
+
+    // ── PHÂN HỆ 3: QUY CHẾ & CÀI ĐẶT HỆ THỐNG ──
+    {
+      id: 'system',
+      title: 'QUY CHẾ & HỆ THỐNG',
+      groups: [
+        {
+          id: 'system-group',
+          label: 'Hệ thống',
+          icon: Settings,
+          subItems: [
+            {
+              id: 'categories',
+              label: 'Quy chế & Biểu điểm lỗi',
+              shortLabel: 'Biểu điểm',
+              icon: Tag,
+            },
+            ...(userRole !== 'monitor'
+              ? [
+                  {
+                    id: 'settings' as TabType,
+                    label: 'Cài đặt & Sao lưu',
+                    shortLabel: 'Cài đặt',
+                    icon: Settings,
+                  },
+                ]
+              : []),
+          ],
+        },
+        ...(userRole === 'admin' || userRole === 'owner'
+          ? [
+              {
+                id: 'admin-group',
+                label: 'Quản trị',
+                icon: ShieldCheck,
+                subItems: [
+                  {
+                    id: 'admin' as TabType,
+                    label: 'Toàn trường & Phân quyền',
+                    shortLabel: 'Quản trị',
+                    icon: ShieldCheck,
+                  },
+                ],
+              },
+            ]
+          : []),
+      ],
+    },
   ];
+
+  const menuGroups: MenuGroup[] = menuSections.flatMap((s) => s.groups);
 
   // Keep track of which accordion submenus are open
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
@@ -323,115 +373,170 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      {/* ── Navigation Tree (Max 2 Levels) ── */}
-      <nav className="flex-1 overflow-y-auto px-3 py-4 space-y-1.5 scrollbar-thin scrollbar-thumb-slate-800">
-        {menuGroups.map((group, idx) => {
-          const Icon = group.icon;
-          const isDirect = !!group.directTab;
-          const isGroupActive = isDirect
-            ? activeTab === group.directTab
-            : group.subItems?.some((sub) => sub.id === activeTab);
-          const isExpanded = !!expandedGroups[group.id];
-          const isSystemDivider = group.id === 'system-group';
+      {/* ── BỘ CHUYỂN PHÂN HỆ: RÈN LUYỆN vs HỌC LỰC ── */}
+      <div className="px-3 pt-3 pb-2 border-b border-slate-800 shrink-0">
+        <div className="grid grid-cols-2 p-1 bg-slate-950/80 rounded-xl border border-slate-800/80 gap-1 text-[11px] font-bold">
+          <button
+            type="button"
+            onClick={() => handleNavClick(activeTab === 'gradebook' ? 'daily-log' : activeTab)}
+            className={`py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              activeTab !== 'gradebook'
+                ? 'bg-blue-600 text-white shadow-xs'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
+            title="Phân hệ Chấm điểm rèn luyện (Nề nếp, chuyên cần, thi đua)"
+          >
+            <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
+            {(!isCollapsed || isOpenMobile) && <span>Rèn luyện</span>}
+          </button>
+          <button
+            type="button"
+            onClick={() => handleNavClick('gradebook')}
+            className={`py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
+              activeTab === 'gradebook'
+                ? 'bg-purple-600 text-white shadow-xs'
+                : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
+            }`}
+            title="Phân hệ Chấm điểm học lực (15 phút, 30 phút, 1 tiết...)"
+          >
+            <BookOpen className="h-3.5 w-3.5 shrink-0" />
+            {(!isCollapsed || isOpenMobile) && <span>Học lực</span>}
+          </button>
+        </div>
+      </div>
 
-          return (
-            <React.Fragment key={group.id}>
-              {isSystemDivider && (
-                <div className="my-3 border-t border-slate-800/80" />
-              )}
-
-              <div
-                className="relative"
-                onMouseEnter={(e) => {
-                  if (isCollapsed && !isOpenMobile && group.subItems?.length) {
-                    const rect = e.currentTarget.getBoundingClientRect();
-                    setHoverPosition({ top: rect.top });
-                    setHoveredGroup(group);
-                  }
-                }}
-                onMouseLeave={() => {
-                  if (isCollapsed && !isOpenMobile) {
-                    setHoveredGroup(null);
-                  }
-                }}
-              >
-                {/* Level 1 item */}
-                {isDirect ? (
-                  <button
-                    type="button"
-                    onClick={() => handleNavClick(group.directTab!)}
-                    title={isCollapsed && !isOpenMobile ? group.label : undefined}
-                    className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
-                      isGroupActive
-                        ? 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-                    }`}
-                  >
-                    <Icon className={`h-5 w-5 shrink-0 ${isGroupActive ? 'text-white' : 'text-slate-400'}`} />
-                    {(!isCollapsed || isOpenMobile) && (
-                      <span className="truncate">{group.label}</span>
-                    )}
-                  </button>
-                ) : (
-                  <button
-                    type="button"
-                    onClick={() => {
-                      if (isCollapsed && !isOpenMobile) {
-                        setIsCollapsed(false);
-                      }
-                      toggleGroup(group.id);
-                    }}
-                    title={isCollapsed && !isOpenMobile ? group.label : undefined}
-                    className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
-                      isGroupActive
-                        ? 'text-blue-300 bg-blue-950/40 border border-blue-800/40'
-                        : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
-                    }`}
-                  >
-                    <div className="flex items-center gap-3 min-w-0">
-                      <Icon className={`h-5 w-5 shrink-0 ${isGroupActive ? 'text-blue-400' : 'text-slate-400'}`} />
-                      {(!isCollapsed || isOpenMobile) && (
-                        <span className="truncate">{group.label}</span>
-                      )}
-                    </div>
-                    {(!isCollapsed || isOpenMobile) && (
-                      <ChevronDown
-                        className={`h-4 w-4 text-slate-400 transition-transform duration-200 shrink-0 ${
-                          isExpanded ? 'rotate-180' : ''
-                        }`}
-                      />
-                    )}
-                  </button>
-                )}
-
-                {/* Level 2 Submenu (Expanded view) */}
-                {(!isCollapsed || isOpenMobile) && !isDirect && isExpanded && group.subItems && (
-                  <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-800 space-y-1">
-                    {group.subItems.map((sub) => {
-                      const SubIcon = sub.icon;
-                      const isSubActive = activeTab === sub.id;
-                      return (
-                        <button
-                          key={sub.id}
-                          type="button"
-                          onClick={() => handleNavClick(sub.id)}
-                          className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
-                            isSubActive
-                              ? 'bg-blue-600 text-white font-semibold shadow-xs'
-                              : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
-                          }`}
-                        >
-                          <SubIcon className={`h-4 w-4 shrink-0 ${isSubActive ? 'text-white' : 'text-slate-500'}`} />
-                          <span className="truncate">{sub.label}</span>
-                        </button>
-                      );
-                    })}
-                  </div>
+      {/* ── Navigation Tree Theo Phân Hệ ── */}
+      <nav className="flex-1 overflow-y-auto px-3 py-3 space-y-4 scrollbar-thin scrollbar-thumb-slate-800">
+        {menuSections.map((section) => (
+          <div key={section.id} className="space-y-1">
+            {/* Tiêu đề Section Header phân biệt rõ ràng */}
+            {(!isCollapsed || isOpenMobile) ? (
+              <div className="px-2 pt-2 pb-1 flex items-center justify-between">
+                <span className="text-[10px] font-black uppercase tracking-wider text-slate-400">
+                  {section.title}
+                </span>
+                {section.badge && (
+                  <span className={`text-[9px] font-bold px-1.5 py-0.2 rounded border ${section.badgeClass}`}>
+                    {section.badge}
+                  </span>
                 )}
               </div>
-            </React.Fragment>
-          );
-        })}
+            ) : (
+              <div className="my-2 border-t border-slate-800/80" />
+            )}
+
+            {section.groups.map((group) => {
+              const Icon = group.icon;
+              const isDirect = !!group.directTab;
+              const isGroupActive = isDirect
+                ? activeTab === group.directTab
+                : group.subItems?.some((sub) => sub.id === activeTab);
+              const isExpanded = !!expandedGroups[group.id];
+
+              return (
+                <div
+                  key={group.id}
+                  className="relative"
+                  onMouseEnter={(e) => {
+                    if (isCollapsed && !isOpenMobile && group.subItems?.length) {
+                      const rect = e.currentTarget.getBoundingClientRect();
+                      setHoverPosition({ top: rect.top });
+                      setHoveredGroup(group);
+                    }
+                  }}
+                  onMouseLeave={() => {
+                    if (isCollapsed && !isOpenMobile) {
+                      setHoveredGroup(null);
+                    }
+                  }}
+                >
+                  {/* Level 1 item */}
+                  {isDirect ? (
+                    <button
+                      type="button"
+                      onClick={() => handleNavClick(group.directTab!)}
+                      title={isCollapsed && !isOpenMobile ? group.label : undefined}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                        isGroupActive
+                          ? group.id === 'gradebook'
+                            ? 'bg-purple-600 text-white shadow-sm shadow-purple-600/30'
+                            : 'bg-blue-600 text-white shadow-sm shadow-blue-600/30'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Icon className={`h-5 w-5 shrink-0 ${isGroupActive ? 'text-white' : 'text-slate-400'}`} />
+                        {(!isCollapsed || isOpenMobile) && (
+                          <span className="truncate">{group.label}</span>
+                        )}
+                      </div>
+                      {(!isCollapsed || isOpenMobile) && group.badge && (
+                        <span className={`text-[9px] font-bold px-1.5 py-0.5 rounded border ${group.badgeClass || 'bg-slate-800 text-slate-300 border-slate-700'}`}>
+                          {group.badge}
+                        </span>
+                      )}
+                    </button>
+                  ) : (
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (isCollapsed && !isOpenMobile) {
+                          setIsCollapsed(false);
+                        }
+                        toggleGroup(group.id);
+                      }}
+                      title={isCollapsed && !isOpenMobile ? group.label : undefined}
+                      className={`w-full flex items-center justify-between px-3 py-2.5 rounded-xl text-xs sm:text-sm font-semibold transition-all cursor-pointer ${
+                        isGroupActive
+                          ? 'text-blue-300 bg-blue-950/40 border border-blue-800/40'
+                          : 'text-slate-300 hover:text-white hover:bg-slate-800/70'
+                      }`}
+                    >
+                      <div className="flex items-center gap-3 min-w-0">
+                        <Icon className={`h-5 w-5 shrink-0 ${isGroupActive ? 'text-blue-400' : 'text-slate-400'}`} />
+                        {(!isCollapsed || isOpenMobile) && (
+                          <span className="truncate">{group.label}</span>
+                        )}
+                      </div>
+                      {(!isCollapsed || isOpenMobile) && (
+                        <ChevronDown
+                          className={`h-4 w-4 text-slate-400 transition-transform duration-200 shrink-0 ${
+                            isExpanded ? 'rotate-180' : ''
+                          }`}
+                        />
+                      )}
+                    </button>
+                  )}
+
+                  {/* Level 2 Submenu (Expanded view) */}
+                  {(!isCollapsed || isOpenMobile) && !isDirect && isExpanded && group.subItems && (
+                    <div className="mt-1 ml-4 pl-3 border-l-2 border-slate-800 space-y-1">
+                      {group.subItems.map((sub) => {
+                        const SubIcon = sub.icon;
+                        const isSubActive = activeTab === sub.id;
+                        return (
+                          <button
+                            key={sub.id}
+                            type="button"
+                            onClick={() => handleNavClick(sub.id)}
+                            className={`w-full flex items-center gap-2.5 px-2.5 py-1.5 rounded-lg text-xs font-medium transition cursor-pointer ${
+                              isSubActive
+                                ? 'bg-blue-600 text-white font-semibold shadow-xs'
+                                : 'text-slate-400 hover:text-slate-100 hover:bg-slate-800/60'
+                            }`}
+                          >
+                            <SubIcon className={`h-4 w-4 shrink-0 ${isSubActive ? 'text-white' : 'text-slate-500'}`} />
+                            <span className="truncate">{sub.label}</span>
+                          </button>
+                        );
+                      })}
+                    </div>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        ))}
 
         {/* ── Nút Xuất Sổ Chủ Nhiệm CĐN01 Nổi Bật ── */}
         {userRole !== 'monitor' && (

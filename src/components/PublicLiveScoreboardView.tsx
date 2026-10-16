@@ -154,20 +154,77 @@ export const PublicLiveScoreboardView: React.FC<PublicLiveScoreboardViewProps> =
     return `${lastName} ${middleInitials ? middleInitials + ' ' : ''}${firstName}`;
   };
 
-  // Danh sách học sinh theo tuần/tháng/kỳ được lọc và sắp xếp
+  // Danh sách học sinh theo tuần/tháng/kỳ được lọc và sắp xếp (có fallback thông minh nếu tuần/tháng tương lai không có trong payload)
   const currentWeekSummaries = useMemo(() => {
     if (!data) return [];
-    return data.weeklySummaries?.[selectedWeek] || [];
+    const found = data.weeklySummaries?.[selectedWeek];
+    if (found && found.length > 0) return found;
+
+    // Fallback cho các tuần chưa diễn ra hoặc tuần chưa có dữ liệu nề nếp
+    return data.students.map((s) => ({
+      studentId: s.id,
+      studentCode: s.studentCode,
+      fullName: s.fullName,
+      status: 'active' as const,
+      violationCount: 0,
+      bonusCount: 0,
+      totalDeduct: 0,
+      totalBonus: 0,
+      excusedAbsenceCount: 0,
+      unexcusedAbsenceCount: 0,
+      truancyCount: 0,
+      finalScore: data.baseScore,
+      rank: 'Xuất sắc' as const,
+      notes: '',
+    }));
   }, [data, selectedWeek]);
 
   const currentMonthSummaries = useMemo(() => {
     if (!data) return [];
-    return data.monthlySummaries?.[selectedMonth] || [];
+    const found = data.monthlySummaries?.[selectedMonth];
+    if (found && found.length > 0) return found;
+
+    // Fallback cho các tháng tương lai
+    return data.students.map((s) => ({
+      studentId: s.id,
+      studentCode: s.studentCode,
+      fullName: s.fullName,
+      status: 'active' as const,
+      weekDeductions: {},
+      totalDeduct: 0,
+      totalBonus: 0,
+      excusedAbsenceCount: 0,
+      unexcusedAbsenceCount: 0,
+      truancyCount: 0,
+      finalScore: data.baseScore,
+      rank: 'Xuất sắc' as const,
+      violationCount: 0,
+      bonusCount: 0,
+      notes: '',
+    }));
   }, [data, selectedMonth]);
 
   const currentSemesterSummaries = useMemo(() => {
     if (!data) return [];
-    return data.semesterSummaries?.[selectedSemester] || [];
+    const found = data.semesterSummaries?.[selectedSemester];
+    if (found && found.length > 0) return found;
+
+    // Fallback cho học kỳ chưa diễn ra
+    return data.students.map((s) => ({
+      studentId: s.id,
+      studentCode: s.studentCode,
+      fullName: s.fullName,
+      status: 'active' as const,
+      monthlyScores: {},
+      averageScore: data.baseScore,
+      finalRank: 'Xuất sắc' as const,
+      totalViolations: 0,
+      totalDeduct: 0,
+      totalBonus: 0,
+      excusedAbsenceCount: 0,
+      unexcusedAbsenceCount: 0,
+      truancyCount: 0,
+    }));
   }, [data, selectedSemester]);
 
   // Bộ lọc tìm kiếm

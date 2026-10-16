@@ -197,6 +197,10 @@ export interface ClassConfig {
   teachingSubject?: string; // Môn giảng dạy chính
   defaultTeacherNote?: string; // Lời dặn dò / ghi chú mặc định gửi phụ huynh
 
+  // Loại lớp & Môn học giảng dạy
+  classType?: 'homeroom' | 'subject'; // 'homeroom': Lớp Chủ nhiệm (mặc định), 'subject': Lớp Bộ môn
+  subjectName?: string; // Tên môn dạy (vd: Toán, Vật lý, Ngữ văn...)
+
   // Rich Class Information
   schoolName?: string; // Tên trường (vd: THPT Chuyên, THPT Lê Quý Đôn)
   grade?: string; // Khối lớp (vd: Khối 10, Khối 11, Khối 12)

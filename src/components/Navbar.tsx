@@ -25,6 +25,7 @@ import {
   SlidersHorizontal,
   Check,
   UserX,
+  BookOpen,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -41,6 +42,7 @@ export type TabType =
   | 'semester'
   | 'attendance-report'
   | 'students'
+  | 'gradebook'
   | 'categories'
   | 'parent-report'
   | 'zalo-composer'
@@ -110,17 +112,29 @@ export const Navbar: React.FC<NavbarProps> = ({
 
   // Logical groups for a compact, executive navigation experience
   const navGroups: NavGroup[] = [
-    {
-      id: 'dashboard',
-      label: 'Tổng quan',
-      icon: CalendarDays,
-      defaultTab: 'dashboard',
-    },
+    // Phân hệ 1: Điểm Học Lực (Chuyên môn)
+    ...(['teacher', 'admin', 'owner'].includes(userRole)
+      ? [
+          {
+            id: 'gradebook',
+            label: `Điểm Học Lực (15'·30'·1 tiết)`,
+            icon: BookOpen,
+            defaultTab: 'gradebook' as TabType,
+          },
+        ]
+      : []),
+    // Phân hệ 2: Điểm Rèn Luyện (Nề nếp & Thi đua)
     {
       id: 'daily-log',
-      label: 'Nhật ký ngày',
+      label: 'Chấm điểm rèn luyện',
       icon: FileSpreadsheet,
       defaultTab: 'daily-log',
+    },
+    {
+      id: 'dashboard',
+      label: 'Tổng quan nề nếp',
+      icon: CalendarDays,
+      defaultTab: 'dashboard',
     },
     {
       id: 'reports',

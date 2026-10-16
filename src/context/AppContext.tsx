@@ -84,7 +84,13 @@ import { calculateAttendanceStats, formatAttendanceBadgeText, formatAttendanceDe
 interface AppContextType extends ReturnType<typeof useHomeroomRecords> {
   workspaceClasses: ClassConfig[];
   selectWorkspaceClass: (id: string) => void;
-  createWorkspaceClass: (name: string, year: string, start: string, ownerUid?: string) => Promise<void>;
+  createWorkspaceClass: (
+    name: string,
+    year: string,
+    start: string,
+    ownerUid?: string,
+    options?: { classType?: 'homeroom' | 'subject'; subjectName?: string }
+  ) => Promise<void>;
   deleteWorkspaceClass: (classConfigId: string) => Promise<void>;
   currentUser: User | null;
   isAuthLoading: boolean;
@@ -516,7 +522,13 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     setClassConfig(target); setSelectedConfigId(id);
   };
 
-  const createWorkspaceClass = async (name: string, year: string, start: string, ownerUid?: string) => {
+  const createWorkspaceClass = async (
+    name: string,
+    year: string,
+    start: string,
+    ownerUid?: string,
+    options?: { classType?: 'homeroom' | 'subject'; subjectName?: string }
+  ) => {
     if (!activeAccount || activeAccount.role === 'monitor' || inspectorModeClass) throw new Error('Không có quyền tạo lớp ở chế độ hiện tại.');
     const schoolYear = validateSchoolYear(year);
     if (!name.trim()) throw new Error('Vui lòng nhập tên lớp.');
@@ -530,10 +542,29 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const teacherId = owner.uid;
     const directoryId = `cls_${crypto.randomUUID()}`;
     const id = `cfg_${directoryId}`;
-    const config: ClassConfig = { ...classConfig, id, classDirectoryId: directoryId, scopeVersion: 2, teacherId,
-      className: name.trim(), schoolYear, weeks, homeroomTeacher: owner.displayName,
-      teacherEmail: owner.email, teacherPhone: owner.phone || '',
-      classPresident: '', academicVicePresident: '', disciplineVicePresident: '', youthUnionSecretary: '', updatedAt: new Date().toISOString() };
+    const classType = options?.classType || 'homeroom';
+    const subjectName = options?.subjectName || (classType === 'subject' ? (classConfig.teachingSubject || 'Toán') : undefined);
+    const config: ClassConfig = {
+      ...classConfig,
+      id,
+      classDirectoryId: directoryId,
+      scopeVersion: 2,
+      teacherId,
+      className: name.trim(),
+      schoolYear,
+      weeks,
+      homeroomTeacher: owner.displayName,
+      teacherEmail: owner.email,
+      teacherPhone: owner.phone || '',
+      classType,
+      subjectName,
+      teachingSubject: subjectName || classConfig.teachingSubject || 'Toán',
+      classPresident: '',
+      academicVicePresident: '',
+      disciplineVicePresident: '',
+      youthUnionSecretary: '',
+      updatedAt: new Date().toISOString()
+    };
     const source = behaviorCategories.length ? behaviorCategories : INITIAL_BEHAVIOR_CATEGORIES;
     const categories = source.map(category => ({ ...category, id: `cat_${id}_${crypto.randomUUID()}`, classId: id, teacherId }));
     const batch = writeBatch(db);

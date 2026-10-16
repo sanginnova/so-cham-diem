@@ -34,10 +34,12 @@ import {
   Key,
   Star,
   LayoutGrid,
+  ClipboardCheck,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Student, StudentStatus, RankLevel } from '../types';
 import { SmartStudentExcelImporter } from './v2/SmartStudentExcelImporter';
+import { QuickPasteStudentModal } from './v2/QuickPasteStudentModal';
 import { StudentDetailModalV2 } from './v2/StudentDetailModalV2';
 import { CreateClassMonitorModal } from './v2/CreateClassMonitorModal';
 import {
@@ -107,6 +109,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
   const [viewingStudent, setViewingStudent] = useState<Student | null>(null);
   const [viewingMode, setViewingMode] = useState<'view' | 'edit'>('view');
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
+  const [isQuickPasteOpen, setIsQuickPasteOpen] = useState(false);
 
   const handleOpenStudentDetail = (student: Student, mode: 'view' | 'edit' = 'view') => {
     setViewingStudent(student);
@@ -349,6 +352,15 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
               >
                 <UserPlus className="h-4 w-4" />
                 <span>Thêm học sinh</span>
+              </button>
+
+              <button
+                onClick={() => setIsQuickPasteOpen(true)}
+                className="flex items-center gap-1.5 px-3.5 py-2 bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white text-xs sm:text-sm font-bold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
+                title="Dán nhanh danh sách họ tên học sinh từ Word, Zalo, Excel"
+              >
+                <ClipboardCheck className="h-4 w-4" />
+                <span>Dán nhanh danh sách</span>
               </button>
 
               <button
@@ -969,6 +981,14 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         existingStudents={students}
+        onImport={importStudentsBatch}
+      />
+
+      {/* MODAL: Dán nhanh danh sách học sinh */}
+      <QuickPasteStudentModal
+        isOpen={isQuickPasteOpen}
+        onClose={() => setIsQuickPasteOpen(false)}
+        className={classConfig.className}
         onImport={importStudentsBatch}
       />
 

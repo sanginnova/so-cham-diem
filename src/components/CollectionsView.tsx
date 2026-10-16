@@ -25,6 +25,10 @@ import {
   X,
   CreditCard,
   Layers,
+  Users,
+  CheckSquare,
+  Square,
+  Sparkles,
 } from 'lucide-react';
 
 const control =
@@ -41,6 +45,8 @@ export function CollectionsView() {
     homeroomLoading,
     homeroomError,
     saveHomeroomRecord,
+    saveHomeroomRecordsBatch,
+    deleteCollection,
     isLocalMode,
     currentUser,
     activeAccount,
@@ -59,6 +65,8 @@ export function CollectionsView() {
   const [dueDate, setDueDate] = useState('');
   const [description, setDescription] = useState('');
   const [memberIds, setMemberIds] = useState<string[]>([]);
+  const [targetScope, setTargetScope] = useState<'all' | 'custom'>('all');
+  const [memberSearch, setMemberSearch] = useState('');
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('');
   const [busy, setBusy] = useState(false);
@@ -81,6 +89,73 @@ export function CollectionsView() {
     newAmount: string;
     newMethod: string;
   } | null>(null);
+
+  // Chọn cùng lúc nhiều học sinh nộp tiền
+  const [selectedStudentIds, setSelectedStudentIds] = useState<string[]>([]);
+  const [bulkModalOpen, setBulkModalOpen] = useState(false);
+  const [bulkDate, setBulkDate] = useState(localDateString());
+  const [bulkMethod, setBulkMethod] = useState('Tiền mặt');
+  const [bulkNote, setBulkNote] = useState('');
+  const [bulkMode, setBulkMode] = useState<'remaining' | 'fixed'>('remaining');
+  const [bulkFixedAmount, setBulkFixedAmount] = useState('');
+  const [bulkCustomAmounts, setBulkCustomAmounts] = useState<Record<string, string>>({});
+
+  const activeStudents = useMemo(() => students.filter((s) => s.status === 'active'), [students]);
+
+  const availableGroups = useMemo(() => {
+    const groups = new Set<string>();
+    activeStudents.forEach((s) => {
+      if (s.group && s.group.trim()) groups.add(s.group.trim());
+    });
+    return Array.from(groups).sort();
+  }, [activeStudents]);
+
+  const filteredCandidateStudents = useMemo(() => {
+    if (!memberSearch.trim()) return activeStudents;
+    const q = memberSearch.trim().toLowerCase();
+    return activeStudents.filter(
+      (s) =>
+        s.fullName.toLowerCase().includes(q) ||
+        s.studentCode.toLowerCase().includes(q) ||
+        (s.group && s.group.toLowerCase().includes(q))
+    );
+  }, [activeStudents, memberSearch]);
+
+  const handleScopeChange = (scope: 'all' | 'custom') => {
+    setTargetScope(scope);
+    const activeIds = activeStudents.map((s) => s.id);
+    if (scope === 'all') {
+      setMemberIds(activeIds);
+    } else {
+      if (memberIds.length === activeIds.length) {
+        setMemberIds([]);
+      }
+    }
+  };
+
+  const selectByGroup = (groupName: string) => {
+    const groupStudentIds = activeStudents
+      .filter((s) => s.group?.trim() === groupName)
+      .map((s) => s.id);
+    const allInGroupSelected = groupStudentIds.every((id) => memberIds.includes(id));
+    if (allInGroupSelected) {
+      setMemberIds((ids) => ids.filter((id) => !groupStudentIds.includes(id)));
+    } else {
+      setMemberIds((ids) => Array.from(new Set([...ids, ...groupStudentIds])));
+    }
+  };
+
+  const applyTemplate = (tmpl: {
+    title: string;
+    defaultAmount?: string;
+    scope: 'all' | 'custom';
+    desc?: string;
+  }) => {
+    setTitle(tmpl.title);
+    if (tmpl.defaultAmount) setAmount(tmpl.defaultAmount);
+    if (tmpl.desc) setDescription(tmpl.desc);
+    handleScopeChange(tmpl.scope);
+  };
 
   const selected = collections.find((c) => c.id === selectedId) || collections[0];
 
@@ -141,11 +216,22 @@ export function CollectionsView() {
     setStartDate(record?.date || localDateString());
     setDueDate(record?.data.dueDate || '');
     setDescription(record?.data.description || '');
-    setMemberIds(
-      record
-        ? JSON.parse(record.data.studentIds || '[]')
-        : students.filter((s) => s.status === 'active').map((s) => s.id)
-    );
+    setMemberSearch('');
+
+    const activeIds = students.filter((s) => s.status === 'active').map((s) => s.id);
+    if (record) {
+      try {
+        const ids = JSON.parse(record.data.studentIds || '[]');
+        setMemberIds(ids);
+        setTargetScope(ids.length === activeIds.length ? 'all' : 'custom');
+      } catch {
+        setMemberIds(activeIds);
+        setTargetScope('all');
+      }
+    } else {
+      setMemberIds(activeIds);
+      setTargetScope('all');
+    }
     setCreateOpen(true);
     setMessage('');
   };
@@ -153,9 +239,27 @@ export function CollectionsView() {
   const saveCollection = (e: React.FormEvent) => {
     e.preventDefault();
     void run(async () => {
+      if (!title.trim()) {
+        throw new Error('Vui lòng nhập tên khoản thu.');
+      }
+      if (!amount || isNaN(Number(amount)) || Number(amount) < 0) {
+        throw new Error('Mức thu phải là số nguyên không âm.');
+      }
       if (dueDate && dueDate < startDate) {
         throw new Error('Hạn nộp không được trước ngày bắt đầu.');
       }
+
+      const activeIds = students.filter((s) => s.status === 'active').map((s) => s.id);
+      const chosenIds = editing
+        ? JSON.parse(editing.data.studentIds || '[]')
+        : targetScope === 'all'
+        ? activeIds
+        : memberIds;
+
+      if (!chosenIds || chosenIds.length === 0) {
+        throw new Error('Vui lòng chọn ít nhất một học sinh áp dụng khoản thu này.');
+      }
+
       await saveHomeroomRecord({
         id: editing?.id,
         kind: 'collection',
@@ -167,18 +271,48 @@ export function CollectionsView() {
           dueDate,
           description,
           status: editing?.data.status || 'Đang thu',
-          studentIds: editing?.data.studentIds || JSON.stringify(memberIds),
+          studentIds: editing?.data.studentIds || JSON.stringify(chosenIds),
           studentNames:
             editing?.data.studentNames ||
             JSON.stringify(
               Object.fromEntries(
-                students.filter((s) => memberIds.includes(s.id)).map((s) => [s.id, s.fullName])
+                students.filter((s) => chosenIds.includes(s.id)).map((s) => [s.id, s.fullName])
               )
             ),
         },
       });
       setCreateOpen(false);
     });
+  };
+
+  const handleDeleteCollection = (col?: HomeroomRecord) => {
+    const target = col || selected;
+    if (!target) return;
+
+    const txCount = records.filter(
+      (r) => r.kind === 'payment' && r.data.collectionId === target.id
+    ).length;
+    const allowanceCount = records.filter(
+      (r) => r.kind === 'allowance' && r.data.collectionId === target.id
+    ).length;
+
+    let confirmMsg = `Bạn có chắc chắn muốn xóa vĩnh viễn khoản thu "${target.data.name}" không?`;
+    if (txCount > 0 || allowanceCount > 0) {
+      confirmMsg = `⚠️ CẢNH BÁO NGUY HIỂM:\nKhoản thu "${target.data.name}" đang có ${txCount} phiếu nộp tiền và ${allowanceCount} bản ghi miễn/giảm.\n\nNếu xóa, toàn bộ dữ liệu và lịch sử thu nộp liên quan đến khoản thu này sẽ bị XÓA VĨNH VIỄN khỏi hệ thống!\n\nBạn có thực sự chắc chắn muốn xóa không?`;
+    }
+
+    if (!window.confirm(confirmMsg)) {
+      return;
+    }
+
+    void run(async () => {
+      await deleteCollection(target.id);
+      if (createOpen && editing?.id === target.id) {
+        setCreateOpen(false);
+      }
+      const remainingCols = collections.filter((c) => c.id !== target.id);
+      setSelectedId(remainingCols[0]?.id || '');
+    }, `Đã xóa vĩnh viễn khoản thu "${target.data.name}" thành công.`);
   };
 
   const openEntry = (studentId: string, kind: 'payment' | 'allowance') => {
@@ -328,6 +462,149 @@ export function CollectionsView() {
       });
     }, 'Đã xuất tệp Excel thành công.');
 
+  // Các hàm tiện ích chọn nhiều học sinh & nộp tiền hàng loạt
+  const selectedSelectedRemainingTotal = useMemo(() => {
+    return rows
+      .filter((r) => selectedStudentIds.includes(r.studentId))
+      .reduce((sum, r) => sum + r.remaining, 0);
+  }, [rows, selectedStudentIds]);
+
+  const toggleSelectAllVisible = () => {
+    const visibleIds = visible.map((r) => r.studentId);
+    if (visibleIds.length === 0) return;
+    const allSelected = visibleIds.every((id) => selectedStudentIds.includes(id));
+    if (allSelected) {
+      setSelectedStudentIds((prev) => prev.filter((id) => !visibleIds.includes(id)));
+    } else {
+      setSelectedStudentIds((prev) => Array.from(new Set([...prev, ...visibleIds])));
+    }
+  };
+
+  const selectAllUnpaid = () => {
+    const unpaidIds = rows.filter((r) => r.remaining > 0).map((r) => r.studentId);
+    setSelectedStudentIds(unpaidIds);
+  };
+
+  const clearSelection = () => {
+    setSelectedStudentIds([]);
+  };
+
+  const toggleSelectStudent = (studentId: string) => {
+    setSelectedStudentIds((prev) =>
+      prev.includes(studentId) ? prev.filter((id) => id !== studentId) : [...prev, studentId]
+    );
+  };
+
+  const openBulkModal = (initialIds?: string[]) => {
+    if (!selected) return;
+    const baseAmount = selected.data.amount || '0';
+    let targetIds = initialIds && initialIds.length > 0 ? initialIds : selectedStudentIds;
+    // Nếu chưa chọn ai, tự động chọn tất cả học sinh còn thiếu tiền
+    if (targetIds.length === 0) {
+      targetIds = rows.filter((r) => r.remaining > 0).map((r) => r.studentId);
+    }
+    if (targetIds.length === 0) {
+      alert('Tất cả học sinh đã hoàn thành hoặc không có học sinh nào còn thiếu tiền để nộp.');
+      return;
+    }
+
+    setSelectedStudentIds(targetIds);
+    setBulkDate(localDateString());
+    setBulkMethod('Tiền mặt');
+    setBulkNote('');
+    setBulkMode('remaining');
+    setBulkFixedAmount(baseAmount);
+
+    const amounts: Record<string, string> = {};
+    targetIds.forEach((id) => {
+      const row = rows.find((r) => r.studentId === id);
+      const rem = row ? row.remaining : Number(baseAmount);
+      amounts[id] = String(rem > 0 ? rem : Number(baseAmount));
+    });
+    setBulkCustomAmounts(amounts);
+    setBulkModalOpen(true);
+  };
+
+  const handleBulkModeChange = (newMode: 'remaining' | 'fixed') => {
+    setBulkMode(newMode);
+    if (!selected) return;
+    const baseAmount = selected.data.amount || '0';
+    const updated = { ...bulkCustomAmounts };
+    selectedStudentIds.forEach((id) => {
+      if (newMode === 'remaining') {
+        const row = rows.find((r) => r.studentId === id);
+        const rem = row ? row.remaining : Number(baseAmount);
+        updated[id] = String(rem > 0 ? rem : Number(baseAmount));
+      } else {
+        updated[id] = bulkFixedAmount || baseAmount;
+      }
+    });
+    setBulkCustomAmounts(updated);
+  };
+
+  const handleBulkFixedAmountChange = (val: string) => {
+    setBulkFixedAmount(val);
+    if (bulkMode === 'fixed') {
+      const updated = { ...bulkCustomAmounts };
+      selectedStudentIds.forEach((id) => {
+        updated[id] = val;
+      });
+      setBulkCustomAmounts(updated);
+    }
+  };
+
+  const removeStudentFromBulk = (studentId: string) => {
+    const nextIds = selectedStudentIds.filter((id) => id !== studentId);
+    setSelectedStudentIds(nextIds);
+    if (nextIds.length === 0) {
+      setBulkModalOpen(false);
+    }
+  };
+
+  const bulkTotalAmount = useMemo(() => {
+    return selectedStudentIds.reduce((sum, id) => {
+      const val = Number(bulkCustomAmounts[id]) || 0;
+      return sum + (val > 0 ? val : 0);
+    }, 0);
+  }, [selectedStudentIds, bulkCustomAmounts]);
+
+  const handleBulkSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!selected || selectedStudentIds.length === 0) return;
+
+    const validInputs: any[] = [];
+    for (const studentId of selectedStudentIds) {
+      const amountStr = (bulkCustomAmounts[studentId] || '0').trim();
+      const amountNum = Number(amountStr);
+      if (isNaN(amountNum) || amountNum <= 0) {
+        continue;
+      }
+      validInputs.push({
+        kind: 'payment',
+        studentId,
+        date: bulkDate,
+        data: {
+          collectionId: selected.id,
+          amount: String(amountNum),
+          method: bulkMethod,
+          note: bulkNote.trim() ? `${bulkNote.trim()} (Thu hàng loạt)` : 'Thu hàng loạt',
+          state: 'Đã ghi nhận',
+        },
+      });
+    }
+
+    if (validInputs.length === 0) {
+      alert('Vui lòng nhập số tiền nộp hợp lệ (lớn hơn 0) cho ít nhất một học sinh.');
+      return;
+    }
+
+    void run(async () => {
+      await saveHomeroomRecordsBatch(validInputs);
+      setBulkModalOpen(false);
+      setSelectedStudentIds([]);
+    }, `Đã ghi nhận nộp tiền thành công cho ${validInputs.length} học sinh! (Tổng: ${money(bulkTotalAmount)})`);
+  };
+
   const renderStatusBadge = (status: string) => {
     switch (status) {
       case 'Đã nộp':
@@ -433,22 +710,101 @@ export function CollectionsView() {
       {createOpen && (
         <form
           onSubmit={saveCollection}
-          className="rounded-2xl border border-blue-200 dark:border-blue-900/60 bg-gradient-to-b from-blue-50/50 to-white dark:from-slate-850 dark:to-slate-900 p-5 shadow-lg space-y-4"
+          className="rounded-2xl border-2 border-blue-300 dark:border-blue-850 bg-gradient-to-b from-blue-50/70 via-white to-white dark:from-slate-850 dark:via-slate-900 dark:to-slate-900 p-5 shadow-xl space-y-4 animate-in fade-in slide-in-from-top-2 duration-150"
         >
           <div className="flex items-center justify-between pb-3 border-b border-blue-100 dark:border-slate-800">
-            <h3 className="font-bold text-sm sm:text-base text-blue-950 dark:text-blue-100 flex items-center gap-2">
-              <Layers className="h-4 w-4 text-blue-600" />
-              <span>{editing ? 'Sửa thông tin khoản thu' : 'Tạo khoản thu mới'}</span>
-            </h3>
+            <div className="flex items-center gap-2.5">
+              <div className="h-8 w-8 rounded-xl bg-blue-600 text-white flex items-center justify-center shadow-xs">
+                <Layers className="h-4 w-4" />
+              </div>
+              <div>
+                <h3 className="font-bold text-sm sm:text-base text-blue-950 dark:text-blue-100 leading-tight">
+                  {editing ? 'Sửa thông tin khoản thu' : 'Tạo khoản thu mới'}
+                </h3>
+                <p className="text-[11px] text-slate-500">
+                  {editing
+                    ? 'Chỉnh sửa hạn nộp, trạng thái và ghi chú mục đích thu'
+                    : 'Thiết lập khoản thu cho cả lớp hoặc nhóm học sinh chỉ định (Vé xe, BHYT, Đồng phục...)'}
+                </p>
+              </div>
+            </div>
             <button
               type="button"
               disabled={busy}
               onClick={() => setCreateOpen(false)}
-              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
             >
               <X className="h-4 w-4" />
             </button>
           </div>
+
+          {/* Gợi ý mẫu khoản thu nhanh */}
+          {!editing && (
+            <div className="p-3 rounded-xl bg-blue-50/50 dark:bg-slate-800/40 border border-blue-100 dark:border-slate-800 space-y-1.5">
+              <div className="flex items-center gap-1.5 text-[11px] font-bold uppercase tracking-wider text-blue-900 dark:text-blue-300">
+                <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+                <span>Gợi ý mẫu khoản thu phổ biến (Bấm 1 chạm để áp dụng nhanh):</span>
+              </div>
+              <div className="flex flex-wrap gap-1.5">
+                {[
+                  {
+                    title: 'Tiền vé xe',
+                    defaultAmount: '100000',
+                    scope: 'custom' as const,
+                    desc: 'Tiền vé gửi xe tháng theo danh sách học sinh đăng ký đi xe đạp / xe máy điện',
+                    badge: 'Chỉ định riêng',
+                    badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-300',
+                  },
+                  {
+                    title: 'Quỹ lớp học kỳ',
+                    defaultAmount: '200000',
+                    scope: 'all' as const,
+                    desc: 'Quỹ lớp phục vụ học tập, báo tường, văn nghệ, liên hoan và phong trào thi đua',
+                    badge: 'Cả lớp',
+                    badgeColor: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border-blue-300',
+                  },
+                  {
+                    title: 'Bảo hiểm y tế tự nguyện',
+                    defaultAmount: '680400',
+                    scope: 'custom' as const,
+                    desc: 'BHYT học sinh tham gia đợt bổ sung tự nguyện theo quy định',
+                    badge: 'Chỉ định riêng',
+                    badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-300',
+                  },
+                  {
+                    title: 'Tiền đồng phục may thêm',
+                    defaultAmount: '150000',
+                    scope: 'custom' as const,
+                    desc: 'May thêm đồng phục áo khoác / áo sơ mi theo số lượng đăng ký',
+                    badge: 'Chỉ định riêng',
+                    badgeColor: 'bg-amber-100 text-amber-800 dark:bg-amber-950 dark:text-amber-300 border-amber-300',
+                  },
+                  {
+                    title: 'Tiền vở & tài liệu học tập',
+                    defaultAmount: '100000',
+                    scope: 'all' as const,
+                    desc: 'Vở ghi bài và tài liệu đề cương ôn tập môn học',
+                    badge: 'Cả lớp',
+                    badgeColor: 'bg-blue-100 text-blue-800 dark:bg-blue-950 dark:text-blue-300 border-blue-300',
+                  },
+                ].map((tmpl) => (
+                  <button
+                    key={tmpl.title}
+                    type="button"
+                    onClick={() => applyTemplate(tmpl)}
+                    className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:border-blue-400 dark:hover:border-blue-500 hover:text-blue-600 dark:hover:text-blue-400 transition cursor-pointer shadow-2xs active:scale-95"
+                  >
+                    <span>{tmpl.title}</span>
+                    <span
+                      className={`text-[10px] px-1.5 py-0.2 rounded-md font-bold border ${tmpl.badgeColor}`}
+                    >
+                      {tmpl.badge}
+                    </span>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
 
           <div className="grid sm:grid-cols-2 gap-4">
             <div>
@@ -459,7 +815,7 @@ export function CollectionsView() {
                 className={control}
                 value={title}
                 onChange={(e) => setTitle(e.target.value)}
-                placeholder="Ví dụ: Quỹ lớp Học kỳ 1, Tiền may đồng phục"
+                placeholder="Ví dụ: Tiền vé xe, Quỹ lớp Học kỳ 1, May đồng phục..."
                 maxLength={200}
                 required
               />
@@ -524,71 +880,253 @@ export function CollectionsView() {
             />
           </div>
 
-          {!editing && (
-            <details className="rounded-xl border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/60 p-3 text-xs">
-              <summary className="font-bold text-slate-700 dark:text-slate-300 cursor-pointer select-none">
-                Danh sách áp dụng ({memberIds.length}/{students.length} học sinh)
-              </summary>
-              <div className="flex gap-2 my-2.5">
-                <button
-                  type="button"
-                  className="px-2.5 py-1 rounded-lg bg-blue-50 text-blue-700 font-semibold border border-blue-200 hover:bg-blue-100"
-                  onClick={() => setMemberIds(students.map((s) => s.id))}
+          {/* Lựa chọn phạm vi đối tượng áp dụng */}
+          {!editing ? (
+            <div className="space-y-3 pt-2 border-t border-slate-200/80 dark:border-slate-800">
+              <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                Phạm vi áp dụng khoản thu *
+              </label>
+
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                {/* Lựa chọn 1: Cả lớp */}
+                <div
+                  onClick={() => handleScopeChange('all')}
+                  className={`p-3.5 rounded-xl border-2 transition cursor-pointer flex items-start gap-3 select-none ${
+                    targetScope === 'all'
+                      ? 'border-blue-500 bg-blue-50/80 dark:bg-blue-950/40 shadow-sm ring-2 ring-blue-500/20'
+                      : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300'
+                  }`}
                 >
-                  Chọn tất cả
-                </button>
-                <button
-                  type="button"
-                  className="px-2.5 py-1 rounded-lg bg-slate-100 text-slate-700 font-semibold border border-slate-300 hover:bg-slate-200"
-                  onClick={() => setMemberIds([])}
+                  <input
+                    type="radio"
+                    name="targetScope"
+                    checked={targetScope === 'all'}
+                    onChange={() => handleScopeChange('all')}
+                    className="mt-1 h-4 w-4 text-blue-600 focus:ring-blue-500 cursor-pointer"
+                  />
+                  <div>
+                    <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm text-slate-900 dark:text-white">
+                      <Users className="h-4 w-4 text-blue-600" />
+                      <span>Toàn bộ lớp ({activeStudents.length} học sinh)</span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      Áp dụng thu đều cho tất cả học sinh trong lớp (Quỹ lớp, Tiền vở, Phí sinh hoạt...).
+                    </p>
+                  </div>
+                </div>
+
+                {/* Lựa chọn 2: Chỉ một số học sinh */}
+                <div
+                  onClick={() => handleScopeChange('custom')}
+                  className={`p-3.5 rounded-xl border-2 transition cursor-pointer flex items-start gap-3 select-none ${
+                    targetScope === 'custom'
+                      ? 'border-amber-500 bg-amber-50/80 dark:bg-amber-950/40 shadow-sm ring-2 ring-amber-500/20'
+                      : 'border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900 hover:border-slate-300'
+                  }`}
                 >
-                  Bỏ chọn tất cả
-                </button>
+                  <input
+                    type="radio"
+                    name="targetScope"
+                    checked={targetScope === 'custom'}
+                    onChange={() => handleScopeChange('custom')}
+                    className="mt-1 h-4 w-4 text-amber-600 focus:ring-amber-500 cursor-pointer"
+                  />
+                  <div>
+                    <div className="flex items-center gap-1.5 font-bold text-xs sm:text-sm text-slate-900 dark:text-white">
+                      <CheckSquare className="h-4 w-4 text-amber-600" />
+                      <span>
+                        Chỉ một số học sinh
+                        {targetScope === 'custom' && (
+                          <span className="ml-1.5 px-2 py-0.5 rounded-md bg-amber-200 dark:bg-amber-900 text-amber-900 dark:text-amber-100 text-[11px] font-bold">
+                            {memberIds.length} HS được chọn
+                          </span>
+                        )}
+                      </span>
+                    </div>
+                    <p className="text-[11px] text-slate-500 dark:text-slate-400 mt-1">
+                      Chỉ thu những học sinh có nhu cầu (Ví dụ: <strong>Vé xe</strong>, <strong>BHYT tự nguyện</strong>, <strong>Đồng phục</strong>...).
+                    </p>
+                  </div>
+                </div>
               </div>
-              <div className="grid grid-cols-2 sm:grid-cols-3 gap-2 max-h-56 overflow-y-auto pt-1">
-                {students.map((s) => (
-                  <label
-                    key={s.id}
-                    className="flex items-center gap-2 p-1.5 rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 cursor-pointer"
-                  >
-                    <input
-                      type="checkbox"
-                      checked={memberIds.includes(s.id)}
-                      onChange={(e) =>
-                        setMemberIds((ids) =>
-                          e.target.checked ? [...ids, s.id] : ids.filter((id) => id !== s.id)
-                        )
-                      }
-                      className="rounded text-blue-600 focus:ring-blue-500"
-                    />
-                    <span className="truncate">{s.fullName}</span>
-                  </label>
-                ))}
-              </div>
-            </details>
+
+              {/* Panel Chọn danh sách học sinh cụ thể */}
+              {targetScope === 'custom' && (
+                <div className="rounded-xl border border-amber-300 dark:border-amber-800 bg-amber-50/40 dark:bg-slate-900/80 p-3.5 space-y-3 animate-in fade-in slide-in-from-top-1 duration-150">
+                  <div className="flex flex-wrap items-center justify-between gap-2 pb-2 border-b border-amber-200 dark:border-slate-800">
+                    <div className="flex items-center gap-2">
+                      <Users className="h-4 w-4 text-amber-600 shrink-0" />
+                      <span className="text-xs font-bold text-slate-800 dark:text-slate-200">
+                        Danh sách học sinh áp dụng ({memberIds.length}/{activeStudents.length})
+                      </span>
+                      {Number(amount) > 0 && memberIds.length > 0 && (
+                        <span className="text-[11px] text-amber-800 dark:text-amber-300 font-semibold font-mono bg-amber-100 dark:bg-amber-950/60 px-2 py-0.5 rounded-lg border border-amber-200 dark:border-amber-900">
+                          Tổng dự kiến: {money(memberIds.length * Number(amount))}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex flex-wrap items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => setMemberIds(activeStudents.map((s) => s.id))}
+                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-50 transition shadow-2xs cursor-pointer"
+                      >
+                        Chọn tất cả ({activeStudents.length})
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setMemberIds([])}
+                        className="px-2.5 py-1 rounded-lg text-xs font-bold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 border border-slate-300 dark:border-slate-700 hover:bg-slate-100 transition shadow-2xs cursor-pointer"
+                      >
+                        Bỏ chọn hết
+                      </button>
+                    </div>
+                  </div>
+
+                  {/* Thanh tìm kiếm & chọn nhanh theo Tổ */}
+                  <div className="flex flex-wrap items-center gap-2">
+                    <div className="relative flex-1 min-w-48">
+                      <Search className="h-3.5 w-3.5 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+                      <input
+                        type="text"
+                        value={memberSearch}
+                        onChange={(e) => setMemberSearch(e.target.value)}
+                        placeholder="Tìm nhanh học sinh theo tên, mã HS..."
+                        className="w-full pl-8 pr-7 py-1.5 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs focus:ring-2 focus:ring-amber-500 focus:outline-none"
+                      />
+                      {memberSearch && (
+                        <button
+                          type="button"
+                          onClick={() => setMemberSearch('')}
+                          className="absolute right-2 top-2 text-slate-400 hover:text-slate-600 cursor-pointer"
+                        >
+                          <X className="h-3 w-3" />
+                        </button>
+                      )}
+                    </div>
+
+                    {availableGroups.length > 0 && (
+                      <div className="flex items-center gap-1 flex-wrap">
+                        <span className="text-[11px] font-bold text-slate-500 shrink-0">Chọn theo tổ:</span>
+                        {availableGroups.map((grp) => {
+                          const grpIds = activeStudents.filter((s) => s.group?.trim() === grp).map((s) => s.id);
+                          const isAllInGrp = grpIds.length > 0 && grpIds.every((id) => memberIds.includes(id));
+                          return (
+                            <button
+                              key={grp}
+                              type="button"
+                              onClick={() => selectByGroup(grp)}
+                              className={`px-2 py-1 rounded-md text-[11px] font-bold border transition cursor-pointer ${
+                                isAllInGrp
+                                  ? 'bg-amber-500 text-white border-amber-600 shadow-2xs'
+                                  : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-amber-50'
+                              }`}
+                            >
+                              {grp}
+                            </button>
+                          );
+                        })}
+                      </div>
+                    )}
+                  </div>
+
+                  {/* Danh sách học sinh dạng lưới thẻ chọn */}
+                  <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2 max-h-60 overflow-y-auto p-1.5 rounded-lg border border-slate-200 dark:border-slate-800 bg-white dark:bg-slate-900/70">
+                    {filteredCandidateStudents.map((s) => {
+                      const isChecked = memberIds.includes(s.id);
+                      return (
+                        <div
+                          key={s.id}
+                          onClick={() =>
+                            setMemberIds((ids) =>
+                              isChecked ? ids.filter((id) => id !== s.id) : [...ids, s.id]
+                            )
+                          }
+                          className={`flex items-center gap-2.5 p-2 rounded-lg border transition cursor-pointer select-none ${
+                            isChecked
+                              ? 'bg-amber-50/90 dark:bg-amber-950/40 border-amber-400 dark:border-amber-700 shadow-2xs'
+                              : 'bg-slate-50/50 dark:bg-slate-850/40 border-slate-200 dark:border-slate-800 hover:bg-slate-100 dark:hover:bg-slate-800'
+                          }`}
+                        >
+                          <input
+                            type="checkbox"
+                            checked={isChecked}
+                            onChange={() => {}}
+                            className="h-4 w-4 rounded text-amber-600 focus:ring-amber-500 cursor-pointer pointer-events-none"
+                          />
+                          <div className="h-6 w-6 rounded-full bg-slate-200 dark:bg-slate-700 text-slate-700 dark:text-slate-200 text-[10px] font-bold flex items-center justify-center shrink-0">
+                            {s.fullName.trim().split(' ').pop()?.charAt(0) || 'H'}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className={`text-xs font-bold truncate leading-tight ${isChecked ? 'text-amber-950 dark:text-amber-100' : 'text-slate-800 dark:text-slate-200'}`}>
+                              {s.fullName}
+                            </p>
+                            <p className="text-[10px] text-slate-400 font-mono">
+                              {s.studentCode} {s.group ? `· ${s.group}` : ''}
+                            </p>
+                          </div>
+                        </div>
+                      );
+                    })}
+
+                    {filteredCandidateStudents.length === 0 && (
+                      <div className="col-span-full py-4 text-center text-xs text-slate-400">
+                        Không tìm thấy học sinh nào khớp với từ khóa "{memberSearch}".
+                      </div>
+                    )}
+                  </div>
+
+                  {memberIds.length === 0 && (
+                    <div className="flex items-center gap-2 p-2 rounded-lg bg-rose-50 dark:bg-rose-950/40 border border-rose-200 dark:border-rose-800 text-xs text-rose-700 dark:text-rose-300 font-semibold">
+                      <AlertCircle className="h-4 w-4 shrink-0" />
+                      <span>Vui lòng tích chọn ít nhất 1 học sinh áp dụng khoản thu (ví dụ học sinh đăng ký vé xe).</span>
+                    </div>
+                  )}
+                </div>
+              )}
+            </div>
+          ) : (
+            <div className="p-3 rounded-xl bg-slate-100 dark:bg-slate-800 text-xs text-slate-600 dark:text-slate-400">
+              <p className="font-semibold text-slate-700 dark:text-slate-300">
+                Phạm vi áp dụng: <strong>{memberIds.length} học sinh</strong>
+              </p>
+              <p className="italic mt-0.5">
+                * Mức thu và danh sách học sinh áp dụng được giữ nguyên theo ban đầu để đảm bảo tính toàn vẹn của sổ sách kế toán. Nếu học sinh không tiếp tục thu, vui lòng dùng chức năng “Miễn/giảm” hoặc “Không áp dụng” cho từng em.
+              </p>
+            </div>
           )}
 
-          {editing && (
-            <p className="text-xs text-slate-500 italic">
-              * Mức thu và danh sách học sinh áp dụng được giữ nguyên theo ban đầu; điều chỉnh riêng theo từng cá nhân bằng chức năng Miễn/giảm.
-            </p>
-          )}
+          <div className="flex flex-wrap items-center justify-between gap-2 pt-2 border-t border-slate-200/80 dark:border-slate-800">
+            <div className="flex items-center gap-2">
+              <button
+                disabled={blocked || (!editing && targetScope === 'custom' && memberIds.length === 0)}
+                className="px-5 py-2.5 rounded-xl bg-gradient-to-r from-blue-600 to-indigo-600 hover:from-blue-700 hover:to-indigo-700 text-white font-bold text-xs shadow-md shadow-blue-500/20 transition active:scale-95 cursor-pointer disabled:opacity-50"
+              >
+                Lưu khoản thu
+              </button>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setCreateOpen(false)}
+                className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-semibold text-xs transition cursor-pointer"
+              >
+                Hủy
+              </button>
+            </div>
 
-          <div className="flex items-center gap-2 pt-2 border-t border-slate-200/80 dark:border-slate-800">
-            <button
-              disabled={blocked}
-              className="px-4 py-2 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs shadow-sm transition active:scale-95 cursor-pointer disabled:opacity-50"
-            >
-              Lưu khoản thu
-            </button>
-            <button
-              type="button"
-              disabled={busy}
-              onClick={() => setCreateOpen(false)}
-              className="px-4 py-2 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-semibold text-xs transition cursor-pointer"
-            >
-              Hủy
-            </button>
+            {editing && (
+              <button
+                type="button"
+                disabled={blocked}
+                onClick={() => handleDeleteCollection(editing)}
+                className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold text-rose-600 dark:text-rose-400 hover:bg-rose-50 dark:hover:bg-rose-950/40 border border-rose-200 dark:border-rose-900 transition active:scale-95 cursor-pointer disabled:opacity-50"
+                title="Xóa vĩnh viễn khoản thu này"
+              >
+                <Trash2 className="h-3.5 w-3.5" />
+                <span>Xóa khoản thu này</span>
+              </button>
+            )}
           </div>
         </form>
       )}
@@ -609,13 +1147,23 @@ export function CollectionsView() {
                 setEntry(undefined);
                 setStatusFilter('');
                 setSearch('');
+                setSelectedStudentIds([]);
               }}
             >
-              {collections.map((c) => (
-                <option key={c.id} value={c.id}>
-                  {c.data.name} · {money(Number(c.data.amount))} · {c.data.status}
-                </option>
-              ))}
+              {collections.map((c) => {
+                let memberCount = 0;
+                try {
+                  memberCount = JSON.parse(c.data.studentIds || '[]').length;
+                } catch {
+                  memberCount = students.length;
+                }
+                const isCustom = memberCount > 0 && memberCount < students.length;
+                return (
+                  <option key={c.id} value={c.id}>
+                    {c.data.name} · {money(Number(c.data.amount))} · {isCustom ? `[Riêng: ${memberCount} HS]` : '[Cả lớp]'} · {c.data.status}
+                  </option>
+                );
+              })}
             </select>
           </div>
         </div>
@@ -655,9 +1203,48 @@ export function CollectionsView() {
                 />
                 <span>{selected.data.status}</span>
               </span>
+
+              {(() => {
+                let memberCount = 0;
+                try {
+                  memberCount = JSON.parse(selected.data.studentIds || '[]').length;
+                } catch {
+                  memberCount = rows.length;
+                }
+                const isCustom = memberCount > 0 && memberCount < students.length;
+                return (
+                  <span
+                    className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl text-xs font-semibold border shadow-2xs ${
+                      isCustom
+                        ? 'bg-amber-50 text-amber-800 border-amber-300 dark:bg-amber-950/50 dark:text-amber-300 dark:border-amber-800'
+                        : 'bg-blue-50 text-blue-800 border-blue-200 dark:bg-blue-950/50 dark:text-blue-300 dark:border-blue-800'
+                    }`}
+                    title={isCustom ? 'Khoản thu áp dụng cho nhóm học sinh cụ thể (vd: Vé xe, BHYT tự nguyện)' : 'Khoản thu áp dụng cho cả lớp'}
+                  >
+                    <Users className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+                    <span>
+                      Phạm vi: <strong>{isCustom ? `Chỉ định riêng (${memberCount} HS)` : `Toàn bộ lớp (${memberCount} HS)`}</strong>
+                    </span>
+                  </span>
+                );
+              })()}
             </div>
 
             <div className="flex flex-wrap items-center gap-2">
+              {selected.data.status === 'Đang thu' && (
+                <button
+                  disabled={blocked}
+                  onClick={() => openBulkModal()}
+                  className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-gradient-to-r from-indigo-600 via-purple-600 to-blue-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md shadow-indigo-500/20 transition active:scale-95 cursor-pointer disabled:opacity-50"
+                  title="Ghi nhận nộp tiền cùng lúc cho nhiều học sinh"
+                >
+                  <Users className="h-3.5 w-3.5" />
+                  <span>
+                    Thu tiền nhiều HS{selectedStudentIds.length > 0 ? ` (${selectedStudentIds.length})` : ''}
+                  </span>
+                </button>
+              )}
+
               <button
                 disabled={blocked}
                 onClick={() => openCreate(selected)}
@@ -704,6 +1291,16 @@ export function CollectionsView() {
               >
                 <FileSpreadsheet className="h-3.5 w-3.5" />
                 <span>Xuất Excel</span>
+              </button>
+
+              <button
+                disabled={blocked}
+                onClick={() => handleDeleteCollection(selected)}
+                className="inline-flex items-center gap-1.5 px-3.5 py-1.5 rounded-xl text-xs font-bold bg-white dark:bg-slate-800 hover:bg-rose-50 dark:hover:bg-rose-950/40 text-rose-600 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 shadow-2xs transition active:scale-95 cursor-pointer disabled:opacity-50"
+                title="Xóa vĩnh viễn khoản thu này"
+              >
+                <Trash2 className="h-3.5 w-3.5 text-rose-500" />
+                <span>Xóa khoản thu</span>
               </button>
             </div>
           </div>
@@ -1014,6 +1611,48 @@ export function CollectionsView() {
                 </form>
               )}
 
+              {/* ── Banner Thao Tác Nộp Tiền Hàng Loạt Khi Có Học Sinh Được Chọn ── */}
+              {selectedStudentIds.length > 0 && selected.data.status === 'Đang thu' && (
+                <div className="flex flex-wrap items-center justify-between gap-3 p-3.5 rounded-2xl bg-gradient-to-r from-indigo-50 via-purple-50 to-blue-50 dark:from-indigo-950/50 dark:via-purple-950/40 dark:to-blue-950/50 border-2 border-indigo-300 dark:border-indigo-700 shadow-md animate-in fade-in slide-in-from-top-1 duration-150">
+                  <div className="flex items-center gap-3">
+                    <span className="flex h-9 w-9 items-center justify-center rounded-xl bg-indigo-600 text-white shadow-xs font-bold text-sm shrink-0">
+                      {selectedStudentIds.length}
+                    </span>
+                    <div>
+                      <p className="text-xs sm:text-sm font-bold text-indigo-950 dark:text-indigo-200">
+                        Đang chọn <strong>{selectedStudentIds.length}</strong> học sinh
+                        <span className="text-slate-600 dark:text-slate-300 font-normal">
+                          {' '}· Tổng số tiền còn thiếu: <strong className="font-mono text-rose-600 dark:text-rose-400 font-bold">{money(selectedSelectedRemainingTotal)}</strong>
+                        </span>
+                      </p>
+                      <p className="text-[11px] text-indigo-700/80 dark:text-indigo-300/80">
+                        Bấm “Ghi nộp tiền ngay” để ghi nhận đồng thời phiếu thu cho tất cả học sinh đã chọn.
+                      </p>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-2">
+                    <button
+                      type="button"
+                      disabled={blocked}
+                      onClick={() => openBulkModal()}
+                      className="inline-flex items-center gap-1.5 px-4 py-2 rounded-xl text-xs sm:text-sm font-bold bg-gradient-to-r from-indigo-600 to-purple-600 hover:from-indigo-700 hover:to-purple-700 text-white shadow-md shadow-indigo-500/25 transition active:scale-95 cursor-pointer disabled:opacity-50"
+                    >
+                      <Receipt className="h-4 w-4" />
+                      <span>Ghi nộp tiền ngay ({selectedStudentIds.length} HS)</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={clearSelection}
+                      className="inline-flex items-center gap-1 px-3 py-2 rounded-xl text-xs font-semibold bg-white dark:bg-slate-800 text-slate-600 dark:text-slate-300 hover:bg-slate-100 dark:hover:bg-slate-700 border border-slate-300 dark:border-slate-700 transition cursor-pointer"
+                    >
+                      <X className="h-3.5 w-3.5" />
+                      <span>Bỏ chọn</span>
+                    </button>
+                  </div>
+                </div>
+              )}
+
               {/* ── Bộ lọc & Tìm kiếm ── */}
               <div className="flex flex-wrap items-center gap-3 bg-slate-50 dark:bg-slate-800/40 p-3 rounded-2xl border border-slate-200 dark:border-slate-700/80">
                 <div className="relative flex-1 min-w-56">
@@ -1044,8 +1683,42 @@ export function CollectionsView() {
                   </select>
                 </div>
 
-                <div className="text-xs text-slate-500 font-medium ml-auto">
-                  Hiển thị <strong className="text-slate-800 dark:text-slate-200">{visible.length}</strong> / {rows.length} học sinh
+                {/* Nút chọn nhanh tiện lợi */}
+                {selected.data.status === 'Đang thu' && (
+                  <div className="flex items-center gap-1.5">
+                    <button
+                      type="button"
+                      onClick={selectAllUnpaid}
+                      className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-50 hover:bg-amber-100 text-amber-800 dark:bg-amber-950/40 dark:text-amber-300 border border-amber-300 dark:border-amber-800 transition cursor-pointer active:scale-95"
+                      title="Chọn tất cả học sinh chưa hoàn thành nộp tiền"
+                    >
+                      <CheckSquare className="h-3.5 w-3.5 text-amber-600" />
+                      <span>Chọn tất cả chưa nộp ({rows.filter((r) => r.remaining > 0).length})</span>
+                    </button>
+
+                    {selectedStudentIds.length > 0 && (
+                      <button
+                        type="button"
+                        onClick={clearSelection}
+                        className="inline-flex items-center gap-1 px-2.5 py-2 rounded-xl text-xs font-medium text-slate-500 hover:text-slate-700 dark:hover:text-slate-300 hover:bg-slate-200/50 dark:hover:bg-slate-800 transition cursor-pointer"
+                        title="Hủy bỏ việc chọn học sinh"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                        <span>Bỏ chọn</span>
+                      </button>
+                    )}
+                  </div>
+                )}
+
+                <div className="text-xs text-slate-500 font-medium ml-auto flex items-center gap-1.5 flex-wrap justify-end">
+                  <span>
+                    Hiển thị <strong className="text-slate-800 dark:text-slate-200">{visible.length}</strong> / {rows.length} học sinh
+                  </span>
+                  {rows.length < students.length && (
+                    <span className="text-[11px] text-amber-700 dark:text-amber-400 font-semibold bg-amber-50 dark:bg-amber-950/50 px-2 py-0.5 rounded-md border border-amber-200 dark:border-amber-800">
+                      (Áp dụng riêng {rows.length}/{students.length} HS)
+                    </span>
+                  )}
                 </div>
               </div>
 
@@ -1054,7 +1727,18 @@ export function CollectionsView() {
                 <table className="w-full text-xs sm:text-sm text-left border-collapse">
                   <thead className="bg-slate-100 dark:bg-slate-800/90 text-slate-700 dark:text-slate-300 font-bold uppercase text-[11px] tracking-wider border-b border-slate-200 dark:border-slate-700">
                     <tr>
-                      <th className="p-3.5 pl-4 whitespace-nowrap">Học sinh</th>
+                      {selected.data.status === 'Đang thu' && (
+                        <th className="p-3.5 pl-4 w-11 text-center whitespace-nowrap">
+                          <input
+                            type="checkbox"
+                            checked={visible.length > 0 && visible.every((r) => selectedStudentIds.includes(r.studentId))}
+                            onChange={toggleSelectAllVisible}
+                            className="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                            title="Chọn / Bỏ chọn tất cả học sinh đang hiển thị"
+                          />
+                        </th>
+                      )}
+                      <th className={`p-3.5 ${selected.data.status === 'Đang thu' ? 'pl-2' : 'pl-4'} whitespace-nowrap`}>Học sinh</th>
                       <th className="p-3.5 whitespace-nowrap text-right">Phải nộp</th>
                       <th className="p-3.5 whitespace-nowrap text-right">Đã nộp</th>
                       <th className="p-3.5 whitespace-nowrap text-right">Còn thiếu</th>
@@ -1064,31 +1748,47 @@ export function CollectionsView() {
                     </tr>
                   </thead>
                   <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                    {visible.map((r, i) => (
-                      <tr
-                        key={r.studentId}
-                        className={`transition-colors ${
-                          i % 2 === 0
-                            ? 'bg-white dark:bg-slate-900'
-                            : 'bg-slate-50/50 dark:bg-slate-850/40'
-                        } hover:bg-blue-50/40 dark:hover:bg-slate-800/60`}
-                      >
-                        {/* Học sinh */}
-                        <td className="p-3.5 pl-4">
-                          <div className="flex items-center gap-2.5">
-                            <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold text-xs flex items-center justify-center shrink-0 border border-blue-200 dark:border-blue-800">
-                              {r.name.trim().split(' ').pop()?.charAt(0) || 'H'}
+                    {visible.map((r, i) => {
+                      const isSelected = selectedStudentIds.includes(r.studentId);
+                      return (
+                        <tr
+                          key={r.studentId}
+                          className={`transition-colors ${
+                            isSelected
+                              ? 'bg-indigo-50/70 dark:bg-indigo-950/40 border-l-4 border-indigo-600'
+                              : i % 2 === 0
+                              ? 'bg-white dark:bg-slate-900'
+                              : 'bg-slate-50/50 dark:bg-slate-850/40'
+                          } hover:bg-blue-50/40 dark:hover:bg-slate-800/60`}
+                        >
+                          {/* Checkbox chọn nộp hàng loạt */}
+                          {selected.data.status === 'Đang thu' && (
+                            <td className="p-3.5 pl-4 text-center">
+                              <input
+                                type="checkbox"
+                                checked={isSelected}
+                                onChange={() => toggleSelectStudent(r.studentId)}
+                                className="h-4 w-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer"
+                              />
+                            </td>
+                          )}
+
+                          {/* Học sinh */}
+                          <td className={`p-3.5 ${selected.data.status === 'Đang thu' ? 'pl-2' : 'pl-4'}`}>
+                            <div className="flex items-center gap-2.5">
+                              <div className="h-8 w-8 rounded-full bg-blue-100 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 font-bold text-xs flex items-center justify-center shrink-0 border border-blue-200 dark:border-blue-800">
+                                {r.name.trim().split(' ').pop()?.charAt(0) || 'H'}
+                              </div>
+                              <div>
+                                <p className="font-bold text-slate-900 dark:text-white leading-tight">
+                                  {r.name}
+                                </p>
+                                <p className="text-[11px] text-slate-400 font-mono mt-0.5">
+                                  {r.code}
+                                </p>
+                              </div>
                             </div>
-                            <div>
-                              <p className="font-bold text-slate-900 dark:text-white leading-tight">
-                                {r.name}
-                              </p>
-                              <p className="text-[11px] text-slate-400 font-mono mt-0.5">
-                                {r.code}
-                              </p>
-                            </div>
-                          </div>
-                        </td>
+                          </td>
 
                         {/* Phải nộp */}
                         <td className="p-3.5 whitespace-nowrap font-mono text-right font-medium text-slate-700 dark:text-slate-300">
@@ -1171,7 +1871,8 @@ export function CollectionsView() {
                           </div>
                         </td>
                       </tr>
-                    ))}
+                    );
+                    })}
                   </tbody>
                 </table>
 
@@ -1402,6 +2103,292 @@ export function CollectionsView() {
                   : '✓ Lưu số tiền đã sửa'}
               </button>
             </div>
+          </div>
+        </div>
+      )}
+
+      {/* ── MODAL GHI NHẬN NỘP TIỀN HÀNG LOẠT (CÙNG LÚC NHIỀU HỌC SINH) ── */}
+      {bulkModalOpen && selected && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/75 backdrop-blur-xs animate-in fade-in duration-150">
+          <div className="w-full max-w-2xl rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-5 sm:p-6 space-y-4 max-h-[90vh] flex flex-col">
+            {/* Header */}
+            <div className="flex items-center justify-between pb-3 border-b border-slate-100 dark:border-slate-800 shrink-0">
+              <div className="flex items-center gap-3">
+                <div className="h-10 w-10 rounded-xl bg-gradient-to-tr from-indigo-600 to-purple-600 text-white flex items-center justify-center shrink-0 shadow-md shadow-indigo-500/20">
+                  <Users className="h-5 w-5" />
+                </div>
+                <div>
+                  <h3 className="font-bold text-base sm:text-lg text-slate-900 dark:text-white flex items-center gap-2">
+                    <span>Ghi nhận nộp tiền hàng loạt</span>
+                    <span className="px-2.5 py-0.5 rounded-full text-xs font-semibold bg-indigo-100 text-indigo-800 dark:bg-indigo-950 dark:text-indigo-300">
+                      {selectedStudentIds.length} học sinh
+                    </span>
+                  </h3>
+                  <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                    Khoản thu: <strong className="text-blue-600 dark:text-blue-400">{selected.data.name}</strong> · Định mức: <strong className="font-mono text-emerald-600 dark:text-emerald-400">{money(Number(selected.data.amount))}</strong>
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                disabled={busy}
+                onClick={() => setBulkModalOpen(false)}
+                className="p-1.5 rounded-lg text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 hover:bg-slate-100 dark:hover:bg-slate-800 transition"
+              >
+                <X className="h-5 w-5" />
+              </button>
+            </div>
+
+            {/* Scrollable Form Body */}
+            <form onSubmit={handleBulkSubmit} className="space-y-4 overflow-y-auto flex-1 pr-1">
+              {/* Thiết lập chung */}
+              <div className="p-4 rounded-xl bg-slate-50 dark:bg-slate-850/60 border border-slate-200 dark:border-slate-700/80 space-y-3">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Ngày nộp *
+                    </label>
+                    <input
+                      type="date"
+                      required
+                      value={bulkDate}
+                      onChange={(e) => setBulkDate(e.target.value)}
+                      className={control}
+                    />
+                  </div>
+
+                  <div>
+                    <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                      Hình thức thanh toán *
+                    </label>
+                    <div className="grid grid-cols-3 gap-1.5">
+                      {['Tiền mặt', 'Chuyển khoản', 'Khác'].map((m) => (
+                        <button
+                          key={m}
+                          type="button"
+                          onClick={() => setBulkMethod(m)}
+                          className={`py-2 px-2 rounded-xl text-xs font-bold transition border cursor-pointer ${
+                            bulkMethod === m
+                              ? 'bg-indigo-600 text-white border-indigo-600 shadow-xs'
+                              : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-200 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-750'
+                          }`}
+                        >
+                          {m}
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>
+
+                <div>
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
+                    Ghi chú chung (tùy chọn)
+                  </label>
+                  <input
+                    type="text"
+                    value={bulkNote}
+                    onChange={(e) => setBulkNote(e.target.value)}
+                    placeholder="VD: Nộp tiền đợt 1, Thu đầu buổi học..."
+                    className={control}
+                  />
+                </div>
+
+                {/* Chế độ áp dụng số tiền */}
+                <div className="pt-2 border-t border-slate-200/80 dark:border-slate-700/80 space-y-2">
+                  <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Quy tắc tính số tiền nộp cho từng học sinh:
+                  </label>
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    <label
+                      onClick={() => handleBulkModeChange('remaining')}
+                      className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition text-xs ${
+                        bulkMode === 'remaining'
+                          ? 'bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-400 text-indigo-950 dark:text-indigo-200 font-semibold'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="bulkMode"
+                        checked={bulkMode === 'remaining'}
+                        onChange={() => handleBulkModeChange('remaining')}
+                        className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <div>
+                        <p className="font-bold">Nộp đủ số tiền còn thiếu</p>
+                        <p className="text-[11px] opacity-80 mt-0.5">Tự động nộp đúng số tiền còn nợ của từng bạn</p>
+                      </div>
+                    </label>
+
+                    <label
+                      onClick={() => handleBulkModeChange('fixed')}
+                      className={`flex items-start gap-2.5 p-2.5 rounded-xl border cursor-pointer transition text-xs ${
+                        bulkMode === 'fixed'
+                          ? 'bg-indigo-50/80 dark:bg-indigo-950/50 border-indigo-400 text-indigo-950 dark:text-indigo-200 font-semibold'
+                          : 'bg-white dark:bg-slate-800 border-slate-200 dark:border-slate-700 text-slate-600 dark:text-slate-400'
+                      }`}
+                    >
+                      <input
+                        type="radio"
+                        name="bulkMode"
+                        checked={bulkMode === 'fixed'}
+                        onChange={() => handleBulkModeChange('fixed')}
+                        className="mt-0.5 text-indigo-600 focus:ring-indigo-500"
+                      />
+                      <div className="flex-1">
+                        <p className="font-bold">Áp dụng cùng một mức thu</p>
+                        <input
+                          type="number"
+                          min={0}
+                          value={bulkFixedAmount}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => handleBulkFixedAmountChange(e.target.value)}
+                          placeholder="Nhập số tiền..."
+                          disabled={bulkMode !== 'fixed'}
+                          className="w-full mt-1 px-2.5 py-1 text-xs font-mono font-bold rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-900 focus:ring-1 focus:ring-indigo-500 disabled:opacity-50"
+                        />
+                      </div>
+                    </label>
+                  </div>
+                </div>
+              </div>
+
+              {/* Danh sách học sinh được chọn */}
+              <div className="space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="text-xs font-bold text-slate-700 dark:text-slate-300">
+                    Danh sách học sinh được nộp ({selectedStudentIds.length} em) — có thể sửa số tiền riêng từng bạn:
+                  </label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const unpaidIds = rows.filter((r) => r.remaining > 0).map((r) => r.studentId);
+                      setSelectedStudentIds(unpaidIds);
+                      const amounts: Record<string, string> = {};
+                      unpaidIds.forEach((id) => {
+                        const row = rows.find((r) => r.studentId === id);
+                        amounts[id] = String(row ? row.remaining : Number(selected.data.amount));
+                      });
+                      setBulkCustomAmounts(amounts);
+                    }}
+                    className="text-[11px] text-indigo-600 dark:text-indigo-400 hover:underline font-semibold cursor-pointer"
+                  >
+                    + Thêm tất cả HS chưa nộp
+                  </button>
+                </div>
+
+                <div className="border border-slate-200 dark:border-slate-700/80 rounded-xl overflow-hidden max-h-56 overflow-y-auto divide-y divide-slate-100 dark:divide-slate-800 bg-white dark:bg-slate-900">
+                  {selectedStudentIds.map((id, index) => {
+                    const row = rows.find((r) => r.studentId === id);
+                    if (!row) return null;
+                    return (
+                      <div
+                        key={id}
+                        className="p-2.5 flex items-center justify-between gap-3 hover:bg-slate-50 dark:hover:bg-slate-850/50 transition text-xs"
+                      >
+                        <div className="flex items-center gap-2.5 min-w-44 flex-1">
+                          <span className="text-[11px] font-mono text-slate-400 w-5 text-right shrink-0">
+                            {index + 1}.
+                          </span>
+                          <div>
+                            <p className="font-bold text-slate-900 dark:text-white leading-tight">
+                              {row.name}
+                            </p>
+                            <p className="text-[10px] text-slate-400 font-mono">
+                              {row.code} · Còn thiếu:{' '}
+                              <strong className={row.remaining > 0 ? 'text-rose-600 font-mono' : 'text-emerald-600 font-mono'}>
+                                {money(row.remaining)}
+                              </strong>
+                            </p>
+                          </div>
+                        </div>
+
+                        {/* Ô nhập số tiền cho bạn này */}
+                        <div className="flex items-center gap-2 shrink-0">
+                          <div className="relative">
+                            <input
+                              type="number"
+                              min={0}
+                              value={bulkCustomAmounts[id] ?? ''}
+                              onChange={(e) =>
+                                setBulkCustomAmounts({
+                                  ...bulkCustomAmounts,
+                                  [id]: e.target.value,
+                                })
+                              }
+                              className="w-28 sm:w-32 py-1 pl-2.5 pr-6 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono font-bold text-right text-indigo-950 dark:text-indigo-200 focus:ring-1 focus:ring-indigo-500 focus:outline-none"
+                            />
+                            <span className="absolute right-2 top-1.5 text-[10px] text-slate-400 pointer-events-none">
+                              đ
+                            </span>
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={() => removeStudentFromBulk(id)}
+                            className="p-1 rounded-md text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
+                            title="Loại học sinh này khỏi đợt nộp"
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Tóm tắt thanh toán */}
+              <div className="p-4 rounded-xl bg-gradient-to-r from-indigo-50 via-purple-50 to-emerald-50 dark:from-indigo-950/40 dark:via-purple-950/30 dark:to-emerald-950/30 border border-indigo-200 dark:border-indigo-800/80 flex items-center justify-between">
+                <div>
+                  <p className="text-xs text-indigo-900 dark:text-indigo-300 font-medium">
+                    Tổng số học sinh nộp tiền đợt này:
+                  </p>
+                  <p className="text-sm sm:text-base font-bold text-indigo-950 dark:text-white">
+                    {selectedStudentIds.length} học sinh
+                  </p>
+                </div>
+                <div className="text-right">
+                  <p className="text-xs text-emerald-800 dark:text-emerald-400 font-medium">
+                    Tổng số tiền thực thu:
+                  </p>
+                  <p className="text-lg sm:text-2xl font-black text-emerald-700 dark:text-emerald-300 font-mono">
+                    {money(bulkTotalAmount)}
+                  </p>
+                </div>
+              </div>
+
+              {/* Footer Buttons */}
+              <div className="flex items-center justify-end gap-2.5 pt-3 border-t border-slate-100 dark:border-slate-800 shrink-0">
+                <button
+                  type="button"
+                  disabled={busy}
+                  onClick={() => setBulkModalOpen(false)}
+                  className="px-4 py-2.5 rounded-xl bg-slate-100 hover:bg-slate-200 text-slate-700 dark:bg-slate-800 dark:text-slate-300 font-semibold text-xs transition cursor-pointer"
+                >
+                  Hủy bỏ
+                </button>
+                <button
+                  type="submit"
+                  disabled={busy || selectedStudentIds.length === 0 || bulkTotalAmount <= 0}
+                  className="inline-flex items-center gap-2 px-5 py-2.5 rounded-xl font-bold text-xs sm:text-sm bg-gradient-to-r from-indigo-600 via-purple-600 to-emerald-600 hover:from-indigo-700 hover:to-emerald-700 text-white shadow-lg shadow-indigo-500/25 active:scale-95 transition cursor-pointer disabled:opacity-50"
+                >
+                  {busy ? (
+                    <>
+                      <Clock className="h-4 w-4 animate-spin" />
+                      <span>Đang ghi nhận...</span>
+                    </>
+                  ) : (
+                    <>
+                      <Check className="h-4 w-4" />
+                      <span>
+                        Xác nhận ghi nộp ({selectedStudentIds.length} HS · {money(bulkTotalAmount)})
+                      </span>
+                    </>
+                  )}
+                </button>
+              </div>
+            </form>
           </div>
         </div>
       )}

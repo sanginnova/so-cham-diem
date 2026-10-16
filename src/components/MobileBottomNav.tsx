@@ -5,6 +5,7 @@ import {
   Plus,
   Users,
   Menu,
+  BookOpen,
 } from 'lucide-react';
 import { TabType } from './Navbar';
 import { useApp } from '../context/AppContext';
@@ -22,34 +23,20 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   onOpenNewLogModal,
   onToggleMobileSidebar,
 }) => {
-  const { userRole, inspectorModeClass } = useApp();
+  const { userRole, inspectorModeClass, classConfig } = useApp();
 
   // Hide on public guest portal or inspector mode
   if (userRole === 'guest') return null;
 
-  const isMenuTabActive = !['dashboard', 'daily-log', 'students'].includes(activeTab);
+  const isMenuTabActive = !['dashboard', 'daily-log', 'students', 'gradebook'].includes(activeTab);
 
   return (
     <nav
       aria-label="Điều hướng di động"
       className="md:hidden fixed bottom-0 left-0 right-0 z-40 bg-white/95 dark:bg-slate-900/95 backdrop-blur-lg border-t border-slate-200 dark:border-slate-800 shadow-2xl safe-bottom print:hidden"
     >
-      <div className="flex items-center justify-around px-2 py-1.5 h-16">
-        {/* Tab 1: Dashboard */}
-        <button
-          type="button"
-          onClick={() => onNavigateTab('dashboard')}
-          className={`flex flex-col items-center justify-center flex-1 py-1 transition cursor-pointer ${
-            activeTab === 'dashboard'
-              ? 'text-blue-600 dark:text-blue-400 font-bold'
-              : 'text-slate-500 dark:text-slate-400 font-medium'
-          }`}
-        >
-          <LayoutDashboard className={`h-5 w-5 ${activeTab === 'dashboard' ? 'scale-110' : ''} transition-transform`} />
-          <span className="text-[10px] mt-1">Tổng quan</span>
-        </button>
-
-        {/* Tab 2: Daily Log */}
+      <div className="flex items-center justify-around px-1 py-1.5 h-16">
+        {/* Tab 1: Chấm Điểm Rèn Luyện (Nề nếp) */}
         <button
           type="button"
           onClick={() => onNavigateTab('daily-log')}
@@ -60,8 +47,24 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
           }`}
         >
           <CalendarDays className={`h-5 w-5 ${activeTab === 'daily-log' ? 'scale-110' : ''} transition-transform`} />
-          <span className="text-[10px] mt-1">Chấm điểm</span>
+          <span className="text-[10px] mt-1 font-semibold">Rèn luyện</span>
         </button>
+
+        {/* Tab 2: Chấm Điểm Học Lực (15p, 30p, 1 tiết...) */}
+        {['teacher', 'admin', 'owner'].includes(userRole) && (
+          <button
+            type="button"
+            onClick={() => onNavigateTab('gradebook')}
+            className={`flex flex-col items-center justify-center flex-1 py-1 transition cursor-pointer ${
+              activeTab === 'gradebook'
+                ? 'text-purple-600 dark:text-purple-400 font-bold'
+                : 'text-slate-500 dark:text-slate-400 font-medium'
+            }`}
+          >
+            <BookOpen className={`h-5 w-5 ${activeTab === 'gradebook' ? 'scale-110' : ''} transition-transform`} />
+            <span className="text-[10px] mt-1 font-semibold">Học lực</span>
+          </button>
+        )}
 
         {/* Floating Center Action: Plus Button (New Log) */}
         {!inspectorModeClass && (

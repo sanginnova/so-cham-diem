@@ -34,7 +34,61 @@ export const DEFAULT_PUBLIC_SETTINGS: PublicScoreboardSettings = {
 };
 
 /**
- * Xây dựng payload đầy đủ cho bảng điểm công khai trực tuyến
+ * Rút gọn object StudentWeeklySummary để tiết kiệm dung lượng Firestore
+ */
+function compactWeeklySummary(item: StudentWeeklySummary): StudentWeeklySummary {
+  const res: StudentWeeklySummary = {
+    studentId: item.studentId,
+    studentCode: item.studentCode,
+    fullName: item.fullName,
+    status: item.status,
+    violationCount: item.violationCount,
+    bonusCount: item.bonusCount,
+    totalDeduct: item.totalDeduct,
+    totalBonus: item.totalBonus,
+    excusedAbsenceCount: item.excusedAbsenceCount || 0,
+    unexcusedAbsenceCount: item.unexcusedAbsenceCount || 0,
+    truancyCount: item.truancyCount || 0,
+    finalScore: item.finalScore,
+    rank: item.rank,
+    notes: item.notes || '',
+  };
+  if (item.achievementBonus) res.achievementBonus = item.achievementBonus;
+  if (item.achievementCount) res.achievementCount = item.achievementCount;
+  if (item.achievements && item.achievements.length > 0) res.achievements = item.achievements;
+  return res;
+}
+
+/**
+ * Rút gọn object StudentMonthlySummary
+ */
+function compactMonthlySummary(item: StudentMonthlySummary): StudentMonthlySummary {
+  const res: StudentMonthlySummary = {
+    studentId: item.studentId,
+    studentCode: item.studentCode,
+    fullName: item.fullName,
+    status: item.status,
+    weekDeductions: {},
+    totalDeduct: item.totalDeduct,
+    totalBonus: item.totalBonus,
+    excusedAbsenceCount: item.excusedAbsenceCount || 0,
+    unexcusedAbsenceCount: item.unexcusedAbsenceCount || 0,
+    truancyCount: item.truancyCount || 0,
+    finalScore: item.finalScore,
+    rank: item.rank,
+    violationCount: item.violationCount,
+    bonusCount: item.bonusCount,
+    notes: item.notes || '',
+  };
+  if (item.monthlyBonus) res.monthlyBonus = item.monthlyBonus;
+  if (item.weeklyBonus) res.weeklyBonus = item.weeklyBonus;
+  if (item.achievementBonus) res.achievementBonus = item.achievementBonus;
+  if (item.achievements && item.achievements.length > 0) res.achievements = item.achievements;
+  return res;
+}
+
+/**
+ * Xây dựng payload đầy đủ cho bảng điểm công khai trực tuyến (được tối ưu dung lượng < 1MB cho Firestore)
  */
 export function buildPublicScoreboardPayload(
   classConfig: ClassConfig,
@@ -48,45 +102,69 @@ export function buildPublicScoreboardPayload(
 ): PublicScoreboardPayload {
   const currentWeek = currentSchoolWeek(classConfig.weeks)?.weekNumber ?? 1;
 
-  // Lập bản đồ tổng hợp tất cả các tuần
-  const weeklySummaries: Record<number, StudentWeeklySummary[]> = {};
+  // 1. Xác định các tuần thực tế cần lưu (các tuần có log hoặc từ tuần 1 đến tuần hiện tại + 1)
+  // Tránh lưu trước 20-30 tuần tương lai trống rỗng gây vượt hạn mức 1MB của Firestore
+  const logWeekNumbers = new Set(disciplineLogs.map((l) => l.weekNumber));
+  const activeWeekNumbers = new Set<number>();
   for (const week of classConfig.weeks) {
-    try {
-      weeklySummaries[week.weekNumber] = getWeeklySummary(week.weekNumber);
-    } catch {
-      weeklySummaries[week.weekNumber] = [];
+    if (week.weekNumber <= currentWeek + 1 || logWeekNumbers.has(week.weekNumber)) {
+      activeWeekNumbers.add(week.weekNumber);
     }
   }
 
-  // Lập bản đồ tổng hợp tất cả các tháng
+  // 2. Lập bản đồ tổng hợp các tuần hoạt động
+  const weeklySummaries: Record<number, StudentWeeklySummary[]> = {};
+  for (const weekNum of activeWeekNumbers) {
+    try {
+      weeklySummaries[weekNum] = getWeeklySummary(weekNum).map(compactWeeklySummary);
+    } catch {
+      weeklySummaries[weekNum] = [];
+    }
+  }
+
+  // 3. Lập bản đồ tổng hợp các tháng (chỉ các tháng có tuần hoạt động hoặc có log)
+  const activeMonths = new Set<number>();
+  for (const week of classConfig.weeks) {
+    if (activeWeekNumbers.has(week.weekNumber)) {
+      activeMonths.add(week.month);
+    }
+  }
+  disciplineLogs.forEach((l) => {
+    if (l.month) activeMonths.add(l.month);
+  });
+
   const monthlySummaries: Record<number, StudentMonthlySummary[]> = {};
   for (const month of classConfig.months) {
-    try {
-      monthlySummaries[month] = getMonthlySummary(month);
-    } catch {
-      monthlySummaries[month] = [];
+    if (activeMonths.has(month)) {
+      try {
+        monthlySummaries[month] = getMonthlySummary(month).map(compactMonthlySummary);
+      } catch {
+        monthlySummaries[month] = [];
+      }
     }
   }
 
-  // Lập bản đồ tổng hợp học kỳ 1 & 2
+  // 4. Lập bản đồ tổng hợp học kỳ 1 & 2
   const semesterSummaries: Record<number, StudentSemesterSummary[]> = {};
   try {
     semesterSummaries[1] = getSemesterSummary(1);
   } catch {
     semesterSummaries[1] = [];
   }
-  try {
-    semesterSummaries[2] = getSemesterSummary(2);
-  } catch {
-    semesterSummaries[2] = [];
+  if (currentWeek >= 19 || Array.from(logWeekNumbers).some((w) => w >= 19)) {
+    try {
+      semesterSummaries[2] = getSemesterSummary(2);
+    } catch {
+      semesterSummaries[2] = [];
+    }
   }
 
-  // 100 bản ghi nhật ký mới nhất được sắp xếp giảm dần theo thời gian
+  // 5. Nhật ký mới nhất (giới hạn 35 bản ghi gần nhất để tối ưu dung lượng)
   const sortedLogs = [...disciplineLogs].sort((a, b) => {
     return new Date(b.createdAt || b.date).getTime() - new Date(a.createdAt || a.date).getTime();
   });
 
-  const recentLogs: PublicScoreboardRecentLog[] = sortedLogs.slice(0, 100).map((log) => ({
+  const recentLogs: PublicScoreboardRecentLog[] = sortedLogs.slice(0, 35).map((log) => ({
     id: log.id,
     studentId: log.studentId,
     studentName: log.studentName,
@@ -98,18 +176,27 @@ export function buildPublicScoreboardPayload(
     scorePerUnit: log.scorePerUnit,
     count: log.count,
     totalScore: log.totalScore,
-    periodOrTime: log.periodOrTime,
+    periodOrTime: log.periodOrTime || '',
   }));
 
   // Thống kê sơ bộ tuần hiện tại
   const currentWeekList = weeklySummaries[currentWeek] || [];
   const totalScoreSum = currentWeekList.reduce((sum, s) => sum + s.finalScore, 0);
-  const avgScore = currentWeekList.length > 0 ? Number((totalScoreSum / currentWeekList.length).toFixed(2)) : classConfig.baseScore;
-  const topRankCount = currentWeekList.filter((s) => s.rank === 'Xuất sắc' || s.rank === 'Tốt').length;
-  const violationCount = disciplineLogs.filter((l) => l.type === 'deduct' && l.weekNumber === currentWeek).length;
-  const bonusCount = disciplineLogs.filter((l) => l.type === 'bonus' && l.weekNumber === currentWeek).length;
+  const avgScore =
+    currentWeekList.length > 0
+      ? Number((totalScoreSum / currentWeekList.length).toFixed(2))
+      : classConfig.baseScore;
+  const topRankCount = currentWeekList.filter(
+    (s) => s.rank === 'Xuất sắc' || s.rank === 'Tốt'
+  ).length;
+  const violationCount = disciplineLogs.filter(
+    (l) => l.type === 'deduct' && l.weekNumber === currentWeek
+  ).length;
+  const bonusCount = disciplineLogs.filter(
+    (l) => l.type === 'bonus' && l.weekNumber === currentWeek
+  ).length;
 
-  return {
+  const payload: PublicScoreboardPayload = {
     classId: classConfig.id,
     className: classConfig.className,
     schoolYear: classConfig.schoolYear,
@@ -157,6 +244,27 @@ export function buildPublicScoreboardPayload(
     },
     teacherId: classConfig.teacherId,
   };
+
+  // 6. Kiểm tra kích thước khẩn cấp: nếu payload vẫn vượt 950KB, tự động tinh giản số tuần cũ
+  try {
+    const jsonStr = JSON.stringify(payload);
+    const byteLength = new Blob([jsonStr]).size;
+    if (byteLength > 950000) {
+      // Giữ tối đa 12 tuần gần nhất
+      const sortedActiveWeeks = Array.from(activeWeekNumbers).sort((a, b) => b - a);
+      const keepWeeks = new Set(sortedActiveWeeks.slice(0, 12));
+      for (const w of Object.keys(payload.weeklySummaries)) {
+        if (!keepWeeks.has(Number(w))) {
+          delete payload.weeklySummaries[Number(w)];
+        }
+      }
+      payload.recentLogs = payload.recentLogs.slice(0, 20);
+    }
+  } catch {
+    // Không làm gián đoạn nếu môi trường không có Blob
+  }
+
+  return payload;
 }
 
 /**

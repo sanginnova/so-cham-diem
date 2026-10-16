@@ -36,19 +36,20 @@ interface TopBarProps {
 // Map active tab to human readable breadcrumb label
 const TAB_LABELS: Record<TabType, { section: string; title: string }> = {
   portal: { section: 'Trang chủ', title: 'Cổng tra cứu học sinh' },
-  dashboard: { section: 'Tổng quan', title: 'Bảng điều khiển lớp học' },
+  dashboard: { section: 'Điểm Rèn Luyện', title: 'Tổng quan nề nếp thi đua' },
   collections: { section: 'Chủ nhiệm', title: 'Các khoản thu của lớp' },
   homeroom: { section: 'Chủ nhiệm', title: 'Trợ lý giáo viên chủ nhiệm' },
   'seating-chart': { section: 'Chủ nhiệm', title: 'Xếp tổ & Sơ đồ lớp học' },
-  'daily-log': { section: 'Nhật ký', title: 'Chấm điểm hằng ngày' },
-  weekly: { section: 'Báo cáo', title: 'Tổng kết tuần' },
-  monthly: { section: 'Báo cáo', title: 'Tổng kết tháng' },
-  semester: { section: 'Báo cáo', title: 'Xếp loại học kỳ' },
-  'attendance-report': { section: 'Báo cáo', title: 'Báo cáo học sinh nghỉ học' },
-  students: { section: 'Học sinh', title: 'Danh sách hồ sơ học sinh' },
-  'zalo-composer': { section: 'Học sinh', title: 'Soạn tin Zalo phụ huynh' },
-  'parent-report': { section: 'Học sinh', title: 'Báo cáo phụ huynh định kỳ' },
-  categories: { section: 'Hệ thống', title: 'Biểu điểm lỗi & thưởng' },
+  'daily-log': { section: 'Điểm Rèn Luyện', title: 'Chấm nề nếp & thi đua hằng ngày' },
+  weekly: { section: 'Điểm Rèn Luyện', title: 'Tổng kết thi đua tuần' },
+  monthly: { section: 'Điểm Rèn Luyện', title: 'Tổng kết thi đua tháng' },
+  semester: { section: 'Điểm Rèn Luyện', title: 'Đánh giá rèn luyện học kỳ' },
+  'attendance-report': { section: 'Điểm Rèn Luyện', title: 'Báo cáo học sinh nghỉ học' },
+  students: { section: 'Hồ sơ', title: 'Danh sách hồ sơ học sinh' },
+  gradebook: { section: 'Điểm Học Lực (TT 22)', title: 'Sổ điểm bộ môn (15′ · 30′ · 1 tiết · Cuối kỳ)' },
+  'zalo-composer': { section: 'Liên hệ', title: 'Soạn tin Zalo phụ huynh' },
+  'parent-report': { section: 'Liên hệ', title: 'Báo cáo phụ huynh định kỳ' },
+  categories: { section: 'Quy chế', title: 'Biểu điểm lỗi & thưởng' },
   settings: { section: 'Hệ thống', title: 'Cài đặt lớp & sao lưu' },
   admin: { section: 'Hệ thống', title: 'Quản trị phân quyền trường' },
 };
@@ -135,6 +136,38 @@ export const TopBar: React.FC<TopBarProps> = ({
                 {currentTabInfo.title}
               </span>
             </div>
+
+            {/* Quick Switcher Phân hệ: Rèn Luyện vs Học Lực (15'/30'/1 tiết) */}
+            {!isGuestOrPortal && ['teacher', 'admin', 'owner'].includes(userRole) && (
+              <div className="hidden xl:flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px] font-bold shrink-0 ml-1">
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab(activeTab === 'gradebook' ? 'daily-log' : activeTab)}
+                  className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition cursor-pointer ${
+                    activeTab !== 'gradebook'
+                      ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs font-bold'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                  title="Chuyển sang phân hệ Chấm điểm rèn luyện (Nề nếp, chuyên cần, thi đua)"
+                >
+                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
+                  <span>Điểm Rèn Luyện</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => onNavigateTab('gradebook')}
+                  className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition cursor-pointer ${
+                    activeTab === 'gradebook'
+                      ? 'bg-purple-600 text-white shadow-2xs font-bold'
+                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                  }`}
+                  title="Chuyển sang phân hệ Chấm điểm học lực (15', 30', 1 tiết...)"
+                >
+                  <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'gradebook' ? 'bg-white' : 'bg-purple-500'}`} />
+                  <span>Điểm Học Lực (15′·30′·1 tiết)</span>
+                </button>
+              </div>
+            )}
           </div>
         </div>
 
