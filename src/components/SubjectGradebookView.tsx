@@ -39,10 +39,14 @@ export function SubjectGradebookView() {
     students: ownStudents,
     classConfig,
     userRole,
-    isLocalMode,
+    isLocalMode: appLocalMode,
     activeAccount,
     workspaceClasses,
   } = useApp();
+  const devicePreferenceKey = `subject_device_mode_${activeAccount?.uid || 'guest'}`;
+  const [deviceOnly, setDeviceOnly] = useState(() => localStorage.getItem(devicePreferenceKey) === 'true');
+  useEffect(() => { setDeviceOnly(localStorage.getItem(devicePreferenceKey) === 'true'); }, [devicePreferenceKey]);
+  const isLocalMode = appLocalMode || deviceOnly;
   const { students, ready: rosterReady, error: rosterError } = useSubjectRoster(classConfig, workspaceClasses, ownStudents);
 
   const [semesterTab, setSemesterTab] = useState<'sem1' | 'sem2' | 'year'>('sem1');
@@ -480,6 +484,10 @@ export function SubjectGradebookView() {
   if (!gradebook) return <div role="alert" className="p-6 space-y-3 text-rose-700">
     <p>{message}</p>
     <button className="rounded border px-4 py-2" onClick={() => setLoadAttempt(value => value + 1)}>Thử tải lại</button>
+    {!isLocalMode && <button className="ml-3 rounded-lg bg-purple-600 px-4 py-2 text-white" onClick={() => {
+      localStorage.setItem(devicePreferenceKey, 'true');
+      setDeviceOnly(true);
+    }}>Dùng sổ điểm trên máy</button>}
   </div>;
 
   const txCount =
@@ -489,6 +497,14 @@ export function SubjectGradebookView() {
 
   return (
     <fieldset disabled={saving} className="min-w-0 space-y-4 text-slate-800 dark:text-slate-100">
+      {deviceOnly && <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
+        <p>Sổ điểm đang lưu trên trình duyệt này, chưa đồng bộ Firebase. Hãy xuất Excel để giữ bản sao. Danh sách học sinh vẫn lấy từ lớp đã đăng nhập.</p>
+        <button type="button" className="mt-2 underline" onClick={() => {
+          if (hasUnsavedChanges && !confirm('Còn thay đổi chưa lưu. Hãy lưu hoặc xuất Excel trước. Vẫn chuyển sang máy chủ?')) return;
+          localStorage.removeItem(devicePreferenceKey);
+          setDeviceOnly(false);
+        }}>Thử kết nối máy chủ</button>
+      </div>}
       {classConfig.rosterSourceClassId && <p className="rounded-xl border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">Danh sách học sinh dùng chung từ lớp nguồn. Thêm, sửa học sinh tại lớp nguồn; điểm trong sổ này chỉ thuộc môn {subjectName}.</p>}
       {/* ── Page Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">

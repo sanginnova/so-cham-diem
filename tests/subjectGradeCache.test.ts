@@ -16,11 +16,16 @@ test('drafts survive switching classes, isolate accounts and clear only the sele
   try {
     Object.defineProperty(auth, 'currentUser', { configurable: true, writable: true, value: { uid: 'teacher-a' } });
     stageGradebookDraft(book, false);
+    stageGradebookDraft(book, true);
     stageGradebookDraft({ ...book, classId: 'class-b' }, false);
     Object.defineProperty(auth, 'currentUser', { value: { uid: 'teacher-b' } });
+    const otherAccount = await loadClassGradebook(book.classId, book.subjectName, book.schoolYear, 'GV B', [], true, 'teacher-b');
+    assert.equal(otherAccount.pendingSync, false);
+    assert.equal(otherAccount.teacherId, 'teacher-b');
+    assert.equal(items.has('subject_gradebook_v2_local_teacher-a_class-a'), true);
     stageGradebookDraft({ ...book, teacherId: 'teacher-b' }, false);
     discardGradebookDraft('class-a', false);
-    assert.equal(items.size, 2);
+    assert.equal(items.size, 3);
     assert.equal(JSON.parse(items.get('subject_gradebook_v2_teacher-a_class-a')!).pendingSync, true);
     Object.defineProperty(auth, 'currentUser', { value: null });
     assert.throws(() => stageGradebookDraft(book, false), /đăng nhập/);

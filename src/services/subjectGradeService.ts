@@ -12,7 +12,7 @@ import {
 function cacheKey(classId: string, local: boolean): string {
   const uid = auth.currentUser?.uid;
   if (!local && !uid) throw new Error('Vui lòng đăng nhập lại để mở sổ điểm.');
-  return `subject_gradebook_v2_${local ? 'local' : uid}_${classId}`;
+  return `subject_gradebook_v2_${local ? `local_${uid || 'guest'}` : uid}_${classId}`;
 }
 
 export function stageGradebookDraft(data: ClassGradebookData, local: boolean): void {
@@ -47,9 +47,12 @@ export async function loadClassGradebook(
   }
   if (isLocalMode && !loadedData) {
     try {
-      const raw = localStorage.getItem(`subject_gradebook_${classId}`);
+      // Prefer this account's unsent cloud draft when entering device mode.
+      const scoped = auth.currentUser?.uid ? localStorage.getItem(`subject_gradebook_v2_${auth.currentUser.uid}_${classId}`) : null;
+      const oldLocal = localStorage.getItem(`subject_gradebook_v2_local_${classId}`);
+      const raw = scoped || oldLocal || localStorage.getItem(`subject_gradebook_${classId}`);
       const legacy = raw ? JSON.parse(raw) as ClassGradebookData : null;
-      if (legacy?.classId === classId && legacy.subjectName === subjectName && legacy.schoolYear === schoolYear) {
+      if (legacy?.classId === classId && (!legacy.teacherId || legacy.teacherId === teacherId) && legacy.subjectName === subjectName && legacy.schoolYear === schoolYear) {
         loadedData = { ...legacy, teacherId, revision: 0, pendingSync: true };
       }
     } catch { /* Preserve unreadable legacy cache. */ }
