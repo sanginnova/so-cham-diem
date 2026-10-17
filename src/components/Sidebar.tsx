@@ -654,8 +654,23 @@ export const Sidebar: React.FC<SidebarProps> = ({
         </button>
 
         {(!isCollapsed || isOpenMobile) && (
-          <div className="text-center pt-0.5 text-[10px] text-slate-500 font-mono tracking-tight select-text">
-            Phiên bản v{APP_VERSION} • Online
+          <div className="text-center pt-0.5 text-[10px] text-slate-500 font-mono tracking-tight select-text flex items-center justify-center gap-1.5">
+            <span>Phiên bản v{APP_VERSION}</span>
+            <button
+              type="button"
+              onClick={() => {
+                if ('serviceWorker' in navigator) {
+                  navigator.serviceWorker.getRegistrations().then((registrations) => {
+                    registrations.forEach((r) => void r.unregister());
+                  });
+                }
+                window.location.reload();
+              }}
+              className="text-blue-400 hover:text-blue-300 underline cursor-pointer"
+              title="Bấm để xóa cache và cập nhật ngay bản mới nhất"
+            >
+              (Tải lại)
+            </button>
           </div>
         )}
       </div>

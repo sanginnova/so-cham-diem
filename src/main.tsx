@@ -21,6 +21,11 @@ if (typeof window !== 'undefined' && 'serviceWorker' in navigator) {
   navigator.serviceWorker.addEventListener('controllerchange', () => {
     window.location.reload();
   });
+  navigator.serviceWorker.getRegistrations().then((registrations) => {
+    registrations.forEach((reg) => {
+      void reg.update();
+    });
+  }).catch(() => {});
 }
 
 import {StrictMode} from 'react';
