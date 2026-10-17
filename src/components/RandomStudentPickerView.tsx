@@ -137,6 +137,8 @@ export function RandomStudentPickerView() {
   const [showWinnerModal, setShowWinnerModal] = useState<boolean>(false);
   const [actionMessage, setActionMessage] = useState<string>('');
   const [customGradeInput, setCustomGradeInput] = useState<string>('9');
+  const [individualScores, setIndividualScores] = useState<Record<string, string>>({});
+  const [studentActions, setStudentActions] = useState<Record<string, string>>({});
   const [slotDisplayNames, setSlotDisplayNames] = useState<string[]>(['SẴN SÀNG QUAY']);
 
   // Canvas Vòng quay may mắn
@@ -342,6 +344,13 @@ export function RandomStudentPickerView() {
     playWinnerFanfare(soundEnabled);
     setShowWinnerModal(true);
 
+    const initialScores: Record<string, string> = {};
+    picked.forEach((p) => {
+      initialScores[p.id] = '9';
+    });
+    setIndividualScores(initialScores);
+    setStudentActions({});
+
     // Lưu vào lịch sử phiên
     const newEntries: PickerHistoryEntry[] = picked.map((s) => ({
       studentId: s.id,
@@ -358,7 +367,7 @@ export function RandomStudentPickerView() {
     });
   };
 
-  // Tác vụ nhanh 1: Cộng điểm phát biểu (Rèn luyện / Nề nếp)
+  // Tác vụ nhanh 1: Cộng điểm phát biểu (Rèn luyện / Nề nếp) cho 1 học sinh
   const handleAwardBonusPoint = async (student: Student, points = 2) => {
     try {
       const now = new Date();
@@ -389,17 +398,23 @@ export function RandomStudentPickerView() {
         return updated;
       });
 
+      setStudentActions((prev) => ({
+        ...prev,
+        [student.id]: `+${points}đ phát biểu`,
+      }));
+
       setActionMessage(`Đã cộng +${points} điểm nề nếp cho ${student.fullName}!`);
     } catch (err) {
       alert(`Lỗi cộng điểm: ${String(err)}`);
     }
   };
 
-  // Tác vụ nhanh 2: Ghi thẳng vào Sổ điểm môn Toán (TX)
-  const handleSaveToSubjectGradebook = async (student: Student) => {
-    const score = parseFloat(customGradeInput.replace(',', '.'));
+  // Tác vụ nhanh 2: Ghi thẳng vào Sổ điểm môn Toán (TX) cho 1 học sinh
+  const handleSaveToSubjectGradebook = async (student: Student, overrideScore?: string) => {
+    const rawScore = overrideScore !== undefined ? overrideScore : (individualScores[student.id] || customGradeInput);
+    const score = parseFloat(rawScore.replace(',', '.'));
     if (isNaN(score) || score < 0 || score > 10) {
-      alert('Vui lòng nhập điểm từ 0 đến 10.');
+      alert(`Vui lòng nhập điểm từ 0 đến 10 cho ${student.fullName}.`);
       return;
     }
 
@@ -418,7 +433,7 @@ export function RandomStudentPickerView() {
 
       const studentGrade = gb.grades[student.id];
       if (!studentGrade) {
-        alert('Không tìm thấy học sinh trong sổ điểm!');
+        alert(`Không tìm thấy ${student.fullName} trong sổ điểm!`);
         return;
       }
 
@@ -450,17 +465,37 @@ export function RandomStudentPickerView() {
       setHistory((prev) => {
         const updated = prev.map((item) =>
           item.studentId === student.id
-            ? { ...item, actionTaken: 'grade_entered' as const, detail: `Điểm TX: ${score}` }
+            ? { ...item, actionTaken: 'grade_entered' as const, detail: `Điểm TX${targetIdx + 1}: ${score}` }
             : item
         );
         saveSessionPickerHistory(classConfig.id, todayStr, updated);
         return updated;
       });
 
+      setStudentActions((prev) => ({
+        ...prev,
+        [student.id]: `Đã lưu TX${targetIdx + 1}: ${score}đ`,
+      }));
+
       setActionMessage(`Đã ghi điểm ${score} vào cột TX${targetIdx + 1} môn ${subjectName} cho ${student.fullName}!`);
     } catch (err) {
       alert(`Lỗi ghi sổ điểm: ${String(err)}`);
     }
+  };
+
+  // Tác vụ hàng loạt cho cả nhóm
+  const handleBatchAwardBonus = async (points = 2) => {
+    for (const w of winners) {
+      await handleAwardBonusPoint(w, points);
+    }
+    setActionMessage(`Đã cộng +${points} điểm phát biểu cho cả ${winners.length} em!`);
+  };
+
+  const handleBatchSaveGrades = async (scoreVal: string) => {
+    for (const w of winners) {
+      await handleSaveToSubjectGradebook(w, scoreVal);
+    }
+    setActionMessage(`Đã ghi điểm TX ${scoreVal} vào sổ điểm cho cả ${winners.length} em!`);
   };
 
   // Đặt lại lịch sử gọi trong buổi
@@ -793,92 +828,161 @@ export function RandomStudentPickerView() {
         )}
       </div>
 
-      {/* ── MODAL CHÚC MỪNG VÀ TÁC VỤ 1-CHẠM ── */}
+      {/* ── MODAL CHÚC MỪNG VÀ TÁC VỤ CHẤM ĐIỂM TỪNG HỌC SINH ── */}
       {showWinnerModal && winners.length > 0 && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 backdrop-blur-xs p-4 animate-fadeIn">
-          <div className="w-full max-w-md rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-6 text-center space-y-4">
-            <div className="w-16 h-16 rounded-full bg-gradient-to-tr from-amber-400 to-rose-500 text-white flex items-center justify-center mx-auto shadow-lg shadow-rose-500/30 animate-bounce">
-              <Award className="h-8 w-8" />
-            </div>
-
-            <div>
-              <span className="text-[11px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400">
-                HỌC SINH ĐƯỢC CHỌN
-              </span>
-              <div className="mt-2 space-y-1">
-                {winners.map((winner) => (
-                  <div key={winner.id} className="p-2 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700">
-                    <h3 className="text-xl font-black text-slate-900 dark:text-white">
-                      {winner.fullName}
-                    </h3>
-                    <span className="text-xs text-slate-500 dark:text-slate-400 font-mono">
-                      Mã HS: {winner.studentCode || '—'} · Lớp: {classConfig.className}
-                    </span>
-                  </div>
-                ))}
+          <div className="w-full max-w-xl max-h-[92vh] flex flex-col rounded-3xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 shadow-2xl p-4 sm:p-6 text-center space-y-4">
+            {/* Header Modal */}
+            <div className="flex items-center justify-center gap-3">
+              <div className="w-12 h-12 rounded-full bg-gradient-to-tr from-amber-400 to-rose-500 text-white flex items-center justify-center shadow-lg shadow-rose-500/30 shrink-0">
+                <Award className="h-6 w-6" />
+              </div>
+              <div className="text-left">
+                <span className="text-[11px] font-black uppercase tracking-widest text-amber-600 dark:text-amber-400 block">
+                  HỌC SINH ĐƯỢC CHỌN ({winners.length} EM)
+                </span>
+                <p className="text-xs text-slate-500 dark:text-slate-400">
+                  Thầy có thể chấm điểm TX hoặc cộng điểm phát biểu riêng cho từng em.
+                </p>
               </div>
             </div>
 
             {/* Thông báo kết quả tác vụ */}
             {actionMessage && (
-              <div className="p-2.5 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold animate-fadeIn">
+              <div className="p-2 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-bold animate-fadeIn">
                 ✓ {actionMessage}
               </div>
             )}
 
-            {/* Tác vụ 1-chạm */}
-            <div className="space-y-2 pt-2 border-t border-slate-100 dark:border-slate-800">
-              <div className="text-[11px] font-bold text-slate-400 uppercase tracking-wider">
-                Tác vụ sư phạm nhanh
-              </div>
-
-              <div className="grid grid-cols-2 gap-2">
-                <button
-                  type="button"
-                  onClick={() => handleAwardBonusPoint(winners[0], 2)}
-                  className="p-2.5 rounded-xl bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/50 dark:hover:bg-emerald-950 text-emerald-700 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800 font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5"
-                >
-                  <Award className="h-4 w-4" />
-                  <span>+2 Điểm phát biểu</span>
-                </button>
-
-                <div className="flex items-center gap-1">
-                  <input
-                    type="text"
-                    value={customGradeInput}
-                    onChange={(e) => setCustomGradeInput(e.target.value)}
-                    placeholder="Điểm"
-                    className="w-14 p-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-center font-bold text-xs"
-                  />
+            {/* Thanh tác vụ hàng loạt nếu gọi nhiều hơn 1 em */}
+            {winners.length > 1 && (
+              <div className="p-2.5 rounded-2xl bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800/60 flex flex-wrap items-center justify-between gap-2 text-xs">
+                <span className="font-bold text-purple-900 dark:text-purple-300">
+                  ⚡ Chấm nhanh cả {winners.length} em:
+                </span>
+                <div className="flex items-center gap-2">
                   <button
                     type="button"
-                    onClick={() => handleSaveToSubjectGradebook(winners[0])}
-                    className="flex-1 p-2.5 rounded-xl bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/50 dark:hover:bg-blue-950 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1"
+                    onClick={() => void handleBatchAwardBonus(2)}
+                    className="px-2.5 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 text-white font-bold transition cursor-pointer shadow-2xs"
                   >
-                    <BookOpen className="h-4 w-4" />
-                    <span>Lưu điểm TX</span>
+                    +2đ tất cả
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      const score = prompt('Nhập điểm TX chung cho cả nhóm (0 - 10):', '9');
+                      if (score !== null && score.trim() !== '') {
+                        void handleBatchSaveGrades(score.trim());
+                      }
+                    }}
+                    className="px-2.5 py-1.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold transition cursor-pointer shadow-2xs"
+                  >
+                    Lưu điểm TX tất cả
                   </button>
                 </div>
               </div>
+            )}
 
+            {/* Danh sách thẻ từng học sinh để chấm điểm riêng biệt */}
+            <div className="flex-1 overflow-y-auto space-y-2.5 pr-1 max-h-[50vh]">
+              {winners.map((winner, idx) => {
+                const actionDone = studentActions[winner.id];
+                return (
+                  <div
+                    key={winner.id}
+                    className="p-3 rounded-2xl bg-slate-50 dark:bg-slate-800/80 border border-slate-200 dark:border-slate-700 text-left space-y-2 transition shadow-2xs"
+                  >
+                    <div className="flex items-center justify-between gap-2">
+                      <div className="flex items-center gap-2.5">
+                        <span className="w-6 h-6 rounded-full bg-purple-600 text-white font-black text-xs flex items-center justify-center shrink-0">
+                          {idx + 1}
+                        </span>
+                        <div>
+                          <h4 className="text-sm font-black text-slate-900 dark:text-white">
+                            {winner.fullName}
+                          </h4>
+                          <span className="text-[11px] text-slate-500 dark:text-slate-400 font-mono">
+                            Mã: {winner.studentCode || '—'} · Lớp: {classConfig.className}
+                          </span>
+                        </div>
+                      </div>
+
+                      {actionDone ? (
+                        <span className="px-2.5 py-0.5 rounded-full bg-emerald-100 text-emerald-800 dark:bg-emerald-950 dark:text-emerald-300 font-bold text-[11px] border border-emerald-300 animate-fadeIn shrink-0">
+                          ✓ {actionDone}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-slate-400 font-medium shrink-0">
+                          Chưa chấm
+                        </span>
+                      )}
+                    </div>
+
+                    {/* Dòng thao tác riêng cho học sinh này */}
+                    <div className="flex flex-wrap items-center gap-2 pt-1 border-t border-slate-200/60 dark:border-slate-700/60">
+                      {/* Nhập và lưu điểm TX */}
+                      <div className="flex items-center gap-1.5 flex-1 min-w-[160px]">
+                        <input
+                          type="text"
+                          inputMode="decimal"
+                          value={individualScores[winner.id] ?? '9'}
+                          onChange={(e) =>
+                            setIndividualScores((prev) => ({
+                              ...prev,
+                              [winner.id]: e.target.value,
+                            }))
+                          }
+                          placeholder="Điểm"
+                          className="w-14 p-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-center font-black text-xs"
+                        />
+                        <button
+                          type="button"
+                          onClick={() => void handleSaveToSubjectGradebook(winner)}
+                          className="flex-1 py-1.5 px-2.5 rounded-xl bg-blue-600 hover:bg-blue-700 text-white font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1 shadow-2xs"
+                          title="Lưu điểm vào cột TX còn trống của học sinh này trong sổ điểm"
+                        >
+                          <BookOpen className="h-3.5 w-3.5" />
+                          <span>Lưu điểm TX</span>
+                        </button>
+                      </div>
+
+                      {/* Nút cộng điểm rèn luyện */}
+                      <button
+                        type="button"
+                        onClick={() => void handleAwardBonusPoint(winner, 2)}
+                        className="py-1.5 px-3 rounded-xl bg-emerald-100 hover:bg-emerald-200 dark:bg-emerald-950/60 dark:hover:bg-emerald-900 text-emerald-800 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-700 font-bold text-xs transition cursor-pointer flex items-center gap-1 shrink-0"
+                        title="Cộng 2 điểm rèn luyện / nề nếp cho học sinh này"
+                      >
+                        <Award className="h-3.5 w-3.5" />
+                        <span>+2 Điểm phát biểu</span>
+                      </button>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Nút hành động chân trang */}
+            <div className="pt-2 border-t border-slate-100 dark:border-slate-800 space-y-2 shrink-0">
               <button
                 type="button"
                 onClick={() => {
                   setShowWinnerModal(false);
                   startSpin();
                 }}
-                className="w-full py-2.5 rounded-xl bg-purple-600 hover:bg-purple-700 text-white font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shadow-sm"
+                className="w-full py-2.5 rounded-xl bg-gradient-to-r from-purple-600 to-indigo-600 hover:from-purple-700 hover:to-indigo-700 text-white font-bold text-xs transition cursor-pointer flex items-center justify-center gap-1.5 shadow-md shadow-purple-500/20"
               >
                 <Play className="h-3.5 w-3.5 fill-current" />
-                <span>Quay tiếp em khác</span>
+                <span>Quay lượt tiếp theo</span>
               </button>
 
               <button
                 type="button"
                 onClick={() => setShowWinnerModal(false)}
-                className="w-full py-1.5 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 text-xs font-medium cursor-pointer"
+                className="w-full py-1 text-slate-500 hover:text-slate-800 dark:hover:text-slate-200 text-xs font-medium cursor-pointer"
               >
-                Đóng
+                Đóng hộp thoại
               </button>
             </div>
           </div>
