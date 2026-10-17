@@ -21,6 +21,7 @@ import { useApp } from '../context/AppContext';
 import { Student } from '../types';
 import { useSubjectRoster } from '../hooks/useSubjectRoster';
 import { recordGradebookEdit, changeTermLock } from '../lib/gradebookHistory';
+import { assessmentKey, assessmentValue, setAssessmentStatus, needsAssessmentFollowup, statusLabels, type AssessmentStatus } from '../lib/assessmentStatus';
 import {
   ClassGradebookData,
   StudentSubjectGrade,
@@ -56,6 +57,7 @@ export function SubjectGradebookView() {
   const [saving, setSaving] = useState(false);
   const [message, setMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
+  const [followupFilter, setFollowupFilter] = useState<'all' | 'missing' | 'makeup'>('all');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [saveError, setSaveError] = useState(false);
@@ -176,6 +178,8 @@ export function SubjectGradebookView() {
       } else {
         updatedStudentGrade[term][field] = scoreNum;
       }
+      updatedStudentGrade[term].assessmentStatuses = { ...currentStudentGrade[term].assessmentStatuses };
+      delete updatedStudentGrade[term].assessmentStatuses![assessmentKey(field, txIndex)];
 
       // Tự động tính toán lại ĐTB học kỳ và Cả năm
       if (!prev.termLocks?.semester1?.locked) updatedStudentGrade.semester1.average = calculateTermAverage(updatedStudentGrade.semester1);
@@ -251,9 +255,13 @@ export function SubjectGradebookView() {
         const item = { ...newGrades[sId] };
         if (isSem1) {
           item.semester1 = { ...item.semester1, tx: item.semester1.tx.slice(0, currentCount - 1) };
+          item.semester1.assessmentStatuses = { ...item.semester1.assessmentStatuses };
+          delete item.semester1.assessmentStatuses[assessmentKey('tx', currentCount - 1)];
           item.semester1.average = calculateTermAverage(item.semester1);
         } else {
           item.semester2 = { ...item.semester2, tx: item.semester2.tx.slice(0, currentCount - 1) };
+          item.semester2.assessmentStatuses = { ...item.semester2.assessmentStatuses };
+          delete item.semester2.assessmentStatuses[assessmentKey('tx', currentCount - 1)];
           item.semester2.average = calculateTermAverage(item.semester2);
         }
         item.yearAverage = calculateYearAverage(item.semester1.average, item.semester2.average);
@@ -347,14 +355,15 @@ export function SubjectGradebookView() {
 
   // Danh sách học sinh hiển thị theo tìm kiếm
   const filteredStudents = useMemo(() => {
-    if (!searchQuery.trim()) return students;
     const q = searchQuery.toLowerCase().trim();
     return students.filter(
       (s) =>
-        s.fullName.toLowerCase().includes(q) ||
-        s.studentCode.toLowerCase().includes(q)
+        (s.fullName.toLowerCase().includes(q) || s.studentCode.toLowerCase().includes(q))
+        && (followupFilter === 'all' || !isLocalMode || (gradebook?.grades[s.id] && (semesterTab === 'year'
+          ? needsAssessmentFollowup(gradebook.grades[s.id].semester1, followupFilter) || needsAssessmentFollowup(gradebook.grades[s.id].semester2, followupFilter)
+          : needsAssessmentFollowup(gradebook.grades[s.id][currentTerm], followupFilter))))
     );
-  }, [students, searchQuery]);
+  }, [students, searchQuery, followupFilter, gradebook, currentTerm, semesterTab, isLocalMode]);
 
   // Thống kê nhanh điểm số
   const stats = useMemo(() => {
@@ -451,15 +460,15 @@ export function SubjectGradebookView() {
       if (semesterTab === 'sem1') {
         const term = g?.semester1;
         for (let i = 0; i < txCount; i++) {
-          row.push(term?.tx[i] ?? '');
+          row.push(assessmentValue(term, 'tx', i));
         }
-        row.push(term?.gk ?? '', term?.ck ?? '', term?.average ?? '');
+        row.push(assessmentValue(term, 'gk'), assessmentValue(term, 'ck'), term?.average ?? '');
       } else if (semesterTab === 'sem2') {
         const term = g?.semester2;
         for (let i = 0; i < txCount; i++) {
-          row.push(term?.tx[i] ?? '');
+          row.push(assessmentValue(term, 'tx', i));
         }
-        row.push(term?.gk ?? '', term?.ck ?? '', term?.average ?? '');
+        row.push(assessmentValue(term, 'gk'), assessmentValue(term, 'ck'), term?.average ?? '');
       } else {
         row.push(
           g?.semester1.average ?? '',
@@ -479,6 +488,22 @@ export function SubjectGradebookView() {
       wb,
       `Bang_Diem_${subjectName}_${classConfig.className}_${semesterTab}_${classConfig.schoolYear}.xlsx`
     );
+  };
+
+  const renderAssessmentStatus = (student: Student, field: 'tx' | 'gk' | 'ck', index = 0) => {
+    if (!isLocalMode) return null;
+    const term = gradebook?.grades[student.id]?.[currentTerm];
+    return <select aria-label={`Trạng thái ${student.fullName} ${field.toUpperCase()}${field === 'tx' ? index + 1 : ''}`} value={term?.assessmentStatuses?.[assessmentKey(field, index)] || ''}
+      className="block mt-1 w-full max-w-24 mx-auto rounded border border-slate-300 bg-white dark:bg-slate-900 text-[10px]" onChange={event => {
+        const status = event.target.value as AssessmentStatus | '';
+        const oldValue = field === 'tx' ? term?.tx[index] : term?.[field];
+        if (status && oldValue != null && !confirm('Đổi trạng thái sẽ thay điểm hiện tại bằng ô trống và ghi lịch sử. Tiếp tục?')) return;
+        updateGradebook(previous => previous ? setAssessmentStatus(previous, student.id, currentTerm, field, index, status) : previous);
+        setHasUnsavedChanges(true);
+      }}>
+      <option value="">Nhập điểm</option>
+      {(Object.keys(statusLabels) as AssessmentStatus[]).map(status => <option key={status} value={status}>{statusLabels[status]}</option>)}
+    </select>;
   };
 
   if (rosterError) return <div role="alert" className="p-6 text-rose-700">{rosterError}</div>;
@@ -732,6 +757,9 @@ export function SubjectGradebookView() {
 
       {/* ── Thanh tìm kiếm học sinh ── */}
       <div className="flex items-center gap-2">
+        {isLocalMode && <select aria-label="Lọc tình trạng kiểm tra" className="rounded-lg border p-2 text-xs bg-white dark:bg-slate-900" value={followupFilter} onChange={event => setFollowupFilter(event.target.value as typeof followupFilter)}>
+          <option value="all">Tất cả học sinh</option><option value="missing">Còn thiếu điểm</option><option value="makeup">Vắng / Cần kiểm tra bù</option>
+        </select>}
         <div className="relative flex-1 max-w-xs">
           <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
           <input
@@ -747,6 +775,7 @@ export function SubjectGradebookView() {
       </div>
 
       {/* ── BẢNG ĐIỂM (EXCEL-LIKE INTERACTIVE TABLE) ── */}
+      {isLocalMode && <p className="text-xs text-slate-500">Chọn trạng thái dưới mỗi ô điểm. Nhập điểm mới để hoàn tất kiểm tra bù. Trạng thái không tính là điểm 0; điểm trung bình còn thiếu bài là tạm tính.</p>}
       <fieldset disabled={termLocked} className="min-w-0 overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm bg-white dark:bg-slate-900">
         <table className="w-full text-xs text-left border-collapse">
           <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold uppercase text-[11px] tracking-wider border-b border-slate-200 dark:border-slate-700 select-none">
@@ -861,6 +890,7 @@ export function SubjectGradebookView() {
                                   : 'bg-white dark:bg-slate-900 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300'
                               }`}
                             />
+                            {renderAssessmentStatus(s, 'tx', txIdx)}
                           </td>
                         );
                       })}
@@ -885,6 +915,7 @@ export function SubjectGradebookView() {
                           placeholder="—"
                           className="w-16 text-center py-1 rounded-lg border border-indigo-300 dark:border-indigo-800 bg-white dark:bg-slate-900 font-bold text-xs text-indigo-700 dark:text-indigo-300 focus:ring-2 focus:ring-indigo-500 focus:outline-none"
                         />
+                        {renderAssessmentStatus(s, 'gk')}
                       </td>
 
                       {/* Điểm Cuối kỳ CK */}
@@ -907,6 +938,7 @@ export function SubjectGradebookView() {
                           placeholder="—"
                           className="w-16 text-center py-1 rounded-lg border border-purple-300 dark:border-purple-800 bg-white dark:bg-slate-900 font-bold text-xs text-purple-700 dark:text-purple-300 focus:ring-2 focus:ring-purple-500 focus:outline-none"
                         />
+                        {renderAssessmentStatus(s, 'ck')}
                       </td>
 
                       {/* Điểm TB Học kỳ */}

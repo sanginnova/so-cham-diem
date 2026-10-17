@@ -58,3 +58,9 @@ Chạy thử bằng `npm run dev`, mở địa chỉ Vite trả về. Chạy tr�
 Phạm vi: chỉ chế độ lưu sổ trên máy, chưa triển khai hoặc bổ sung khóa/audit lên Firebase. Lịch sử chỉ bắt đầu từ cập nhật này; localStorage có thể bị sửa/xóa nên chưa phải audit chống chỉnh sửa. JSON tải xuống chưa có chức năng nhập lại riêng trong giao diện. Trạng thái vắng/miễn/kiểm tra bù và công thức mới dành cho bước sau; cần xác nhận quy tắc áp dụng trước khi thay đổi.
 
 Mỗi bước lưu commit riêng, cập nhật NHAT_KY_PHIEN_BAN.md và tạo Git bundle theo KHOI_PHUC_PHIEN_BAN.md.
+
+## Tiếp bước 4 — Trạng thái kiểm tra (local)
+
+Thêm Vắng kiểm tra, Miễn đánh giá và Cần kiểm tra bù cho từng ô TX/GK/CK trong sổ lưu trên máy. Trạng thái dùng metadata riêng, điểm tương ứng là null; điểm 0 vẫn là điểm số. Đổi điểm đã nhập sang trạng thái cần xác nhận; nhập điểm mới xóa trạng thái. Bỏ trạng thái không tự khôi phục điểm cũ. Sửa trạng thái có lịch sử và tuân thủ chốt học kỳ. Bớt cột TX xóa cả trạng thái cột đó để không xuất hiện lại khi thêm cột.
+
+Bộ lọc Còn thiếu điểm bỏ qua ô miễn; bộ lọc Vắng/Cần kiểm tra bù theo dõi các trường hợp cần xử lý. Cả năm kiểm tra cả hai học kỳ. Excel xuất tên trạng thái; JSON giữ metadata. Giữ công thức trung bình hiện tại, bỏ qua ô không có điểm; kết quả khi thiếu bài vẫn là tạm tính. Chưa thêm lịch hẹn kiểm tra bù hoặc đánh giá môn bằng nhận xét, chưa áp dụng lên Firebase.

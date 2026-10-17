@@ -1,4 +1,5 @@
 export interface SubjectTermScores {
+  assessmentStatuses?: Record<string, 'absent' | 'exempt' | 'makeup'>;
   tx: (number | null)[]; // Điểm kiểm tra thường xuyên (TX1, TX2, TX3, TX4...)
   gk: number | null;     // Điểm giữa kỳ (Hệ số 2)
   ck: number | null;     // Điểm cuối kỳ (Hệ số 3)

@@ -54,6 +54,10 @@ test('drafts survive switching classes, isolate accounts and clear only the sele
     assert.equal(restored.termLocks?.semester1?.locked, true);
     assert.equal(restored.grades['shared-student'].semester1.average, 7.5);
     assert.equal(restored.history?.[0].action, 'lock');
+    const withStatus = { ...computing, grades: { ...computing.grades, 'shared-student': { ...computing.grades['shared-student'], semester1: { ...computing.grades['shared-student'].semester1, assessmentStatuses: { gk: 'makeup' as const } } } } };
+    await saveClassGradebook(withStatus, true);
+    const statusRestored = await loadClassGradebook('computing', 'Tin', book.schoolYear, 'GV', roster, true, 'teacher-a');
+    assert.equal(statusRestored.grades['shared-student'].semester1.assessmentStatuses?.gk, 'makeup');
   } finally {
     Object.defineProperty(auth, 'currentUser', { value: original });
     delete (globalThis as { localStorage?: unknown }).localStorage;

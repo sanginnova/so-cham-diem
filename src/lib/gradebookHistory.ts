@@ -14,7 +14,7 @@ export function recordGradebookEdit(previous: ClassGradebookData, next: ClassGra
       const old = previous.grades[id]?.[term];
       const current = next.grades[id][term];
       if (!old) continue;
-      for (const field of ['tx', 'gk', 'ck', 'note'] as const) add(`${next.grades[id].fullName} (${next.grades[id].studentCode}) · ${field.toUpperCase()}`, old[field], current[field]);
+      for (const field of ['tx', 'gk', 'ck', 'note', 'assessmentStatuses'] as const) add(`${next.grades[id].fullName} (${next.grades[id].studentCode}) · ${field === 'assessmentStatuses' ? 'Trạng thái kiểm tra' : field.toUpperCase()}`, old[field], current[field]);
     }
     const first = term === 'semester1';
     add('Số cột TX', first ? previous.txCountSemester1 : previous.txCountSemester2, first ? next.txCountSemester1 : next.txCountSemester2);
