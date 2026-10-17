@@ -6,6 +6,8 @@ Mỗi mã commit là một mốc mã nguồn có thể mở lại. Xem [hướng
 
 | Mã phiên bản (commit) | Ngày | Thay đổi |
 | --- | --- | --- |
+| `d44f0330f01012d85dbfdec15c2315b82706ad5e` | 2026-10-17 | feat(gvbm): secure gradebook sync and recover account scoped drafts |
+| `7cb7c3d05f23f67b4af3ef95320763f8d13fc7b3` | 2026-10-17 | docs: record GVBM step one checkpoint |
 | `eafc0bac3929bf7bae6dd761e8326b0344c04b77` | 2026-10-17 | feat(gvbm): add teaching class hub and allow multiple subjects per class |
 | `968ed09ab5c10d4dec2147ee3740f844a0e96587` | 2026-10-17 | docs: add version journal and verified source backups |
 | `f90af860de864ad90e64c03b070bc329e8c9937d` | 2026-10-16 | feat: Them phan he so diem hoc luc bo mon 15p 30p 1 tiet, quan ly lop bo mon va nang cap khoan thu |
