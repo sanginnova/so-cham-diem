@@ -6,6 +6,9 @@ Mỗi mã commit là một mốc mã nguồn có thể mở lại. Xem [hướng
 
 | Mã phiên bản (commit) | Ngày | Thay đổi |
 | --- | --- | --- |
+| `bf5d049f0ef4cdfb57d8ba1c958398b785e54327` | 2026-10-17 | feat(gvbm): add subject attendance tracking, analytics and Excel export |
+| `4f8418caaffbe48925cd48c2ac193b1f3b8e8564` | 2026-10-17 | fix(cache): add aggressive no-cache headers and auto service worker reload |
+| `1f9523a23225c9df2ba96b8ec86b8a0db907f1ed` | 2026-10-17 | docs: record subject gradebook pedagogical export checkpoint |
 | `a60e96648e6ae2a7de7b87fbab5303f5810f5b5b` | 2026-10-17 | feat(gvbm): add pedagogical Excel exports for subject gradebook and statistics |
 | `827229aaccfcf4514482be4b9138bad0aad58f6c` | 2026-10-17 | docs: record subject statistics checkpoint |
 | `c367dab5d64eebfd4d4cce3a01c38cb1f52929b8` | 2026-10-17 | feat(gvbm): add local subject gradebook statistics view and filters |
