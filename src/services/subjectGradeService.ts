@@ -100,6 +100,8 @@ export async function loadClassGradebook(
     teacherName: loadedData?.teacherName || teacherName || 'Giáo viên',
     txCountSemester1,
     txCountSemester2,
+    ...(loadedData?.txLabelsSemester1 ? { txLabelsSemester1: loadedData.txLabelsSemester1 } : {}),
+    ...(loadedData?.txLabelsSemester2 ? { txLabelsSemester2: loadedData.txLabelsSemester2 } : {}),
     grades,
     updatedAt: loadedData?.updatedAt || new Date().toISOString(),
   };

@@ -1,4 +1,5 @@
 import { collectionMembers } from '../lib/collections';
+import { sameTeachingWorkspace } from '../lib/teachingWorkspaces';
 import { useHomeroomRecords } from '../hooks/useHomeroomRecords';
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, ReactNode } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
@@ -532,7 +533,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     if (!activeAccount || activeAccount.role === 'monitor' || inspectorModeClass) throw new Error('Không có quyền tạo lớp ở chế độ hiện tại.');
     const schoolYear = validateSchoolYear(year);
     if (!name.trim()) throw new Error('Vui lòng nhập tên lớp.');
-    if (workspaceClasses.some(config => config.className.toLowerCase() === name.trim().toLowerCase() && config.schoolYear.replace(/\s/g, '').replace('–', '-') === schoolYear)) throw new Error('Lớp trong niên khóa này đã tồn tại.');
     const weeks = schoolWeeksFrom(start);
     if (Number(start.slice(0, 4)) !== Number(schoolYear.slice(0, 4))) throw new Error('Ngày bắt đầu phải thuộc năm đầu của niên khóa.');
     const owner = ownerUid && ownerUid !== activeAccount.uid
@@ -565,6 +565,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       youthUnionSecretary: '',
       updatedAt: new Date().toISOString()
     };
+    if (workspaceClasses.some(existing => sameTeachingWorkspace(existing, config))) {
+      throw new Error('Lớp và môn này trong niên khóa đã tồn tại. Vui lòng mở sổ đã có.');
+    }
     const source = behaviorCategories.length ? behaviorCategories : INITIAL_BEHAVIOR_CATEGORIES;
     const categories = source.map(category => ({ ...category, id: `cat_${id}_${crypto.randomUUID()}`, classId: id, teacherId }));
     const batch = writeBatch(db);

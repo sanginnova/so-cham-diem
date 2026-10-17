@@ -99,6 +99,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
             badgeClass: 'bg-purple-900/60 text-purple-300 border-purple-700/60',
             groups: [
               {
+                id: 'teaching-classes',
+                label: 'Lớp tôi dạy',
+                icon: BookOpen,
+                directTab: 'teaching-classes' as TabType,
+              },
+              {
                 id: 'gradebook',
                 label: `Sổ điểm môn ${classConfig.subjectName || classConfig.teachingSubject || 'Toán'}`,
                 icon: BookOpen,

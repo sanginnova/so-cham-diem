@@ -43,6 +43,7 @@ export type TabType =
   | 'attendance-report'
   | 'students'
   | 'gradebook'
+  | 'teaching-classes'
   | 'categories'
   | 'parent-report'
   | 'zalo-composer'

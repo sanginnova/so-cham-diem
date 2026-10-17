@@ -28,7 +28,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   // Hide on public guest portal or inspector mode
   if (userRole === 'guest') return null;
 
-  const isMenuTabActive = !['dashboard', 'daily-log', 'students', 'gradebook'].includes(activeTab);
+  const isMenuTabActive = !['dashboard', 'daily-log', 'students', 'gradebook', 'teaching-classes'].includes(activeTab);
 
   return (
     <nav
@@ -54,15 +54,15 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         {['teacher', 'admin', 'owner'].includes(userRole) && (
           <button
             type="button"
-            onClick={() => onNavigateTab('gradebook')}
+            onClick={() => onNavigateTab('teaching-classes')}
             className={`flex flex-col items-center justify-center flex-1 py-1 transition cursor-pointer ${
-              activeTab === 'gradebook'
+              ['gradebook', 'teaching-classes'].includes(activeTab)
                 ? 'text-purple-600 dark:text-purple-400 font-bold'
                 : 'text-slate-500 dark:text-slate-400 font-medium'
             }`}
           >
             <BookOpen className={`h-5 w-5 ${activeTab === 'gradebook' ? 'scale-110' : ''} transition-transform`} />
-            <span className="text-[10px] mt-1 font-semibold">Học lực</span>
+            <span className="text-[10px] mt-1 font-semibold">GVBM</span>
           </button>
         )}
 

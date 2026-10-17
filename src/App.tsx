@@ -2,6 +2,7 @@ import { CollectionsView } from './components/CollectionsView';
 import { HomeroomAssistantView } from './components/HomeroomAssistantView';
 import { SeatingChartView } from './components/SeatingChartView';
 import { SubjectGradebookView } from './components/SubjectGradebookView';
+import { TeachingClassesView } from './components/TeachingClassesView';
 import React, { useState, useEffect } from 'react';
 import { currentSchoolYear } from './lib/classScope';
 import { AppProvider, useApp } from './context/AppContext';
@@ -304,7 +305,8 @@ function MainApp() {
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'collections' && <CollectionsView key={classConfig.id} />}
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'homeroom' && <HomeroomAssistantView key={classConfig.id} />}
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'seating-chart' && <SeatingChartView key={classConfig.id} />}
-          {userRole !== 'guest' && activeTab === 'gradebook' && <SubjectGradebookView key={classConfig.id} />}
+          {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'teaching-classes' && <TeachingClassesView onOpenGradebook={() => setActiveTab('gradebook')} />}
+          {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'gradebook' && <SubjectGradebookView key={classConfig.id} />}
           {userRole !== 'guest' && activeTab === 'categories' && <BehaviorCatalogView />}
 
           {userRole !== 'guest' && activeTab === 'parent-report' && (
