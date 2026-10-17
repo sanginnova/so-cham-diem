@@ -15,8 +15,15 @@ import {
   Filter,
   ArrowUpDown,
   Download,
+  Zap,
 } from 'lucide-react';
 import { exportSubjectGradebookToExcel } from '../lib/subjectGradebookExport';
+import {
+  parseClipboardScores,
+  parseSpeedNumpadInput,
+  applyPasteScoresToColumn,
+  applyFillColumnScore,
+} from '../lib/gradebookFastInput';
 import { useApp } from '../context/AppContext';
 import { Student } from '../types';
 import { useSubjectRoster } from '../hooks/useSubjectRoster';
@@ -64,6 +71,18 @@ export function SubjectGradebookView() {
   const [saveError, setSaveError] = useState(false);
   const [restorePreview, setRestorePreview] = useState<{ preview: ReturnType<typeof previewGradebookRestore>; baseline: ClassGradebookData; filename: string } | null>(null);
   const [restoreError, setRestoreError] = useState('');
+  const [speedNumpadMode, setSpeedNumpadMode] = useState<boolean>(() => {
+    return localStorage.getItem('gradebook_speed_numpad_mode') === 'true';
+  });
+
+  const toggleSpeedNumpadMode = () => {
+    setSpeedNumpadMode((prev) => {
+      const next = !prev;
+      localStorage.setItem('gradebook_speed_numpad_mode', String(next));
+      return next;
+    });
+  };
+
   const saveInFlight = useRef(false);
   const gradebookRef = useRef(gradebook);
   gradebookRef.current = gradebook;
@@ -145,9 +164,103 @@ export function SubjectGradebookView() {
     return () => clearTimeout(timer);
   }, [gradebook, hasUnsavedChanges, saveError]);
 
-  // Hàm cập nhật điểm cho một học sinh
+  // Danh sách học sinh hiển thị theo tìm kiếm & bộ lọc
+  const filteredStudents = useMemo(() => {
+    const q = searchQuery.toLowerCase().trim();
+    return students.filter(
+      (s) =>
+        (s.fullName.toLowerCase().includes(q) || s.studentCode.toLowerCase().includes(q))
+        && (followupFilter === 'all' || !isLocalMode || (gradebook?.grades[s.id] && (semesterTab === 'year'
+          ? needsAssessmentFollowup(gradebook.grades[s.id].semester1, followupFilter) || needsAssessmentFollowup(gradebook.grades[s.id].semester2, followupFilter)
+          : needsAssessmentFollowup(gradebook.grades[s.id][currentTerm], followupFilter))))
+    );
+  }, [students, searchQuery, followupFilter, gradebook, currentTerm, semesterTab, isLocalMode]);
+
+  // Dán trực tiếp mảng điểm từ Excel / Clipboard vào cột hiện tại
+  const handlePasteScore = (
+    e: React.ClipboardEvent<HTMLInputElement>,
+    startStudentIndex: number,
+    field: 'tx' | 'gk' | 'ck',
+    txIndex: number
+  ) => {
+    if (!gradebook || termLocked) return;
+    const clipboardText = e.clipboardData.getData('text');
+    if (!clipboardText) return;
+
+    const lines = clipboardText.trim().split(/\r\n|\r|\n/);
+    if (lines.length <= 1 && !clipboardText.includes('\t')) {
+      return; // Để dán 1 ô đơn lẻ bình thường
+    }
+
+    e.preventDefault();
+    const parsedScores = parseClipboardScores(clipboardText);
+    if (parsedScores.length === 0) return;
+
+    const currentTermKey = semesterTab === 'sem1' ? 'semester1' : 'semester2';
+    const studentIds = filteredStudents.map((s) => s.id);
+
+    updateGradebook((prev) => {
+      if (!prev) return prev;
+      return applyPasteScoresToColumn(
+        prev,
+        studentIds,
+        startStudentIndex,
+        currentTermKey,
+        field,
+        txIndex,
+        parsedScores
+      );
+    });
+    setHasUnsavedChanges(true);
+    setMessage(`Đã dán ${parsedScores.length} điểm từ bảng tính vào cột.`);
+  };
+
+  // Điền điểm đồng loạt cho cả cột (Bulk Fill Column)
+  const handleFillColumn = (
+    field: 'tx' | 'gk' | 'ck',
+    txIndex: number,
+    columnLabel: string
+  ) => {
+    if (!gradebook || termLocked) return;
+    const input = prompt(
+      `Điền điểm nhanh cho toàn bộ cột [${columnLabel}]:\nNhập điểm số (từ 0 đến 10, ví dụ 8.5 hoặc 10):`
+    );
+    if (input === null || input.trim() === '') return;
+
+    const score = parseFloat(input.trim().replace(',', '.'));
+    if (isNaN(score) || score < 0 || score > 10) {
+      alert('Điểm số không hợp lệ! Vui lòng nhập số từ 0 đến 10.');
+      return;
+    }
+
+    const roundedScore = Math.round(score * 10) / 10;
+    const onlyEmpty = confirm(
+      `Bạn có muốn CHỈ điền vào các ô CHƯA CÓ ĐIỂM không?\n- Bấm OK: Chỉ điền ô trống\n- Bấm Cancel: Ghi đè toàn bộ cột bằng điểm ${roundedScore}`
+    );
+
+    const currentTermKey = semesterTab === 'sem1' ? 'semester1' : 'semester2';
+    const studentIds = filteredStudents.map((s) => s.id);
+
+    updateGradebook((prev) => {
+      if (!prev) return prev;
+      return applyFillColumnScore(
+        prev,
+        studentIds,
+        currentTermKey,
+        field,
+        txIndex,
+        roundedScore,
+        onlyEmpty
+      );
+    });
+    setHasUnsavedChanges(true);
+    setMessage(`Đã điền điểm ${roundedScore} cho cột [${columnLabel}] (${onlyEmpty ? 'chỉ ô trống' : 'toàn bộ'}).`);
+  };
+
+  // Hàm cập nhật điểm cho một học sinh (hỗ trợ Speed NumPad tự nhảy hàng)
   const handleScoreChange = (
     studentId: string,
+    studentIndex: number,
     term: 'semester1' | 'semester2',
     field: 'tx' | 'gk' | 'ck',
     txIndex: number,
@@ -156,13 +269,26 @@ export function SubjectGradebookView() {
     if (!gradebook || termLocked) return;
 
     let scoreNum: number | null = null;
+    let shouldAutoAdvance = false;
+
     if (rawValue.trim() !== '') {
-      const parsed = parseFloat(rawValue.replace(',', '.'));
-      if (isNaN(parsed) || parsed < 0 || parsed > 10) {
-        return; // Bỏ qua nếu nhập ngoài khoảng 0 - 10
+      if (speedNumpadMode) {
+        const parsedSpeed = parseSpeedNumpadInput(rawValue);
+        if (parsedSpeed) {
+          scoreNum = parsedSpeed.score;
+          shouldAutoAdvance = parsedSpeed.autoAdvance;
+        } else {
+          const parsed = parseFloat(rawValue.replace(',', '.'));
+          if (isNaN(parsed) || parsed < 0 || parsed > 10) return;
+          scoreNum = Math.round(parsed * 10) / 10;
+        }
+      } else {
+        const parsed = parseFloat(rawValue.replace(',', '.'));
+        if (isNaN(parsed) || parsed < 0 || parsed > 10) {
+          return; // Bỏ qua nếu nhập ngoài khoảng 0 - 10
+        }
+        scoreNum = Math.round(parsed * 10) / 10;
       }
-      // Làm tròn 1 chữ số thập phân
-      scoreNum = Math.round(parsed * 10) / 10;
     }
 
     updateGradebook((prev) => {
@@ -203,6 +329,20 @@ export function SubjectGradebookView() {
     });
 
     setHasUnsavedChanges(true);
+
+    // Tự động nhảy con trỏ xuống học sinh tiếp theo trong chế độ NumPad
+    if (shouldAutoAdvance && studentIndex < filteredStudents.length - 1) {
+      const fieldKey = field === 'tx' ? `tx_${txIndex}` : field;
+      const nextStudent = filteredStudents[studentIndex + 1];
+      const nextKey = `${nextStudent.id}_${fieldKey}`;
+      setTimeout(() => {
+        const nextInput = inputRefs.current[nextKey];
+        if (nextInput) {
+          nextInput.focus();
+          nextInput.select();
+        }
+      }, 10);
+    }
   };
 
   // Thêm / Bớt cột kiểm tra thường xuyên
@@ -330,13 +470,45 @@ export function SubjectGradebookView() {
     }
   };
 
-  // Điều hướng bằng bàn phím (Phím Enter hoặc Mũi tên nhảy sang HS tiếp theo)
+  // Điều hướng bằng bàn phím (Phím Enter, Mũi tên và Hotkeys V/M/B)
   const handleKeyDown = (
     e: React.KeyboardEvent<HTMLInputElement>,
     studentIndex: number,
     fieldKey: string,
     filteredList: Student[]
   ) => {
+    // Phím tắt đặc biệt: V (Vắng), M (Miễn), B (Kiểm tra bù)
+    if (!e.ctrlKey && !e.altKey && !e.metaKey) {
+      const keyUpper = e.key.toUpperCase();
+      if (keyUpper === 'V' || keyUpper === 'M' || keyUpper === 'B') {
+        const statusMap: Record<string, AssessmentStatus> = {
+          V: 'absent',
+          M: 'exempt',
+          B: 'makeup',
+        };
+        const targetStatus = statusMap[keyUpper];
+        if (targetStatus && gradebook && !termLocked) {
+          e.preventDefault();
+          const field = fieldKey.startsWith('tx_') ? 'tx' : (fieldKey as 'gk' | 'ck');
+          const txIdx = field === 'tx' ? parseInt(fieldKey.split('_')[1], 10) : 0;
+          const currentTermKey = semesterTab === 'sem1' ? 'semester1' : 'semester2';
+          const student = filteredList[studentIndex];
+          updateGradebook((prev) => prev ? setAssessmentStatus(prev, student.id, currentTermKey, field, txIdx, targetStatus) : prev);
+          setHasUnsavedChanges(true);
+
+          if (studentIndex < filteredList.length - 1) {
+            const nextStudent = filteredList[studentIndex + 1];
+            const nextInputKey = `${nextStudent.id}_${fieldKey}`;
+            setTimeout(() => {
+              inputRefs.current[nextInputKey]?.focus();
+              inputRefs.current[nextInputKey]?.select();
+            }, 10);
+          }
+          return;
+        }
+      }
+    }
+
     if (e.key === 'Enter' || e.key === 'ArrowDown') {
       e.preventDefault();
       if (studentIndex < filteredList.length - 1) {
@@ -355,18 +527,6 @@ export function SubjectGradebookView() {
       }
     }
   };
-
-  // Danh sách học sinh hiển thị theo tìm kiếm
-  const filteredStudents = useMemo(() => {
-    const q = searchQuery.toLowerCase().trim();
-    return students.filter(
-      (s) =>
-        (s.fullName.toLowerCase().includes(q) || s.studentCode.toLowerCase().includes(q))
-        && (followupFilter === 'all' || !isLocalMode || (gradebook?.grades[s.id] && (semesterTab === 'year'
-          ? needsAssessmentFollowup(gradebook.grades[s.id].semester1, followupFilter) || needsAssessmentFollowup(gradebook.grades[s.id].semester2, followupFilter)
-          : needsAssessmentFollowup(gradebook.grades[s.id][currentTerm], followupFilter))))
-    );
-  }, [students, searchQuery, followupFilter, gradebook, currentTerm, semesterTab, isLocalMode]);
 
   // Thống kê nhanh điểm số
   const stats = useMemo(() => {
@@ -708,24 +868,64 @@ export function SubjectGradebookView() {
         </div>
       </div>
 
-      {/* ── Thanh tìm kiếm học sinh ── */}
-      <div className="flex items-center gap-2">
-        {isLocalMode && <select aria-label="Lọc tình trạng kiểm tra" className="rounded-lg border p-2 text-xs bg-white dark:bg-slate-900" value={followupFilter} onChange={event => setFollowupFilter(event.target.value as typeof followupFilter)}>
-          <option value="all">Tất cả học sinh</option><option value="missing">Còn thiếu điểm</option><option value="makeup">Vắng / Cần kiểm tra bù</option>
-        </select>}
-        <div className="relative flex-1 max-w-xs">
-          <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
-          <input
-            value={searchQuery}
-            onChange={(e) => setSearchQuery(e.target.value)}
-            placeholder="Tìm theo họ tên hoặc mã HS..."
-            className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
-          />
+      {/* ── Thanh tìm kiếm học sinh & NumPad Tốc độ cao ── */}
+      <div className="flex flex-wrap items-center justify-between gap-3">
+        <div className="flex items-center gap-2 flex-1 min-w-[280px]">
+          {isLocalMode && (
+            <select
+              aria-label="Lọc tình trạng kiểm tra"
+              className="rounded-lg border p-2 text-xs bg-white dark:bg-slate-900 border-slate-300 dark:border-slate-700"
+              value={followupFilter}
+              onChange={(event) => setFollowupFilter(event.target.value as typeof followupFilter)}
+            >
+              <option value="all">Tất cả học sinh</option>
+              <option value="missing">Còn thiếu điểm</option>
+              <option value="makeup">Vắng / Cần kiểm tra bù</option>
+            </select>
+          )}
+          <div className="relative flex-1 max-w-xs">
+            <Search className="h-4 w-4 text-slate-400 absolute left-3 top-2.5 pointer-events-none" />
+            <input
+              value={searchQuery}
+              onChange={(e) => setSearchQuery(e.target.value)}
+              placeholder="Tìm theo họ tên hoặc mã HS..."
+              className="w-full pl-9 pr-3 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs focus:ring-2 focus:ring-blue-500 focus:outline-none"
+            />
+          </div>
+          <span className="text-xs text-slate-400 hidden sm:inline">
+            Hiển thị: <strong>{filteredStudents.length}</strong> / {students.length} HS
+          </span>
         </div>
-        <span className="text-xs text-slate-400">
-          Hiển thị: <strong>{filteredStudents.length}</strong> / {students.length} học sinh
-        </span>
+
+        {/* Nút bật/tắt chế độ NumPad Tốc độ cao */}
+        <div className="flex items-center gap-2">
+          <button
+            type="button"
+            onClick={toggleSpeedNumpadMode}
+            className={`inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl font-bold text-xs transition border shadow-xs cursor-pointer ${
+              speedNumpadMode
+                ? 'bg-amber-500 text-white border-amber-600 shadow-amber-500/25 ring-2 ring-amber-400/40'
+                : 'bg-white dark:bg-slate-800 text-slate-700 dark:text-slate-300 border-slate-300 dark:border-slate-700 hover:bg-slate-50 dark:hover:bg-slate-750'
+            }`}
+            title="Chế độ NumPad Tốc độ cao: Gõ 85 tự thành 8.5, 10 thành 10 và tự động nhảy xuống HS kế tiếp. Gõ V (Vắng), M (Miễn), B (Kiểm tra bù)."
+          >
+            <Zap className={`h-3.5 w-3.5 ${speedNumpadMode ? 'fill-current text-white animate-pulse' : 'text-amber-500'}`} />
+            <span>NumPad Tốc độ cao: {speedNumpadMode ? 'BẬT' : 'TẮT'}</span>
+          </button>
+        </div>
       </div>
+
+      {/* Banner hướng dẫn khi bật NumPad tốc độ cao */}
+      {speedNumpadMode && (
+        <div className="p-2.5 rounded-xl bg-amber-50 dark:bg-amber-950/30 border border-amber-200 dark:border-amber-900/60 text-amber-900 dark:text-amber-300 text-xs flex items-center justify-between flex-wrap gap-2 animate-fadeIn">
+          <div className="flex items-center gap-2">
+            <Zap className="h-4 w-4 text-amber-600 shrink-0" />
+            <span>
+              <strong>Đang bật NumPad tốc độ cao:</strong> Gõ <strong>85</strong> ➔ 8.5 · Gõ <strong>10</strong> ➔ 10 · Tự nhảy dòng. Phím tắt: <strong>V</strong> (Vắng), <strong>M</strong> (Miễn), <strong>B</strong> (Bù). Hỗ trợ dán cột từ Excel (<strong>Ctrl + V</strong>).
+            </span>
+          </div>
+        </div>
+      )}
 
       {/* ── BẢNG ĐIỂM (EXCEL-LIKE INTERACTIVE TABLE) ── */}
       {isLocalMode && <p className="text-xs text-slate-500">Chọn trạng thái dưới mỗi ô điểm. Nhập điểm mới để hoàn tất kiểm tra bù. Trạng thái không tính là điểm 0; điểm trung bình còn thiếu bài là tạm tính.</p>}
@@ -745,30 +945,60 @@ export function SubjectGradebookView() {
                     return (
                       <th key={i} className="p-2.5 w-24 text-center text-blue-700 dark:text-blue-400 bg-blue-50/40 dark:bg-blue-950/20">
                         <div className="font-black text-xs">TX{i + 1}</div>
-                        <button
-                          type="button"
-                          onClick={() => handleChangeTxLabel(i)}
-                          className="mt-0.5 text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/60 dark:hover:bg-blue-900 text-blue-800 dark:text-blue-200 transition cursor-pointer"
-                          title="Bấm để đổi loại bài kiểm tra (15 phút, 30 phút, Miệng...)"
-                        >
-                          {label} ✎
-                        </button>
+                        <div className="flex items-center justify-center gap-1 mt-0.5">
+                          <button
+                            type="button"
+                            onClick={() => handleChangeTxLabel(i)}
+                            className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-blue-100 hover:bg-blue-200 dark:bg-blue-900/60 dark:hover:bg-blue-900 text-blue-800 dark:text-blue-200 transition cursor-pointer"
+                            title="Bấm để đổi loại bài kiểm tra (15 phút, 30 phút, Miệng...)"
+                          >
+                            {label} ✎
+                          </button>
+                          <button
+                            type="button"
+                            onClick={() => handleFillColumn('tx', i, `TX${i + 1}`)}
+                            className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 text-amber-900 dark:text-amber-300 transition cursor-pointer"
+                            title="Điền điểm đồng loạt cho cả cột TX này"
+                          >
+                            Điền
+                          </button>
+                        </div>
                         <span className="block text-[9px] font-normal text-slate-400 mt-0.5">Hệ số 1</span>
                       </th>
                     );
                   })}
                   <th className="p-3 w-28 text-center text-indigo-700 dark:text-indigo-400 bg-indigo-50/70 dark:bg-indigo-950/40">
                     <div className="font-black text-xs">GK / 1 TIẾT</div>
-                    <span className="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200 mt-0.5">
-                      45 phút
-                    </span>
+                    <div className="flex items-center justify-center gap-1 mt-0.5">
+                      <span className="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-indigo-100 dark:bg-indigo-900/60 text-indigo-800 dark:text-indigo-200">
+                        45 phút
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleFillColumn('gk', 0, 'Giữa kỳ (GK)')}
+                        className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 text-amber-900 dark:text-amber-300 transition cursor-pointer"
+                        title="Điền điểm đồng loạt cho cả cột Giữa kỳ"
+                      >
+                        Điền
+                      </button>
+                    </div>
                     <span className="block text-[9px] font-normal text-slate-400 mt-0.5">Hệ số 2</span>
                   </th>
                   <th className="p-3 w-28 text-center text-purple-700 dark:text-purple-400 bg-purple-50/70 dark:bg-purple-950/40">
                     <div className="font-black text-xs">CUỐI KỲ (CK)</div>
-                    <span className="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200 mt-0.5">
-                      60' - 90'
-                    </span>
+                    <div className="flex items-center justify-center gap-1 mt-0.5">
+                      <span className="inline-block text-[9px] font-bold px-1.5 py-0.5 rounded bg-purple-100 dark:bg-purple-900/60 text-purple-800 dark:text-purple-200">
+                        60' - 90'
+                      </span>
+                      <button
+                        type="button"
+                        onClick={() => handleFillColumn('ck', 0, 'Cuối kỳ (CK)')}
+                        className="text-[9px] font-bold px-1.5 py-0.5 rounded bg-amber-100 hover:bg-amber-200 dark:bg-amber-900/40 text-amber-900 dark:text-amber-300 transition cursor-pointer"
+                        title="Điền điểm đồng loạt cho cả cột Cuối kỳ"
+                      >
+                        Điền
+                      </button>
+                    </div>
                     <span className="block text-[9px] font-normal text-slate-400 mt-0.5">Hệ số 3</span>
                   </th>
                   <th className="p-3 w-24 text-center text-emerald-700 dark:text-emerald-400 bg-emerald-50/60 dark:bg-emerald-950/30">
@@ -819,13 +1049,14 @@ export function SubjectGradebookView() {
                               ref={(el) => {
                                 inputRefs.current[inputKey] = el;
                               }}
-                              type="number"
-                              min="0"
-                              max="10"
-                              step="0.1"
+                              type="text"
+                              inputMode="decimal"
                               value={val !== null && val !== undefined ? val : ''}
                               onChange={(e) =>
-                                handleScoreChange(s.id, termKey, 'tx', txIdx, e.target.value)
+                                handleScoreChange(s.id, studentIndex, termKey, 'tx', txIdx, e.target.value)
+                              }
+                              onPaste={(e) =>
+                                handlePasteScore(e, studentIndex, 'tx', txIdx)
                               }
                               onKeyDown={(e) =>
                                 handleKeyDown(e, studentIndex, `tx_${txIdx}`, filteredStudents)
@@ -854,13 +1085,14 @@ export function SubjectGradebookView() {
                           ref={(el) => {
                             inputRefs.current[`${s.id}_gk`] = el;
                           }}
-                          type="number"
-                          min="0"
-                          max="10"
-                          step="0.1"
+                          type="text"
+                          inputMode="decimal"
                           value={termData?.gk !== null && termData?.gk !== undefined ? termData.gk : ''}
                           onChange={(e) =>
-                            handleScoreChange(s.id, termKey, 'gk', 0, e.target.value)
+                            handleScoreChange(s.id, studentIndex, termKey, 'gk', 0, e.target.value)
+                          }
+                          onPaste={(e) =>
+                            handlePasteScore(e, studentIndex, 'gk', 0)
                           }
                           onKeyDown={(e) =>
                             handleKeyDown(e, studentIndex, 'gk', filteredStudents)
@@ -877,13 +1109,14 @@ export function SubjectGradebookView() {
                           ref={(el) => {
                             inputRefs.current[`${s.id}_ck`] = el;
                           }}
-                          type="number"
-                          min="0"
-                          max="10"
-                          step="0.1"
+                          type="text"
+                          inputMode="decimal"
                           value={termData?.ck !== null && termData?.ck !== undefined ? termData.ck : ''}
                           onChange={(e) =>
-                            handleScoreChange(s.id, termKey, 'ck', 0, e.target.value)
+                            handleScoreChange(s.id, studentIndex, termKey, 'ck', 0, e.target.value)
+                          }
+                          onPaste={(e) =>
+                            handlePasteScore(e, studentIndex, 'ck', 0)
                           }
                           onKeyDown={(e) =>
                             handleKeyDown(e, studentIndex, 'ck', filteredStudents)
