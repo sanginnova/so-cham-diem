@@ -6,6 +6,8 @@ Mỗi mã commit là một mốc mã nguồn có thể mở lại. Xem [hướng
 
 | Mã phiên bản (commit) | Ngày | Thay đổi |
 | --- | --- | --- |
+| `a60e96648e6ae2a7de7b87fbab5303f5810f5b5b` | 2026-10-17 | feat(gvbm): add pedagogical Excel exports for subject gradebook and statistics |
+| `827229aaccfcf4514482be4b9138bad0aad58f6c` | 2026-10-17 | docs: record subject statistics checkpoint |
 | `c367dab5d64eebfd4d4cce3a01c38cb1f52929b8` | 2026-10-17 | feat(gvbm): add local subject gradebook statistics view and filters |
 | `7e020ca3605131b705378c3a12803d070606950b` | 2026-10-17 | docs: record JSON restoration checkpoint |
 | `1d5407abced4f24640869d7688cb9affef411f45` | 2026-10-17 | feat(gvbm): preview and restore local gradebook JSON backups |
