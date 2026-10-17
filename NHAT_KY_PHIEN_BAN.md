@@ -6,6 +6,8 @@ Mỗi mã commit là một mốc mã nguồn có thể mở lại. Xem [hướng
 
 | Mã phiên bản (commit) | Ngày | Thay đổi |
 | --- | --- | --- |
+| `d9fe16d46b9a072d64fcb9d3dcfe4e36128009c4` | 2026-10-17 | feat(gvbm): share roster sources across new subject workspaces |
+| `8bd588b4b44f085cea194078cc5ebfc05af180dd` | 2026-10-17 | docs: record GVBM step two checkpoint |
 | `d44f0330f01012d85dbfdec15c2315b82706ad5e` | 2026-10-17 | feat(gvbm): secure gradebook sync and recover account scoped drafts |
 | `7cb7c3d05f23f67b4af3ef95320763f8d13fc7b3` | 2026-10-17 | docs: record GVBM step one checkpoint |
 | `eafc0bac3929bf7bae6dd761e8326b0344c04b77` | 2026-10-17 | feat(gvbm): add teaching class hub and allow multiple subjects per class |
