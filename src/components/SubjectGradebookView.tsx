@@ -20,6 +20,7 @@ import * as XLSX from 'xlsx';
 import { useApp } from '../context/AppContext';
 import { Student } from '../types';
 import { useSubjectRoster } from '../hooks/useSubjectRoster';
+import { recordGradebookEdit, changeTermLock } from '../lib/gradebookHistory';
 import {
   ClassGradebookData,
   StudentSubjectGrade,
@@ -61,6 +62,15 @@ export function SubjectGradebookView() {
   const saveInFlight = useRef(false);
   const gradebookRef = useRef(gradebook);
   gradebookRef.current = gradebook;
+  const currentTerm = semesterTab === 'sem1' ? 'semester1' : 'semester2';
+  const termLocked = !!gradebook?.termLocks?.[currentTerm]?.locked;
+  const actor = activeAccount?.displayName || activeAccount?.uid || 'Giáo viên';
+  const updateGradebook = (edit: (previous: ClassGradebookData | null) => ClassGradebookData | null) => {
+    setGradebook(previous => {
+      const next = edit(previous);
+      return previous && next && isLocalMode ? recordGradebookEdit(previous, next, actor) : next;
+    });
+  };
 
   // Focus navigation refs matrix: `${studentId}_${columnKey}`
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -138,7 +148,7 @@ export function SubjectGradebookView() {
     txIndex: number,
     rawValue: string
   ) => {
-    if (!gradebook) return;
+    if (!gradebook || termLocked) return;
 
     let scoreNum: number | null = null;
     if (rawValue.trim() !== '') {
@@ -150,7 +160,7 @@ export function SubjectGradebookView() {
       scoreNum = Math.round(parsed * 10) / 10;
     }
 
-    setGradebook((prev) => {
+    updateGradebook((prev) => {
       if (!prev) return prev;
       const currentStudentGrade = prev.grades[studentId];
       if (!currentStudentGrade) return prev;
@@ -168,8 +178,8 @@ export function SubjectGradebookView() {
       }
 
       // Tự động tính toán lại ĐTB học kỳ và Cả năm
-      updatedStudentGrade.semester1.average = calculateTermAverage(updatedStudentGrade.semester1);
-      updatedStudentGrade.semester2.average = calculateTermAverage(updatedStudentGrade.semester2);
+      if (!prev.termLocks?.semester1?.locked) updatedStudentGrade.semester1.average = calculateTermAverage(updatedStudentGrade.semester1);
+      if (!prev.termLocks?.semester2?.locked) updatedStudentGrade.semester2.average = calculateTermAverage(updatedStudentGrade.semester2);
       updatedStudentGrade.yearAverage = calculateYearAverage(
         updatedStudentGrade.semester1.average,
         updatedStudentGrade.semester2.average
@@ -190,7 +200,7 @@ export function SubjectGradebookView() {
 
   // Thêm / Bớt cột kiểm tra thường xuyên
   const handleAddTxColumn = () => {
-    if (!gradebook) return;
+    if (!gradebook || termLocked) return;
     const isSem1 = semesterTab === 'sem1';
     const currentCount = isSem1 ? gradebook.txCountSemester1 : gradebook.txCountSemester2;
     if (currentCount >= 8) {
@@ -198,7 +208,7 @@ export function SubjectGradebookView() {
       return;
     }
 
-    setGradebook((prev) => {
+    updateGradebook((prev) => {
       if (!prev) return prev;
       const newGrades = { ...prev.grades };
       Object.keys(newGrades).forEach((sId) => {
@@ -222,7 +232,7 @@ export function SubjectGradebookView() {
   };
 
   const handleRemoveTxColumn = () => {
-    if (!gradebook) return;
+    if (!gradebook || termLocked) return;
     const isSem1 = semesterTab === 'sem1';
     const currentCount = isSem1 ? gradebook.txCountSemester1 : gradebook.txCountSemester2;
     if (currentCount <= 2) {
@@ -234,7 +244,7 @@ export function SubjectGradebookView() {
       return;
     }
 
-    setGradebook((prev) => {
+    updateGradebook((prev) => {
       if (!prev) return prev;
       const newGrades = { ...prev.grades };
       Object.keys(newGrades).forEach((sId) => {
@@ -263,7 +273,7 @@ export function SubjectGradebookView() {
 
   // Đổi loại bài kiểm tra thường xuyên (15 phút, 30 phút, Miệng...)
   const handleChangeTxLabel = (index: number) => {
-    if (!gradebook) return;
+    if (!gradebook || termLocked) return;
     const isSem1 = semesterTab === 'sem1';
     const currentLabels = isSem1
       ? [...(gradebook.txLabelsSemester1 || ['15 phút (Bài 1)', '15 phút (Bài 2)', '30 phút', '15 phút (Bài 3)'])]
@@ -277,7 +287,7 @@ export function SubjectGradebookView() {
     if (!chosen || !chosen.trim()) return;
 
     currentLabels[index] = chosen.trim();
-    setGradebook((prev) => {
+    updateGradebook((prev) => {
       if (!prev) return prev;
       return {
         ...prev,
@@ -497,6 +507,17 @@ export function SubjectGradebookView() {
 
   return (
     <fieldset disabled={saving} className="min-w-0 space-y-4 text-slate-800 dark:text-slate-100">
+      {isLocalMode && semesterTab !== 'year' && <div className="rounded-xl border border-purple-200 p-3 flex flex-wrap items-center gap-3 text-sm">
+        <strong>{termLocked ? 'Đã chốt sổ — chỉ xem' : 'Học kỳ đang mở'}</strong>
+        <button type="button" className="rounded-lg bg-purple-600 px-3 py-2 text-white" onClick={() => {
+          const reason = termLocked ? prompt('Lý do mở lại sổ học kỳ:') : 'Chốt sổ học kỳ';
+          if (reason === null || !reason.trim()) return;
+          if (!termLocked && !confirm('Chốt sổ giữ nguyên các điểm hiện tại, kể cả ô chưa nhập. Tiếp tục?')) return;
+          setGradebook(previous => previous ? changeTermLock(previous, currentTerm, actor, reason) : previous);
+          setHasUnsavedChanges(true);
+        }}>{termLocked ? 'Mở lại sổ' : 'Chốt học kỳ'}</button>
+        <span className="text-xs text-slate-500">Khóa và lịch sử được lưu trên trình duyệt này.</span>
+      </div>}
       {deviceOnly && <div role="status" className="rounded-xl border border-amber-300 bg-amber-50 p-3 text-sm text-amber-900">
         <p>Sổ điểm đang lưu trên trình duyệt này, chưa đồng bộ Firebase. Hãy xuất Excel để giữ bản sao. Danh sách học sinh vẫn lấy từ lớp đã đăng nhập.</p>
         <button type="button" className="mt-2 underline" onClick={() => {
@@ -601,7 +622,7 @@ export function SubjectGradebookView() {
         </div>
 
         {/* Nút Thêm / Bớt cột TX */}
-        {semesterTab !== 'year' && (
+        {semesterTab !== 'year' && !termLocked && (
           <div className="flex items-center gap-1.5">
             <span className="text-xs font-semibold text-slate-500">Cột điểm TX:</span>
             <button
@@ -726,7 +747,7 @@ export function SubjectGradebookView() {
       </div>
 
       {/* ── BẢNG ĐIỂM (EXCEL-LIKE INTERACTIVE TABLE) ── */}
-      <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm bg-white dark:bg-slate-900">
+      <fieldset disabled={termLocked} className="min-w-0 overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm bg-white dark:bg-slate-900">
         <table className="w-full text-xs text-left border-collapse">
           <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold uppercase text-[11px] tracking-wider border-b border-slate-200 dark:border-slate-700 select-none">
             <tr>
@@ -955,7 +976,23 @@ export function SubjectGradebookView() {
             )}
           </tbody>
         </table>
-      </div>
+      </fieldset>
+
+      {isLocalMode && <details className="rounded-xl border border-slate-300 p-3 text-sm">
+        <summary className="cursor-pointer font-semibold">Lịch sử sửa điểm và chốt sổ ({gradebook.history?.length || 0})</summary>
+        <p className="my-2 text-xs text-slate-500">Chỉ có thay đổi từ bản cập nhật này. Lịch sử local có thể thay đổi khi dữ liệu trình duyệt bị sửa hoặc xóa.</p>
+        <button type="button" className="rounded border px-3 py-2 my-2" onClick={() => {
+          const url = URL.createObjectURL(new Blob([JSON.stringify(gradebook, null, 2)], { type: 'application/json' }));
+          const link = document.createElement('a'); link.href = url; link.download = `So-diem-${classConfig.id}.json`; link.click(); URL.revokeObjectURL(url);
+        }}>Tải bản sao sổ và lịch sử (.json)</button>
+        <div className="max-h-80 overflow-auto space-y-2">
+          {[...(gradebook.history || [])].reverse().map(event => <article key={event.id} className="border-t py-2 text-xs">
+            <p><strong>{event.actor}</strong> · {new Date(event.at).toLocaleString('vi-VN')} · {event.term === 'semester1' ? 'HK1' : 'HK2'}</p>
+            <p>{event.action === 'lock' ? 'Chốt sổ' : event.action === 'unlock' ? 'Mở lại sổ' : 'Sửa điểm'} · {event.detail}</p>
+            {event.action === 'edit' && <p className="break-words">{event.before} → {event.after}</p>}
+          </article>)}
+        </div>
+      </details>}
 
       {/* Footer hướng dẫn phím tắt */}
       <div className="flex flex-wrap items-center justify-between gap-2 p-3 rounded-xl bg-slate-50 dark:bg-slate-800/40 border border-slate-200 dark:border-slate-700 text-[11px] text-slate-500">

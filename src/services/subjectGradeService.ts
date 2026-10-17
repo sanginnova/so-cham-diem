@@ -120,8 +120,8 @@ export async function loadClassGradebook(
       }
 
       // Tính lại ĐTB
-      existing.semester1.average = calculateTermAverage(existing.semester1);
-      existing.semester2.average = calculateTermAverage(existing.semester2);
+      if (!loadedData?.termLocks?.semester1?.locked) existing.semester1.average = calculateTermAverage(existing.semester1);
+      if (!loadedData?.termLocks?.semester2?.locked) existing.semester2.average = calculateTermAverage(existing.semester2);
       existing.yearAverage = calculateYearAverage(existing.semester1.average, existing.semester2.average);
       existing.rank = calculateSubjectRank(existing.yearAverage);
     }
@@ -129,6 +129,9 @@ export async function loadClassGradebook(
 
   return {
     teacherId,
+    ...(loadedData?.termLocks ? { termLocks: loadedData.termLocks } : {}),
+    ...(loadedData?.history ? { history: loadedData.history } : {}),
+    ...(loadedData?.calculationVersion ? { calculationVersion: loadedData.calculationVersion } : {}),
     revision: loadedData?.revision || 0,
     pendingSync: loadedData?.pendingSync || false,
     classId,

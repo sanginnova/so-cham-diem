@@ -3,6 +3,7 @@ import assert from 'node:assert/strict';
 import { auth } from '../src/lib/firebase';
 import { stageGradebookDraft, discardGradebookDraft, loadClassGradebook, saveClassGradebook } from '../src/services/subjectGradeService';
 import type { ClassGradebookData } from '../src/types/subjectGrade';
+import { changeTermLock } from '../src/lib/gradebookHistory';
 
 test('drafts survive switching classes, isolate accounts and clear only the selected draft', async () => {
   const items = new Map<string, string>();
@@ -46,6 +47,13 @@ test('drafts survive switching classes, isolate accounts and clear only the sele
     const reopened = await loadClassGradebook('math', 'Toán', book.schoolYear, 'GV', [{ ...roster[0], fullName: 'Tên đã sửa' }], true, 'teacher-a');
     assert.equal(reopened.grades['shared-student'].fullName, 'Tên đã sửa');
     assert.equal(reopened.grades['shared-student'].semester1.tx[0], 8);
+    reopened.grades['shared-student'].semester1.average = 7.5;
+    const locked = changeTermLock(reopened, 'semester1', 'GV A', 'Chốt');
+    await saveClassGradebook(locked, true);
+    const restored = await loadClassGradebook('math', 'Toán', book.schoolYear, 'GV', roster, true, 'teacher-a');
+    assert.equal(restored.termLocks?.semester1?.locked, true);
+    assert.equal(restored.grades['shared-student'].semester1.average, 7.5);
+    assert.equal(restored.history?.[0].action, 'lock');
   } finally {
     Object.defineProperty(auth, 'currentUser', { value: original });
     delete (globalThis as { localStorage?: unknown }).localStorage;

@@ -18,6 +18,9 @@ export interface StudentSubjectGrade {
 }
 
 export interface ClassGradebookData {
+  termLocks?: Partial<Record<'semester1' | 'semester2', { locked: boolean; at: string; actor: string; reason: string }>>;
+  history?: Array<{ id: string; at: string; actor: string; term: 'semester1' | 'semester2'; action: string; detail: string; before: string; after: string }>;
+  calculationVersion?: string;
   teacherId?: string;
   revision?: number;
   pendingSync?: boolean;

@@ -53,6 +53,8 @@ Chạy thử bằng `npm run dev`, mở địa chỉ Vite trả về. Chạy tr�
 
 ## Bước 4 — Chốt sổ và lịch sử
 
-Thêm khóa theo lớp/môn/học kỳ, audit sửa điểm, trạng thái vắng/miễn/kiểm tra bù và phiên bản công thức tính điểm. Xác nhận quy tắc đánh giá áp dụng trước khi thay đổi công thức.
+Đã bổ sung bản đầu cho sổ lưu trên máy: chốt/mở lại từng học kỳ, mở lại bắt buộc có lý do; khóa ô nhập và cấu hình cột khi chốt. Giữ điểm trung bình của học kỳ đã chốt khi mở lại sổ. Lịch sử ghi người thao tác, thời gian, học kỳ và giá trị trước/sau cho sửa điểm/cột, chốt/mở sổ; có thể tải toàn bộ sổ kèm lịch sử thành JSON. Công thức hiện tại được đánh dấu weighted-v1 khi chốt, không đổi cách tính. Kiểm thử riêng cho điểm 0/ô trống, khóa sửa điểm/cột, học kỳ khác, lý do mở khóa và lưu/mở lại cache.
+
+Phạm vi: chỉ chế độ lưu sổ trên máy, chưa triển khai hoặc bổ sung khóa/audit lên Firebase. Lịch sử chỉ bắt đầu từ cập nhật này; localStorage có thể bị sửa/xóa nên chưa phải audit chống chỉnh sửa. JSON tải xuống chưa có chức năng nhập lại riêng trong giao diện. Trạng thái vắng/miễn/kiểm tra bù và công thức mới dành cho bước sau; cần xác nhận quy tắc áp dụng trước khi thay đổi.
 
 Mỗi bước lưu commit riêng, cập nhật NHAT_KY_PHIEN_BAN.md và tạo Git bundle theo KHOI_PHUC_PHIEN_BAN.md.
