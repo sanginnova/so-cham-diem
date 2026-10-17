@@ -4,6 +4,10 @@
 
 Xem [Nhật ký phiên bản](NHAT_KY_PHIEN_BAN.md) và [Hướng dẫn lưu/khôi phục](KHOI_PHUC_PHIEN_BAN.md). Chạy `npm run versions:journal` để cập nhật nhật ký từ Git; `npm run versions:backup` tạo bản sao lưu lịch sử mã nguồn khi các thay đổi đã được commit. Dữ liệu Firebase cần được sao lưu riêng.
 
+## Sổ điểm giáo viên bộ môn
+
+Mở **Lớp tôi dạy**, chọn lớp/môn để vào sổ điểm. Bản nháp được giữ trên trình duyệt theo tài khoản và lớp; chỉ thông báo “Đã đồng bộ” sau khi máy chủ nhận dữ liệu. Khi có xung đột với thiết bị khác, xuất Excel để giữ điểm đang sửa rồi chọn **Tải lại bản máy chủ**. Chế độ cloud cần mạng để mở sổ; nút **Lưu sổ điểm** thử lại khi lỗi. Xem [lộ trình GVBM](GVBM_UPGRADE.md) để biết phạm vi và trạng thái triển khai.
+
 Ứng dụng React/Vite cho nhiều giáo viên trong **một trường**, dùng Firebase Authentication, Cloud Firestore và Firebase Hosting.
 
 - Website: https://qsangtnl-4226a.web.app

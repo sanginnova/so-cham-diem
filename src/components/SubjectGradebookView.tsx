@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo, useRef } from 'react';
+import React, { useState, useEffect, useLayoutEffect, useMemo, useRef } from 'react';
 import {
   BookOpen,
   FileSpreadsheet,
@@ -29,6 +29,8 @@ import {
 import {
   loadClassGradebook,
   saveClassGradebook,
+  stageGradebookDraft,
+  discardGradebookDraft,
 } from '../services/subjectGradeService';
 
 export function SubjectGradebookView() {
@@ -47,6 +49,11 @@ export function SubjectGradebookView() {
   const [message, setMessage] = useState('');
   const [searchQuery, setSearchQuery] = useState('');
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [saveError, setSaveError] = useState(false);
+  const saveInFlight = useRef(false);
+  const gradebookRef = useRef(gradebook);
+  gradebookRef.current = gradebook;
 
   // Focus navigation refs matrix: `${studentId}_${columnKey}`
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
@@ -58,6 +65,8 @@ export function SubjectGradebookView() {
   useEffect(() => {
     let isCancelled = false;
     setLoading(true);
+    setGradebook(null);
+    setHasUnsavedChanges(false);
     setMessage('');
 
     void loadClassGradebook(
@@ -66,10 +75,20 @@ export function SubjectGradebookView() {
       classConfig.schoolYear,
       teacherName,
       students,
-      isLocalMode
+      isLocalMode,
+      classConfig.teacherId
     ).then((data) => {
       if (!isCancelled) {
         setGradebook(data);
+        setHasUnsavedChanges(!!data.pendingSync);
+        setSaveError(!!data.pendingSync);
+        if (data.pendingSync) setMessage('Đã khôi phục bản nháp chưa đồng bộ. Bấm Lưu để thử lại; nếu có xung đột, hãy xuất Excel trước khi tải lại bản máy chủ.');
+        setLoading(false);
+      }
+    }).catch((error: unknown) => {
+      if (!isCancelled) {
+        setMessage(`Không tải được sổ điểm từ máy chủ. Bản nháp trên máy vẫn được giữ. ${error instanceof Error ? error.message : String(error)}`);
+        setSaveError(true);
         setLoading(false);
       }
     });
@@ -77,18 +96,31 @@ export function SubjectGradebookView() {
     return () => {
       isCancelled = true;
     };
-  }, [classConfig.id, subjectName, classConfig.schoolYear, teacherName, students, isLocalMode]);
+  }, [classConfig.id, classConfig.teacherId, subjectName, classConfig.schoolYear, teacherName, students, isLocalMode, activeAccount?.uid, loadAttempt]);
+
+  // Persist drafts before navigation can unmount this view. Never silently report cloud success.
+  useLayoutEffect(() => {
+    if (!hasUnsavedChanges || !gradebook) return;
+    try { stageGradebookDraft(gradebook, isLocalMode); }
+    catch (error) { setSaveError(true); setMessage(`Không lưu được bản nháp: ${String(error)}`); }
+  }, [gradebook, hasUnsavedChanges, isLocalMode]);
+
+  useEffect(() => {
+    const warn = (event: BeforeUnloadEvent) => { if (hasUnsavedChanges) { event.preventDefault(); event.returnValue = ''; } };
+    window.addEventListener('beforeunload', warn);
+    return () => window.removeEventListener('beforeunload', warn);
+  }, [hasUnsavedChanges]);
 
   // 2. Tự động lưu sau 2 giây khi có thay đổi (Auto-save)
   useEffect(() => {
-    if (!hasUnsavedChanges || !gradebook) return;
+    if (!hasUnsavedChanges || !gradebook || saveError) return;
 
     const timer = setTimeout(() => {
       void handleSave(true);
     }, 2000);
 
     return () => clearTimeout(timer);
-  }, [gradebook, hasUnsavedChanges]);
+  }, [gradebook, hasUnsavedChanges, saveError]);
 
   // Hàm cập nhật điểm cho một học sinh
   const handleScoreChange = (
@@ -249,16 +281,22 @@ export function SubjectGradebookView() {
 
   // Lưu sổ điểm
   const handleSave = async (isAuto = false) => {
-    if (!gradebook) return;
+    if (!gradebook || saveInFlight.current) return;
+    saveInFlight.current = true;
     setSaving(true);
     try {
-      await saveClassGradebook(gradebook, isLocalMode);
-      setHasUnsavedChanges(false);
-      setMessage(isAuto ? 'Đã tự động lưu điểm số.' : 'Đã lưu sổ điểm thành công!');
-      setTimeout(() => setMessage(''), 3000);
+      const saved = await saveClassGradebook(gradebook, isLocalMode);
+      if (gradebookRef.current === gradebook) {
+        setGradebook(saved);
+        setHasUnsavedChanges(false);
+        setSaveError(false);
+        setMessage(isLocalMode ? 'Đã lưu trên máy.' : 'Đã đồng bộ sổ điểm lên máy chủ.');
+      }
     } catch (e) {
+      setSaveError(true);
       setMessage((e as Error).message);
     } finally {
+      saveInFlight.current = false;
       setSaving(false);
     }
   };
@@ -434,13 +472,18 @@ export function SubjectGradebookView() {
     );
   }
 
+  if (!gradebook) return <div role="alert" className="p-6 space-y-3 text-rose-700">
+    <p>{message}</p>
+    <button className="rounded border px-4 py-2" onClick={() => setLoadAttempt(value => value + 1)}>Thử tải lại</button>
+  </div>;
+
   const txCount =
     semesterTab === 'sem1'
       ? gradebook?.txCountSemester1 || 4
       : gradebook?.txCountSemester2 || 4;
 
   return (
-    <div className="space-y-4 text-slate-800 dark:text-slate-100">
+    <fieldset disabled={saving} className="min-w-0 space-y-4 text-slate-800 dark:text-slate-100">
       {/* ── Page Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-3">
@@ -464,6 +507,11 @@ export function SubjectGradebookView() {
 
         {/* Buttons Action */}
         <div className="flex items-center gap-2 flex-wrap">
+          {!isLocalMode && <button type="button" className="rounded-xl border px-3 py-2 text-xs font-bold" onClick={() => {
+            if (hasUnsavedChanges && !confirm('Tải lại sẽ bỏ bản nháp đang sửa. Hãy xuất Excel trước nếu cần giữ điểm. Tiếp tục?')) return;
+            discardGradebookDraft(classConfig.id, isLocalMode);
+            setLoadAttempt(value => value + 1);
+          }}>Tải lại bản máy chủ</button>}
           <button
             type="button"
             onClick={handleExportExcel}
@@ -486,8 +534,8 @@ export function SubjectGradebookView() {
       </div>
 
       {message && (
-        <div className="p-3 rounded-xl bg-emerald-50 dark:bg-emerald-950/40 border border-emerald-200 dark:border-emerald-800 text-emerald-800 dark:text-emerald-300 text-xs font-semibold flex items-center gap-2 animate-in fade-in">
-          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+        <div role={saveError ? 'alert' : 'status'} className={`p-3 rounded-xl border text-xs font-semibold flex items-center gap-2 ${saveError ? 'bg-rose-50 border-rose-300 text-rose-800' : 'bg-emerald-50 border-emerald-200 text-emerald-800'}`}>
+          {saveError ? <AlertCircle className="h-4 w-4 shrink-0" /> : <CheckCircle2 className="h-4 w-4 shrink-0" />}
           <span>{message}</span>
         </div>
       )}
@@ -903,6 +951,6 @@ export function SubjectGradebookView() {
           ✓ Điểm trung bình tự động tính theo công thức Thông tư 22 (TX: H1, GK: H2, CK: H3)
         </div>
       </div>
-    </div>
+    </fieldset>
   );
 }

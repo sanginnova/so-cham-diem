@@ -91,6 +91,27 @@ service cloud.firestore {
             && request.resource.data.classDirectoryId == resource.data.classDirectoryId));
       allow delete: if collection in ['students', 'classConfigs', 'behaviorCategories', 'weeklySnapshots', 'monthlySummaries', 'semesterSummaries', 'parentReports'] && writable(resource.data);
     }
+    match /subjectGradebooks/{id} {
+      function config() { return get(/databases/$(database)/documents/classConfigs/$(id)).data; }
+      function canUse() { return active() && profile().role in ['teacher', 'admin', 'owner'] && writable(config()); }
+      function validGradebook() {
+        let data = request.resource.data;
+        return data.keys().hasOnly(['classId', 'teacherId', 'subjectName', 'schoolYear', 'teacherName', 'txCountSemester1', 'txCountSemester2', 'txLabelsSemester1', 'txLabelsSemester2', 'grades', 'updatedAt', 'revision', 'pendingSync'])
+          && data.classId == id && data.teacherId == config().teacherId
+          && data.schoolYear == config().schoolYear
+          && data.subjectName == config().get('subjectName', config().get('teachingSubject', 'Toán'))
+          && data.teacherName is string && data.updatedAt is string
+          && data.grades is map && data.pendingSync == false
+          && data.txCountSemester1 is int && data.txCountSemester1 >= 2 && data.txCountSemester1 <= 8
+          && data.txCountSemester2 is int && data.txCountSemester2 >= 2 && data.txCountSemester2 <= 8
+          && data.revision is int;
+      }
+      allow get: if canUse();
+      allow list: if false;
+      allow create: if canUse() && validGradebook() && request.resource.data.revision == 1;
+      allow update: if canUse() && validGradebook() && request.resource.data.revision == resource.data.get('revision', 0) + 1;
+      allow delete: if false;
+    }
     // Private GVCN records are never readable by monitors or parent portals.
     match /homeroomRecords/{id} {
       function validHomeroom() {

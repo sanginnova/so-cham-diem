@@ -18,6 +18,9 @@ export interface StudentSubjectGrade {
 }
 
 export interface ClassGradebookData {
+  teacherId?: string;
+  revision?: number;
+  pendingSync?: boolean;
   classId: string;
   subjectName: string;
   schoolYear: string;

@@ -7,6 +7,64 @@ let env;
 const profile = (uid, role = 'teacher', extra = {}) => ({ uid, role, isActive: true, teacherId: '', ...extra });
 const dbFor = (uid, provider = 'password') => env.authenticatedContext(uid, { firebase: { sign_in_provider: provider } }).firestore();
 const log = (teacherId, createdBy, extra = {}) => ({ teacherId, createdBy, studentId: `student-${teacherId}`, classId: `cfg-${teacherId}`, type: 'deduct', weekNumber: 1, month: 9, count: 1, scorePerUnit: 1, totalScore: 1, ...extra });
+
+const gradebook = (extra = {}) => ({ classId: 'cfg-a', teacherId: 'a', subjectName: 'Toán', schoolYear: '2026-2027', teacherName: 'GV A', txCountSemester1: 4, txCountSemester2: 4, grades: {}, revision: 1, pendingSync: false, updatedAt: '2026-10-17', ...extra });
+async function prepareGradebook() {
+  await env.withSecurityRulesDisabled(async context => {
+    await setDoc(doc(context.firestore(), 'classConfigs', 'cfg-a'), { teacherId: 'a', schoolYear: '2026-2027', classType: 'subject', subjectName: 'Toán' });
+  });
+}
+test('gradebooks: owner and admin only; no monitor, other teacher, disabled or anonymous access', async () => {
+  await prepareGradebook();
+  const ref = db => doc(db, 'subjectGradebooks', 'cfg-a');
+  await assertSucceeds(getDoc(ref(dbFor('a')))); // Missing document must be readable to initialize.
+  await assertSucceeds(setDoc(ref(dbFor('a')), gradebook()));
+  await assertSucceeds(getDoc(ref(dbFor('admin'))));
+  for (const db of [dbFor('b'), dbFor('monitor'), dbFor('disabled'), dbFor('a', 'anonymous'), env.unauthenticatedContext().firestore()]) {
+    await assertFails(getDoc(ref(db)));
+    await assertFails(setDoc(ref(db), gradebook({ revision: 2 })));
+  }
+  await assertFails(getDocs(collection(dbFor('a'), 'subjectGradebooks')));
+  await assertFails(deleteDoc(ref(dbFor('a'))));
+});
+test('gradebooks: reject changed scope, forged ownership and stale revisions', async () => {
+  await prepareGradebook();
+  const ref = doc(dbFor('a'), 'subjectGradebooks', 'cfg-a');
+  for (const patch of [{ teacherId: 'b' }, { classId: 'cfg-b' }, { schoolYear: '2027-2028' }, { subjectName: 'Tin' }, { txCountSemester1: 99 }, { revision: 2 }, { pendingSync: true }]) {
+    await assertFails(setDoc(ref, gradebook(patch)));
+  }
+  await assertSucceeds(setDoc(ref, gradebook()));
+  await assertFails(setDoc(ref, gradebook()));
+  await assertSucceeds(setDoc(ref, gradebook({ revision: 2 })));
+  await assertFails(setDoc(ref, gradebook({ revision: 2 })));
+});
+test('gradebooks: transaction refuses stale edits from a second device', async () => {
+  await prepareGradebook();
+  const db = dbFor('a');
+  const ref = doc(db, 'subjectGradebooks', 'cfg-a');
+  await setDoc(ref, gradebook());
+  const staleRevision = (await getDoc(ref)).data().revision;
+  await setDoc(ref, gradebook({ revision: 2 }));
+  await assert.rejects(runTransaction(db, async transaction => {
+    const snap = await transaction.get(ref);
+    if (snap.data().revision !== staleRevision) throw new Error('conflict');
+    transaction.set(ref, gradebook({ revision: staleRevision + 1 }));
+  }), /conflict/);
+  assert.equal((await getDoc(ref)).data().revision, 2);
+});
+test('gradebooks: migrate revisionless documents and revoke a blocked owner', async () => {
+  await prepareGradebook();
+  await env.withSecurityRulesDisabled(async context => {
+    const legacy = gradebook();
+    delete legacy.revision;
+    delete legacy.teacherId;
+    await setDoc(doc(context.firestore(), 'subjectGradebooks', 'cfg-a'), legacy);
+  });
+  await assertSucceeds(setDoc(doc(dbFor('a'), 'subjectGradebooks', 'cfg-a'), gradebook()));
+  await env.withSecurityRulesDisabled(context => updateDoc(doc(context.firestore(), 'users', 'a'), { isActive: false }));
+  await assertFails(getDoc(doc(dbFor('a'), 'subjectGradebooks', 'cfg-a')));
+  await assertFails(setDoc(doc(dbFor('a'), 'subjectGradebooks', 'cfg-a'), gradebook({ revision: 2 })));
+});
 test('class-scoped locks and monitors do not cross into another year', async () => {
   await env.withSecurityRulesDisabled(async context => {
     const db = context.firestore();
