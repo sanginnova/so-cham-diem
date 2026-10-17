@@ -267,8 +267,8 @@ function MainApp() {
         />
 
         {/* Main Content Area */}
-        <ClassWorkspaceSwitcher />
-        <main key={classConfig.id} className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 pb-24 md:pb-8">
+        {!['teaching-schedule', 'admin'].includes(activeTab) && <ClassWorkspaceSwitcher />}
+        <main className="flex-1 w-full max-w-7xl mx-auto px-3 sm:px-6 lg:px-8 py-5 pb-24 md:pb-8">
           {/* Level 1: Public Guest Portal */}
           {(userRole === 'guest' || activeTab === 'portal') && (
             <PublicPortalView onOpenLoginModal={() => setIsLoginModalOpen(true)} />
@@ -340,7 +340,7 @@ function MainApp() {
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'subject-statistics' && <SubjectStatisticsView onOpenGradebook={() => setActiveTab('gradebook')} />}
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'subject-attendance' && <SubjectAttendanceView key={classConfig.id} />}
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'teaching-schedule' && (
-            <TeacherTimetableView key={classConfig.id} onNavigateTab={setActiveTab} />
+            <TeacherTimetableView onNavigateTab={setActiveTab} />
           )}
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'random-picker' && <RandomStudentPickerView key={classConfig.id} />}
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'gradebook' && <SubjectGradebookView key={classConfig.id} />}

@@ -18,8 +18,10 @@ export interface TeacherTimetable {
   schoolYear: string;
   semester: 1 | 2;
   mode?: TimetableMode; // 'mon-sat' (6 ngày) hoặc 'mon-fri' (5 ngày)
+  currentWeekNumber?: number; // Tuần đang xem (1 -> 35)
   weekStartDate?: string; // YYYY-MM-DD (Ngày Thứ 2 bắt đầu tuần)
-  slots: Record<string, TimetableSlot>; // Key: `${dayOfWeek}_p${period}`
+  slots: Record<string, TimetableSlot>; // TKB chuẩn / mặc định
+  weekSlots?: Record<string, Record<string, TimetableSlot>>; // TKB theo từng tuần: 'w1', 'w2', 'w3'...
   updatedAt: string;
 }
 
@@ -301,6 +303,92 @@ export const SAMPLE_TIMETABLE_SLOTS: Record<string, TimetableSlot> = {
   '7_p8': { dayOfWeek: 7, period: 8, className: '10A17', subjectName: 'Toán' },
 };
 
+/**
+ * Lấy các slots của một tuần cụ thể. Nếu tuần đó chưa được chỉnh sửa riêng, trả về TKB chuẩn (slots)
+ */
+export function getTimetableSlotsForWeek(
+  timetable: TeacherTimetable,
+  weekNumber?: number
+): Record<string, TimetableSlot> {
+  if (!weekNumber) return timetable.slots || {};
+  const weekKey = `w${weekNumber}`;
+  if (timetable.weekSlots && timetable.weekSlots[weekKey] && Object.keys(timetable.weekSlots[weekKey]).length > 0) {
+    return timetable.weekSlots[weekKey];
+  }
+  return timetable.slots || {};
+}
+
+/**
+ * Lưu các slots cho một tuần cụ thể
+ */
+export function setTimetableSlotsForWeek(
+  timetable: TeacherTimetable,
+  weekNumber: number,
+  slots: Record<string, TimetableSlot>
+): TeacherTimetable {
+  const weekKey = `w${weekNumber}`;
+  const nextWeekSlots = {
+    ...(timetable.weekSlots || {}),
+    [weekKey]: slots,
+  };
+  return {
+    ...timetable,
+    weekSlots: nextWeekSlots,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Sao chép TKB từ một tuần nguồn sang một tuần đích (vd: Tuần 3 sang Tuần 4)
+ */
+export function copyTimetableFromWeekToWeek(
+  timetable: TeacherTimetable,
+  fromWeek: number,
+  toWeek: number
+): TeacherTimetable {
+  const sourceSlots = getTimetableSlotsForWeek(timetable, fromWeek);
+  const clonedSlots: Record<string, TimetableSlot> = JSON.parse(JSON.stringify(sourceSlots));
+  return setTimetableSlotsForWeek(timetable, toWeek, clonedSlots);
+}
+
+/**
+ * Sao chép TKB từ một tuần nguồn sang nhiều tuần đích
+ */
+export function copyTimetableWeekToRange(
+  timetable: TeacherTimetable,
+  fromWeek: number,
+  targetWeeks: number[]
+): TeacherTimetable {
+  const sourceSlots = getTimetableSlotsForWeek(timetable, fromWeek);
+  const nextWeekSlots = { ...(timetable.weekSlots || {}) };
+
+  for (const w of targetWeeks) {
+    nextWeekSlots[`w${w}`] = JSON.parse(JSON.stringify(sourceSlots));
+  }
+
+  return {
+    ...timetable,
+    weekSlots: nextWeekSlots,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
+/**
+ * Đặt TKB của một tuần làm TKB chuẩn chung cho toàn bộ các tuần trong học kỳ
+ */
+export function setWeekAsDefaultTimetable(
+  timetable: TeacherTimetable,
+  weekNumber: number
+): TeacherTimetable {
+  const currentSlots = getTimetableSlotsForWeek(timetable, weekNumber);
+  const clonedSlots = JSON.parse(JSON.stringify(currentSlots));
+  return {
+    ...timetable,
+    slots: clonedSlots,
+    updatedAt: new Date().toISOString(),
+  };
+}
+
 export function loadTeacherTimetable(
   storage: Pick<Storage, 'getItem'>,
   teacherId: string,
@@ -316,6 +404,7 @@ export function loadTeacherTimetable(
     mode: 'mon-sat',
     weekStartDate: getMondayOfCurrentWeek(),
     slots: {},
+    weekSlots: {},
     updatedAt: new Date().toISOString(),
   };
 
@@ -330,6 +419,7 @@ export function loadTeacherTimetable(
       mode: parsed.mode || 'mon-sat',
       weekStartDate: parsed.weekStartDate || getMondayOfCurrentWeek(),
       slots: parsed.slots || {},
+      weekSlots: parsed.weekSlots || {},
     };
   } catch {
     return defaultTable;
@@ -345,19 +435,22 @@ export function saveTeacherTimetable(
 }
 
 /**
- * Lọc danh sách các tiết dạy hôm nay của giáo viên
+ * Lọc danh sách các tiết dạy hôm nay của giáo viên (theo tuần cụ thể hoặc TKB mặc định)
  */
 export function getTodayTeachingSlots(
   timetable: TeacherTimetable,
-  currentDate: Date = new Date()
+  currentDate: Date = new Date(),
+  weekNumber?: number
 ): TimetableSlot[] {
   const jsDay = currentDate.getDay();
   const dayOfWeek = jsDay === 0 ? 8 : jsDay + 1; // 2 -> 8
 
+  const activeSlots = getTimetableSlotsForWeek(timetable, weekNumber);
+
   const todaySlots: TimetableSlot[] = [];
   for (let p = 1; p <= 10; p++) {
     const key = makeSlotKey(dayOfWeek, p);
-    const slot = timetable.slots[key];
+    const slot = activeSlots[key];
     if (slot && slot.className?.trim()) {
       todaySlots.push(slot);
     }

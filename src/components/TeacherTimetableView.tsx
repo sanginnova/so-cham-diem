@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import {
   Calendar,
   Clock,
@@ -22,6 +22,8 @@ import {
   FileSpreadsheet,
   Check,
   RotateCcw,
+  ArrowRight,
+  Share2,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import {
@@ -41,7 +43,13 @@ import {
   parseTimetableFromText,
   exportTimetableToTsv,
   SAMPLE_TIMETABLE_SLOTS,
+  getTimetableSlotsForWeek,
+  setTimetableSlotsForWeek,
+  copyTimetableFromWeekToWeek,
+  copyTimetableWeekToRange,
+  setWeekAsDefaultTimetable,
 } from '../lib/teacherTimetable';
+import { schoolWeeksFrom, defaultWeekOneStart } from '../lib/classScope';
 import { TabType } from './Navbar';
 
 interface TeacherTimetableViewProps {
@@ -68,27 +76,52 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
   // 2 Dạng TKB: 6 ngày (Thứ 2 - Thứ 7) hoặc 5 ngày (Thứ 2 - Thứ 6)
   const [mode, setMode] = useState<TimetableMode>(timetable.mode || 'mon-sat');
 
-  // Ngày Thứ Hai bắt đầu tuần
-  const [weekStartDate, setWeekStartDate] = useState<string>(
-    timetable.weekStartDate || getMondayOfCurrentWeek()
-  );
+  // Danh sách 35 tuần chuẩn của năm học
+  const allSchoolWeeks = useMemo(() => {
+    try {
+      const start = defaultWeekOneStart(schoolYear);
+      return schoolWeeksFrom(start, 35);
+    } catch {
+      return schoolWeeksFrom('2026-09-07', 35);
+    }
+  }, [schoolYear]);
+
+  // Xác định tuần hiện tại dựa trên ngày hôm nay
+  const currentActualWeekNumber = useMemo(() => {
+    const todayStr = new Date().toISOString().split('T')[0];
+    const found = allSchoolWeeks.find((w) => todayStr >= w.startDate && todayStr <= w.endDate);
+    return found ? found.weekNumber : 1;
+  }, [allSchoolWeeks]);
+
+  // Tuần đang được chọn xem TKB (1 -> 35)
+  const [selectedWeekNumber, setSelectedWeekNumber] = useState<number>(() => {
+    return timetable.currentWeekNumber || currentActualWeekNumber || 1;
+  });
+
+  // Thông tin của tuần đang chọn
+  const selectedWeekInfo = useMemo(() => {
+    return allSchoolWeeks.find((w) => w.weekNumber === selectedWeekNumber) || allSchoolWeeks[0];
+  }, [allSchoolWeeks, selectedWeekNumber]);
+
+  // Ngày Thứ Hai bắt đầu của tuần đang chọn
+  const weekStartDate = useMemo(() => {
+    return selectedWeekInfo ? selectedWeekInfo.startDate : getMondayOfCurrentWeek();
+  }, [selectedWeekInfo]);
 
   // Tải lại khi đổi học kỳ
   useEffect(() => {
     const loaded = loadTeacherTimetable(localStorage, teacherId, teacherName, schoolYear, semester);
     setTimetable(loaded);
     if (loaded.mode) setMode(loaded.mode);
-    if (loaded.weekStartDate) setWeekStartDate(loaded.weekStartDate);
   }, [teacherId, teacherName, schoolYear, semester]);
 
-  // Lưu cấu hình mode & weekStartDate vào storage khi thay đổi
-  const updateTimetableMeta = (newMode: TimetableMode, newWeekStart: string) => {
+  // Lưu cấu hình mode vào storage khi thay đổi
+  const handleToggleMode = (newMode: TimetableMode) => {
     setMode(newMode);
-    setWeekStartDate(newWeekStart);
     const nextTable: TeacherTimetable = {
       ...timetable,
       mode: newMode,
-      weekStartDate: newWeekStart,
+      currentWeekNumber: selectedWeekNumber,
     };
     setTimetable(nextTable);
     saveTeacherTimetable(localStorage, nextTable);
@@ -103,31 +136,22 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
     return getDaysOfWeek(mode);
   }, [mode]);
 
-  // Điều hướng tuần (Tuần trước / Tuần này / Tuần sau)
-  const handleShiftWeek = (offsetDays: number) => {
-    const current = new Date(`${weekStartDate}T00:00:00`);
-    current.setDate(current.getDate() + offsetDays);
-    const day = current.getDay();
-    const diff = current.getDate() - day + (day === 0 ? -6 : 1);
-    const monday = new Date(current.setDate(diff));
-    const nextMondayStr = monday.toISOString().split('T')[0];
-    updateTimetableMeta(mode, nextMondayStr);
-  };
+  // Slots hiện tại của tuần đang chọn (nếu chưa có thì lấy TKB mặc định)
+  const currentWeekSlots = useMemo(() => {
+    return getTimetableSlotsForWeek(timetable, selectedWeekNumber);
+  }, [timetable, selectedWeekNumber]);
 
-  const handleResetToCurrentWeek = () => {
-    updateTimetableMeta(mode, getMondayOfCurrentWeek());
-  };
+  // Kiểm tra xem tuần này có TKB riêng biệt hay đang dùng chung
+  const isCustomWeek = useMemo(() => {
+    const weekKey = `w${selectedWeekNumber}`;
+    return !!(timetable.weekSlots && timetable.weekSlots[weekKey] && Object.keys(timetable.weekSlots[weekKey]).length > 0);
+  }, [timetable, selectedWeekNumber]);
 
-  // Danh sách các lớp bộ môn thầy đang dạy để gợi ý nhanh
-  const availableClasses = useMemo(() => {
-    return workspaceClasses.filter((c) => c.classType === 'subject' || c.id === classConfig.id);
-  }, [workspaceClasses, classConfig.id]);
-
-  // Tiết dạy hôm nay
+  // Tiết dạy hôm nay (tính theo tuần đang chọn)
   const todayDate = useMemo(() => new Date(), []);
   const todaySlots = useMemo(() => {
-    return getTodayTeachingSlots(timetable, todayDate);
-  }, [timetable, todayDate]);
+    return getTodayTeachingSlots(timetable, todayDate, selectedWeekNumber);
+  }, [timetable, todayDate, selectedWeekNumber]);
 
   const jsDay = todayDate.getDay();
   const todayLabel = jsDay === 0 ? 'Chủ Nhật' : `Thứ ${jsDay + 1}`;
@@ -142,11 +166,36 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
   // Modal Dán / Nhập TKB từ Excel
   const [isPasteModalOpen, setIsPasteModalOpen] = useState(false);
   const [pasteRawText, setPasteRawText] = useState('');
+  const [pasteScope, setPasteScope] = useState<'current_week' | 'from_here_on' | 'all_weeks'>('current_week');
   const [copySuccessToast, setCopySuccessToast] = useState(false);
+
+  // Modal Sao chép giữa các tuần
+  const [isCopyModalOpen, setIsCopyModalOpen] = useState(false);
+  const [targetCopyWeek, setTargetCopyWeek] = useState<number>(selectedWeekNumber + 1 <= 35 ? selectedWeekNumber + 1 : 1);
+  const [copyScopeMode, setCopyScopeMode] = useState<'single' | 'range' | 'default'>('single');
+
+  // Lắng nghe sự kiện paste toàn cục (Ctrl + V)
+  useEffect(() => {
+    const handleGlobalPaste = (e: ClipboardEvent) => {
+      // Nếu đang mở input/textarea khác thì không can thiệp
+      const target = e.target as HTMLElement;
+      if (target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA')) {
+        return;
+      }
+      const text = e.clipboardData?.getData('text');
+      if (text && text.trim()) {
+        setPasteRawText(text);
+        setIsPasteModalOpen(true);
+      }
+    };
+
+    window.addEventListener('paste', handleGlobalPaste);
+    return () => window.removeEventListener('paste', handleGlobalPaste);
+  }, []);
 
   const openEditModal = (dayOfWeek: number, period: number) => {
     const key = makeSlotKey(dayOfWeek, period);
-    const existing = timetable.slots[key] || null;
+    const existing = currentWeekSlots[key] || null;
     setEditingSlot({ dayOfWeek, period, slot: existing });
     if (existing) {
       setFormClassName(existing.className);
@@ -154,7 +203,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
       setFormRoom(existing.room || '');
       setFormNote(existing.note || '');
     } else {
-      setFormClassName(availableClasses[0]?.className || '');
+      setFormClassName(workspaceClasses[0]?.className || '');
       setFormSubjectName(classConfig.subjectName || 'Toán');
       setFormRoom('');
       setFormNote('');
@@ -168,7 +217,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
     const { dayOfWeek, period } = editingSlot;
     const key = makeSlotKey(dayOfWeek, period);
 
-    const matchedClass = availableClasses.find((c) => c.className.toLowerCase() === formClassName.trim().toLowerCase());
+    const matchedClass = workspaceClasses.find((c) => c.className.toLowerCase() === formClassName.trim().toLowerCase());
 
     const updatedSlot: TimetableSlot = {
       dayOfWeek,
@@ -180,8 +229,8 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
       note: formNote.trim(),
     };
 
-    const nextSlots = { ...timetable.slots, [key]: updatedSlot };
-    const nextTable: TeacherTimetable = { ...timetable, slots: nextSlots };
+    const nextWeekSlots = { ...currentWeekSlots, [key]: updatedSlot };
+    const nextTable = setTimetableSlotsForWeek(timetable, selectedWeekNumber, nextWeekSlots);
     setTimetable(nextTable);
     saveTeacherTimetable(localStorage, nextTable);
     setEditingSlot(null);
@@ -192,9 +241,9 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
     const { dayOfWeek, period } = editingSlot;
     const key = makeSlotKey(dayOfWeek, period);
 
-    const nextSlots = { ...timetable.slots };
-    delete nextSlots[key];
-    const nextTable: TeacherTimetable = { ...timetable, slots: nextSlots };
+    const nextWeekSlots = { ...currentWeekSlots };
+    delete nextWeekSlots[key];
+    const nextTable = setTimetableSlotsForWeek(timetable, selectedWeekNumber, nextWeekSlots);
     setTimetable(nextTable);
     saveTeacherTimetable(localStorage, nextTable);
     setEditingSlot(null);
@@ -215,7 +264,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
     }
   };
 
-  // Thao tác Copy TKB ra Clipboard dạng bảng Excel TSV
+  // Sao chép TKB ra Clipboard dạng bảng Excel TSV
   const handleCopyTsv = async () => {
     const tsv = exportTimetableToTsv(timetable, mode, weekStartDate);
     try {
@@ -223,7 +272,6 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
       setCopySuccessToast(true);
       setTimeout(() => setCopySuccessToast(false), 2500);
     } catch {
-      // Fallback nếu clipboard API bị chặn
       const textarea = document.createElement('textarea');
       textarea.value = tsv;
       document.body.appendChild(textarea);
@@ -235,66 +283,113 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
     }
   };
 
-  // Thao tác Áp dụng Dán TKB từ text
+  // Áp dụng dán TKB từ text / Excel
   const handleApplyPastedText = () => {
     const parsedSlots = parseTimetableFromText(pasteRawText, mode);
     const count = Object.keys(parsedSlots).length;
     if (count === 0) {
-      alert('Không tìm thấy dữ liệu tiết học hợp lệ. Vui lòng kiểm tra lại nội dung bảng dán.');
+      alert('Không tìm thấy dữ liệu tiết học hợp lệ. Vui lòng kiểm tra lại nội dung dán.');
       return;
     }
 
-    const nextTable: TeacherTimetable = {
-      ...timetable,
-      slots: { ...timetable.slots, ...parsedSlots },
-      mode,
-      weekStartDate,
-    };
+    let nextTable = timetable;
+
+    if (pasteScope === 'current_week') {
+      // Chỉ áp dụng cho tuần hiện tại
+      const nextWeekSlots = { ...currentWeekSlots, ...parsedSlots };
+      nextTable = setTimetableSlotsForWeek(timetable, selectedWeekNumber, nextWeekSlots);
+    } else if (pasteScope === 'from_here_on') {
+      // Áp dụng từ tuần này đến hết học kỳ
+      const targetWeeks: number[] = [];
+      const maxWeek = semester === 1 ? 18 : 35;
+      for (let w = selectedWeekNumber; w <= maxWeek; w++) {
+        targetWeeks.push(w);
+      }
+      nextTable = setTimetableSlotsForWeek(timetable, selectedWeekNumber, parsedSlots);
+      nextTable = copyTimetableWeekToRange(nextTable, selectedWeekNumber, targetWeeks);
+    } else {
+      // Áp dụng làm TKB chung mặc định
+      nextTable = {
+        ...timetable,
+        slots: { ...timetable.slots, ...parsedSlots },
+      };
+      nextTable = setTimetableSlotsForWeek(nextTable, selectedWeekNumber, parsedSlots);
+    }
+
     setTimetable(nextTable);
     saveTeacherTimetable(localStorage, nextTable);
     setIsPasteModalOpen(false);
     setPasteRawText('');
-    alert(`Đã nhập thành công ${count} tiết học vào Thời khóa biểu!`);
+    alert(`Đã nhập thành công ${count} tiết học từ Excel vào Thời khóa biểu!`);
   };
 
-  // Nạp bộ dữ liệu mẫu thực tế từ ảnh của Thầy
+  // Nạp bộ dữ liệu mẫu thực tế từ ảnh
   const handleLoadSampleFromImage = () => {
-    if (window.confirm('Thầy có muốn nạp Thời khóa biểu mẫu (chuẩn như ảnh Thầy gửi: 10A8, 12B6, 12B1, 10A17) vào TKB hiện tại không?')) {
+    if (window.confirm(`Thầy có muốn nạp Thời khóa biểu mẫu thực tế (10A8, 12B6, 12B1, 10A17) vào Tuần ${selectedWeekNumber} không?`)) {
+      const nextTable = setTimetableSlotsForWeek(timetable, selectedWeekNumber, SAMPLE_TIMETABLE_SLOTS);
+      setTimetable(nextTable);
+      saveTeacherTimetable(localStorage, nextTable);
+    }
+  };
+
+  // Thực hiện Sao chép giữa các tuần
+  const handleExecuteCopyWeek = () => {
+    let nextTable = timetable;
+
+    if (copyScopeMode === 'single') {
+      // Ví dụ: Tuần 3 sang Tuần 4
+      nextTable = copyTimetableFromWeekToWeek(timetable, selectedWeekNumber, targetCopyWeek);
+      alert(`Đã sao chép toàn bộ lịch dạy của Tuần ${selectedWeekNumber} sang Tuần ${targetCopyWeek}!`);
+    } else if (copyScopeMode === 'range') {
+      // Sao chép sang các tuần tiếp theo
+      const targetWeeks: number[] = [];
+      const maxWeek = semester === 1 ? 18 : 35;
+      for (let w = selectedWeekNumber + 1; w <= maxWeek; w++) {
+        targetWeeks.push(w);
+      }
+      if (targetWeeks.length === 0) {
+        alert('Tuần hiện tại đã là tuần cuối cùng của kỳ.');
+        return;
+      }
+      nextTable = copyTimetableWeekToRange(timetable, selectedWeekNumber, targetWeeks);
+      alert(`Đã sao chép lịch dạy của Tuần ${selectedWeekNumber} sang các Tuần ${targetWeeks.join(', ')}!`);
+    } else {
+      // Đặt làm TKB mặc định
+      nextTable = setWeekAsDefaultTimetable(timetable, selectedWeekNumber);
+      alert(`Đã đặt lịch dạy của Tuần ${selectedWeekNumber} làm Thời khóa biểu chuẩn cho toàn kỳ!`);
+    }
+
+    setTimetable(nextTable);
+    saveTeacherTimetable(localStorage, nextTable);
+    setIsCopyModalOpen(false);
+  };
+
+  // Xóa TKB của tuần này (quay về TKB mặc định)
+  const handleResetCurrentWeek = () => {
+    if (window.confirm(`Thầy có chắc chắn muốn đặt lại Tuần ${selectedWeekNumber} về Thời khóa biểu chuẩn ban đầu không?`)) {
+      const nextWeekSlots = { ...(timetable.weekSlots || {}) };
+      delete nextWeekSlots[`w${selectedWeekNumber}`];
       const nextTable: TeacherTimetable = {
         ...timetable,
-        slots: { ...timetable.slots, ...SAMPLE_TIMETABLE_SLOTS },
-        mode,
-        weekStartDate,
+        weekSlots: nextWeekSlots,
       };
       setTimetable(nextTable);
       saveTeacherTimetable(localStorage, nextTable);
     }
   };
 
-  // Xóa toàn bộ TKB học kỳ này
-  const handleClearAllSlots = () => {
-    if (window.confirm('Thầy có chắc chắn muốn xóa toàn bộ lịch dạy của Học kỳ này để làm lại từ đầu không?')) {
-      const nextTable: TeacherTimetable = {
-        ...timetable,
-        slots: {},
-      };
-      setTimetable(nextTable);
-      saveTeacherTimetable(localStorage, nextTable);
-    }
-  };
-
-  // Thống kê tổng số tiết
+  // Thống kê tổng số tiết tuần này
   const totalWeeklyPeriods = useMemo(() => {
-    return Object.values(timetable.slots).filter((s) => s.className?.trim()).length;
-  }, [timetable]);
+    return Object.values(currentWeekSlots).filter((s) => s.className?.trim()).length;
+  }, [currentWeekSlots]);
 
   const uniqueClassesTaught = useMemo(() => {
     const set = new Set<string>();
-    Object.values(timetable.slots).forEach((s) => {
+    Object.values(currentWeekSlots).forEach((s) => {
       if (s.className?.trim()) set.add(s.className.trim());
     });
     return Array.from(set);
-  }, [timetable]);
+  }, [currentWeekSlots]);
 
   return (
     <div className="space-y-4 text-slate-800 dark:text-slate-100">
@@ -307,21 +402,46 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h2 className="text-base sm:text-lg font-black text-slate-900 dark:text-white uppercase tracking-tight">
-                Thời khóa biểu giảng dạy GVBM
+                Thời khóa biểu giảng dạy GVBM (Tất cả các lớp)
               </h2>
               <span className="text-[11px] px-2.5 py-0.5 rounded-full bg-purple-100 text-purple-900 dark:bg-purple-950/80 dark:text-purple-300 font-bold border border-purple-300">
                 GV: {teacherName}
               </span>
+              <span className="text-[11px] px-2 py-0.5 rounded-full bg-blue-100 text-blue-900 dark:bg-blue-950/80 dark:text-blue-300 font-semibold border border-blue-300">
+                TKB chung toàn trường
+              </span>
             </div>
             <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
-              Hỗ trợ 2 dạng TKB (5 ngày / 6 ngày), chọn ngày bắt đầu tuần, sao chép dán trực tiếp từ Excel.
+              Thời khóa biểu chung theo từng tuần, cho phép sao chép giữa các tuần, dán trực tiếp từ Excel (Ctrl+V).
             </p>
           </div>
         </div>
 
         {/* Nút tác vụ chính */}
         <div className="flex items-center gap-2 flex-wrap">
-          {/* Nút Sao chép TKB */}
+          {/* Nút Sao chép sang tuần khác */}
+          <button
+            type="button"
+            onClick={() => setIsCopyModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-purple-50 dark:bg-purple-950/60 hover:bg-purple-100 dark:hover:bg-purple-900/60 text-purple-700 dark:text-purple-300 border border-purple-300 dark:border-purple-800 shadow-2xs transition active:scale-95 cursor-pointer"
+            title="Sao chép thời khóa biểu tuần này sang tuần khác (vd: Tuần 3 giống Tuần 4)"
+          >
+            <Share2 className="h-4 w-4 text-purple-600 dark:text-purple-400" />
+            <span>Sao chép tuần</span>
+          </button>
+
+          {/* Nút Dán từ Excel */}
+          <button
+            type="button"
+            onClick={() => setIsPasteModalOpen(true)}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800 shadow-2xs transition active:scale-95 cursor-pointer"
+            title="Dán dữ liệu TKB sao chép từ Excel vào (Phím tắt: Ctrl + V)"
+          >
+            <ClipboardPaste className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
+            <span>Dán từ Excel</span>
+          </button>
+
+          {/* Nút Sao chép TKB ra Clipboard */}
           <button
             type="button"
             onClick={handleCopyTsv}
@@ -336,20 +456,9 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
             ) : (
               <>
                 <Copy className="h-4 w-4 text-slate-500" />
-                <span>Sao chép TKB</span>
+                <span>Copy bảng</span>
               </>
             )}
-          </button>
-
-          {/* Nút Dán / Nhập TKB */}
-          <button
-            type="button"
-            onClick={() => setIsPasteModalOpen(true)}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-indigo-50 dark:bg-indigo-950/60 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 border border-indigo-300 dark:border-indigo-800 shadow-2xs transition active:scale-95 cursor-pointer"
-            title="Dán dữ liệu TKB sao chép từ Excel vào"
-          >
-            <ClipboardPaste className="h-4 w-4 text-indigo-600 dark:text-indigo-400" />
-            <span>Dán từ Excel</span>
           </button>
 
           {/* Nút Nạp mẫu từ ảnh */}
@@ -360,7 +469,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
             title="Nạp ngay TKB mẫu chuẩn theo ảnh Thầy vừa gửi"
           >
             <Sparkles className="h-4 w-4 text-amber-600" />
-            <span className="hidden sm:inline">Nạp mẫu ảnh</span>
+            <span className="hidden sm:inline">Nạp mẫu</span>
           </button>
 
           {/* Chuyển học kỳ */}
@@ -413,74 +522,91 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
         </div>
       </div>
 
-      {/* ── BỘ ĐIỀU KHIỂN: 2 DẠNG TKB & CHỌN NGÀY BẮT ĐẦU TUẦN ── */}
+      {/* ── BỘ ĐIỀU KHIỂN CHỌN TUẦN & 2 DẠNG TKB ── */}
       <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        {/* Toggle 2 Dạng TKB */}
+        {/* Toggle 2 Dạng TKB (6 ngày / 5 ngày) */}
         <div className="flex items-center gap-2">
-          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Dạng TKB:</span>
+          <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Dạng:</span>
           <div className="inline-flex rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700">
             <button
               type="button"
-              onClick={() => updateTimetableMeta('mon-sat', weekStartDate)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              onClick={() => handleToggleMode('mon-sat')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                 mode === 'mon-sat'
                   ? 'bg-purple-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <span>Thứ 2 – Thứ 7 (6 ngày)</span>
+              Thứ 2 – Thứ 7 (6 ngày)
             </button>
             <button
               type="button"
-              onClick={() => updateTimetableMeta('mon-fri', weekStartDate)}
-              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition flex items-center gap-1.5 cursor-pointer ${
+              onClick={() => handleToggleMode('mon-fri')}
+              className={`px-3 py-1.5 rounded-lg text-xs font-bold transition cursor-pointer ${
                 mode === 'mon-fri'
                   ? 'bg-purple-600 text-white shadow-xs'
                   : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
               }`}
             >
-              <span>Thứ 2 – Thứ 6 (5 ngày)</span>
+              Thứ 2 – Thứ 6 (5 ngày)
             </button>
           </div>
         </div>
 
-        {/* Chọn ngày Thứ 2 bắt đầu tuần & Điều hướng tuần */}
+        {/* Bộ chọn tuần học (Tuần 1 đến Tuần 35) */}
         <div className="flex items-center gap-2 flex-wrap">
           <div className="flex items-center gap-1">
             <button
               type="button"
-              onClick={() => handleShiftWeek(-7)}
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer"
+              onClick={() => setSelectedWeekNumber((prev) => Math.max(1, prev - 1))}
+              disabled={selectedWeekNumber <= 1}
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 text-slate-600 dark:text-slate-300 cursor-pointer"
               title="Tuần trước"
             >
               <ChevronLeft className="h-4 w-4" />
             </button>
             <button
               type="button"
-              onClick={handleResetToCurrentWeek}
+              onClick={() => setSelectedWeekNumber(currentActualWeekNumber)}
               className="px-2.5 py-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-xs font-bold text-slate-700 dark:text-slate-300 cursor-pointer"
-              title="Quay lại tuần này"
+              title="Quay lại tuần thực tế hôm nay"
             >
-              Tuần này
+              Tuần hiện tại
             </button>
             <button
               type="button"
-              onClick={() => handleShiftWeek(7)}
-              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-slate-600 dark:text-slate-300 cursor-pointer"
+              onClick={() => setSelectedWeekNumber((prev) => Math.min(35, prev + 1))}
+              disabled={selectedWeekNumber >= 35}
+              className="p-1.5 rounded-lg border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 disabled:opacity-40 text-slate-600 dark:text-slate-300 cursor-pointer"
               title="Tuần sau"
             >
               <ChevronRight className="h-4 w-4" />
             </button>
           </div>
 
+          {/* Dropdown danh sách 35 tuần */}
           <div className="flex items-center gap-1.5 pl-2 border-l border-slate-200 dark:border-slate-700">
-            <span className="text-xs text-slate-500 font-medium">Thứ 2 bắt đầu:</span>
-            <input
-              type="date"
-              value={weekStartDate}
-              onChange={(e) => updateTimetableMeta(mode, e.target.value)}
-              className="px-2.5 py-1 rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 text-xs font-bold text-slate-800 dark:text-slate-200 focus:outline-hidden focus:ring-2 focus:ring-purple-500 cursor-pointer"
-            />
+            <select
+              value={selectedWeekNumber}
+              onChange={(e) => setSelectedWeekNumber(Number(e.target.value))}
+              className="px-3 py-1.5 rounded-xl border border-purple-300 dark:border-purple-700 bg-purple-50/60 dark:bg-purple-950/60 text-xs font-black text-purple-900 dark:text-purple-200 focus:outline-hidden focus:ring-2 focus:ring-purple-500 cursor-pointer"
+            >
+              {allSchoolWeeks.map((w) => (
+                <option key={w.weekNumber} value={w.weekNumber}>
+                  Tuần {w.weekNumber} ({w.startDate.slice(5).replace('-', '/')} – {w.endDate.slice(5).replace('-', '/')}) {w.weekNumber === currentActualWeekNumber ? '★ Hiện tại' : ''}
+                </option>
+              ))}
+            </select>
+
+            {isCustomWeek ? (
+              <span className="text-[10px] px-2 py-0.5 rounded-md bg-emerald-100 text-emerald-800 dark:bg-emerald-950/60 dark:text-emerald-300 font-bold border border-emerald-300">
+                Lịch riêng
+              </span>
+            ) : (
+              <span className="text-[10px] px-2 py-0.5 rounded-md bg-slate-100 text-slate-600 dark:bg-slate-800 dark:text-slate-400 font-medium">
+                TKB chuẩn
+              </span>
+            )}
           </div>
         </div>
       </div>
@@ -493,7 +619,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
               {todayLabel}
             </span>
             <span className="text-xs text-purple-200">
-              Ngày {todayDate.toLocaleDateString('vi-VN')} · Năm học {schoolYear}
+              Ngày {todayDate.toLocaleDateString('vi-VN')} · Tuần {selectedWeekNumber} · Năm học {schoolYear}
             </span>
           </div>
           <div className="text-xs text-amber-300 font-bold">
@@ -562,12 +688,12 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
         )}
       </div>
 
-      {/* ── THỐNG KÊ TỔNG QUAN ── */}
+      {/* ── THỐNG KÊ TỔNG QUAN TUẦN NÀY ── */}
       <div className="grid grid-cols-2 sm:grid-cols-4 gap-3 text-xs">
         <div className="p-3 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-2xs">
-          <span className="text-slate-400 font-bold block text-[11px] uppercase">Tổng tiết / tuần</span>
+          <span className="text-slate-400 font-bold block text-[11px] uppercase">Tuần {selectedWeekNumber}</span>
           <span className="text-xl font-black text-purple-600 dark:text-purple-400 mt-0.5 block">
-            {totalWeeklyPeriods} tiết
+            {totalWeeklyPeriods} tiết dạy
           </span>
         </div>
 
@@ -579,7 +705,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
         </div>
 
         <div className="p-3 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-2xs">
-          <span className="text-slate-400 font-bold block text-[11px] uppercase">Các lớp đang dạy</span>
+          <span className="text-slate-400 font-bold block text-[11px] uppercase">Các lớp trong tuần</span>
           <span className="text-xs font-bold text-slate-700 dark:text-slate-300 mt-1 block truncate">
             {uniqueClassesTaught.length > 0 ? uniqueClassesTaught.join(', ') : 'Chưa xếp TKB'}
           </span>
@@ -592,18 +718,20 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
               Chạm vào ô để sửa
             </span>
           </div>
-          <button
-            type="button"
-            onClick={handleClearAllSlots}
-            className="p-1.5 rounded-lg text-slate-400 hover:text-rose-600 hover:bg-rose-50 dark:hover:bg-rose-950/40 transition cursor-pointer"
-            title="Xóa toàn bộ TKB học kỳ này"
-          >
-            <RotateCcw className="h-4 w-4" />
-          </button>
+          {isCustomWeek && (
+            <button
+              type="button"
+              onClick={handleResetCurrentWeek}
+              className="p-1.5 rounded-lg text-slate-400 hover:text-amber-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 transition cursor-pointer"
+              title="Đặt lại Tuần này về Thời khóa biểu chuẩn"
+            >
+              <RotateCcw className="h-4 w-4" />
+            </button>
+          )}
         </div>
       </div>
 
-      {/* ── BẢNG THỜI KHÓA BIỂU TUẦN MA TRẬN (CHUẨN ẢNH MẪU SƯ PHẠM) ── */}
+      {/* ── BẢNG THỜI KHÓA BIỂU TUẦN MA TRẬN ── */}
       <div className="overflow-x-auto rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm bg-white dark:bg-slate-900">
         <table className="w-full text-xs text-left border-collapse min-w-[760px]">
           <thead className="bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 font-bold text-[11px] uppercase border-b border-slate-200 dark:border-slate-700">
@@ -612,7 +740,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
               <th className="p-3 w-16 text-center border-r border-slate-200 dark:border-slate-700">Tiết</th>
               <th className="p-3 w-28 text-center border-r border-slate-200 dark:border-slate-700">Thời gian</th>
               {daysList.map((day, idx) => {
-                const isTodayCol = day.value === (jsDay === 0 ? 8 : jsDay + 1);
+                const isTodayCol = day.value === (jsDay === 0 ? 8 : jsDay + 1) && selectedWeekNumber === currentActualWeekNumber;
                 const displayDate = weekDays[idx]?.displayDate;
                 return (
                   <th
@@ -661,8 +789,8 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
                   </td>
                   {daysList.map((day) => {
                     const key = makeSlotKey(day.value, p);
-                    const slot = timetable.slots[key];
-                    const isTodayCol = day.value === (jsDay === 0 ? 8 : jsDay + 1);
+                    const slot = currentWeekSlots[key];
+                    const isTodayCol = day.value === (jsDay === 0 ? 8 : jsDay + 1) && selectedWeekNumber === currentActualWeekNumber;
                     return (
                       <td
                         key={day.value}
@@ -695,7 +823,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
               );
             })}
 
-            {/* ── BUỔI CHIỀU: Tiết 6 đến 10 (Hiển thị màu đỏ cam đúng chuẩn ảnh mẫu) ── */}
+            {/* ── BUỔI CHIỀU: Tiết 6 đến 10 (Màu đỏ cam chuẩn ảnh mẫu) ── */}
             {Array.from({ length: 5 }).map((_, idx) => {
               const p = idx + 6;
               const periodInAfternoon = p - 5;
@@ -717,8 +845,8 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
                   </td>
                   {daysList.map((day) => {
                     const key = makeSlotKey(day.value, p);
-                    const slot = timetable.slots[key];
-                    const isTodayCol = day.value === (jsDay === 0 ? 8 : jsDay + 1);
+                    const slot = currentWeekSlots[key];
+                    const isTodayCol = day.value === (jsDay === 0 ? 8 : jsDay + 1) && selectedWeekNumber === currentActualWeekNumber;
                     return (
                       <td
                         key={day.value}
@@ -766,8 +894,8 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
                 <div>
                   <h3 className="text-sm font-bold text-slate-900 dark:text-white">
                     {editingSlot.period <= 5
-                      ? `Thứ ${editingSlot.dayOfWeek} · Tiết ${editingSlot.period} (Sáng)`
-                      : `Thứ ${editingSlot.dayOfWeek} · Tiết ${editingSlot.period - 5} (Chiều)`}
+                      ? `Thứ ${editingSlot.dayOfWeek} · Tiết ${editingSlot.period} (Sáng) · Tuần ${selectedWeekNumber}`
+                      : `Thứ ${editingSlot.dayOfWeek} · Tiết ${editingSlot.period - 5} (Chiều) · Tuần ${selectedWeekNumber}`}
                   </h3>
                   <p className="text-xs text-slate-500 font-mono">
                     Khung giờ: {PERIOD_HOURS[editingSlot.period] || ''}
@@ -796,12 +924,12 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
                   <input
                     type="text"
                     required
-                    placeholder="Ví dụ: 10A8, 12B6, 12B1..."
+                    placeholder="Ví dụ: 10A8, 12B6, 12B1, 10A17..."
                     value={formClassName}
                     onChange={(e) => setFormClassName(e.target.value)}
                     className="flex-1 px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-bold text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-purple-500"
                   />
-                  {availableClasses.length > 0 && (
+                  {workspaceClasses.length > 0 && (
                     <select
                       onChange={(e) => {
                         if (e.target.value) setFormClassName(e.target.value);
@@ -809,7 +937,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
                       className="px-2 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs text-slate-700 dark:text-slate-300 cursor-pointer"
                     >
                       <option value="">Lớp có sẵn...</option>
-                      {availableClasses.map((c) => (
+                      {workspaceClasses.map((c) => (
                         <option key={c.id} value={c.className}>
                           {c.className}
                         </option>
@@ -819,7 +947,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
                 </div>
               </div>
 
-              {/* Môn học */}
+              {/* Môn học & Phòng */}
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
@@ -850,7 +978,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
               {/* Ghi chú */}
               <div>
                 <label className="block text-xs font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Ghi chú bài dạy / Kế hoạch
+                  Ghi chú bài dạy
                 </label>
                 <input
                   type="text"
@@ -882,6 +1010,132 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
         </div>
       )}
 
+      {/* ── MODAL SAO CHÉP GIỮA CÁC TUẦN (VD: TUẦN 3 GIỐNG TUẦN 4) ── */}
+      {isCopyModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in">
+          <div className="w-full max-w-md rounded-2xl bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-800 p-5 shadow-2xl space-y-4">
+            <div className="flex items-center justify-between pb-3 border-b border-slate-200 dark:border-slate-800">
+              <div className="flex items-center gap-2">
+                <div className="h-8 w-8 rounded-xl bg-purple-100 dark:bg-purple-950/80 text-purple-600 dark:text-purple-300 flex items-center justify-center font-bold">
+                  <Share2 className="h-4 w-4" />
+                </div>
+                <div>
+                  <h3 className="text-sm font-bold text-slate-900 dark:text-white">
+                    Sao chép TKB giữa các tuần
+                  </h3>
+                  <p className="text-xs text-slate-500">
+                    Tuần nguồn: <strong className="text-purple-600 dark:text-purple-400">Tuần {selectedWeekNumber}</strong> ({totalWeeklyPeriods} tiết)
+                  </p>
+                </div>
+              </div>
+              <button
+                type="button"
+                onClick={() => setIsCopyModalOpen(false)}
+                className="text-slate-400 hover:text-slate-600 text-sm font-bold"
+              >
+                ✕
+              </button>
+            </div>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-bold text-slate-700 dark:text-slate-300 mb-2">
+                  Chọn hình thức sao chép:
+                </label>
+                <div className="space-y-2">
+                  <label className="flex items-start gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="copyScope"
+                      checked={copyScopeMode === 'single'}
+                      onChange={() => setCopyScopeMode('single')}
+                      className="mt-0.5 text-purple-600"
+                    />
+                    <div className="flex-1">
+                      <span className="font-bold text-slate-900 dark:text-white block">
+                        Sao chép sang một tuần cụ thể
+                      </span>
+                      <span className="text-slate-500 text-[11px] block mt-0.5">
+                        Ví dụ: Sao chép Tuần {selectedWeekNumber} sang Tuần {targetCopyWeek} (làm Tuần {targetCopyWeek} giống hệt Tuần {selectedWeekNumber}).
+                      </span>
+                      {copyScopeMode === 'single' && (
+                        <div className="flex items-center gap-2 mt-2 pt-2 border-t border-slate-200 dark:border-slate-700">
+                          <span>Tuần đích:</span>
+                          <select
+                            value={targetCopyWeek}
+                            onChange={(e) => setTargetCopyWeek(Number(e.target.value))}
+                            className="px-2.5 py-1 rounded-lg border border-purple-300 bg-white dark:bg-slate-800 font-bold text-purple-700 dark:text-purple-300"
+                          >
+                            {allSchoolWeeks.map((w) => (
+                              <option key={w.weekNumber} value={w.weekNumber}>
+                                Tuần {w.weekNumber}
+                              </option>
+                            ))}
+                          </select>
+                        </div>
+                      )}
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="copyScope"
+                      checked={copyScopeMode === 'range'}
+                      onChange={() => setCopyScopeMode('range')}
+                      className="mt-0.5 text-purple-600"
+                    />
+                    <div className="flex-1">
+                      <span className="font-bold text-slate-900 dark:text-white block">
+                        Áp dụng cho tất cả các tuần tiếp theo
+                      </span>
+                      <span className="text-slate-500 text-[11px] block mt-0.5">
+                        Sao chép Tuần {selectedWeekNumber} sang tất cả các tuần từ Tuần {selectedWeekNumber + 1} đến hết kỳ.
+                      </span>
+                    </div>
+                  </label>
+
+                  <label className="flex items-start gap-2 p-2.5 rounded-xl border border-slate-200 dark:border-slate-800 hover:bg-slate-50 dark:hover:bg-slate-800/50 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="copyScope"
+                      checked={copyScopeMode === 'default'}
+                      onChange={() => setCopyScopeMode('default')}
+                      className="mt-0.5 text-purple-600"
+                    />
+                    <div className="flex-1">
+                      <span className="font-bold text-slate-900 dark:text-white block">
+                        Đặt làm Thời khóa biểu chuẩn
+                      </span>
+                      <span className="text-slate-500 text-[11px] block mt-0.5">
+                        Lấy lịch của Tuần {selectedWeekNumber} làm TKB chuẩn chung cho cả năm học.
+                      </span>
+                    </div>
+                  </label>
+                </div>
+              </div>
+            </div>
+
+            <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+              <button
+                type="button"
+                onClick={() => setIsCopyModalOpen(false)}
+                className="px-3 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-400 hover:bg-slate-100 dark:hover:bg-slate-800 transition cursor-pointer"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleExecuteCopyWeek}
+                className="px-4 py-2 rounded-xl text-xs font-bold bg-purple-600 hover:bg-purple-700 text-white shadow-xs transition active:scale-95 cursor-pointer"
+              >
+                Xác nhận sao chép
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* ── MODAL DÁN / NHẬP TKB TỪ EXCEL ── */}
       {isPasteModalOpen && (
         <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-950/60 backdrop-blur-xs animate-fade-in">
@@ -896,7 +1150,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
                     Dán / Nhập Thời khóa biểu từ Excel
                   </h3>
                   <p className="text-xs text-slate-500">
-                    Copy các ô từ Excel/Sheets rồi dán vào khung bên dưới (phím tắt Ctrl+V).
+                    Copy các ô từ file Excel rồi dán vào khung bên dưới (Ctrl + V).
                   </p>
                 </div>
               </div>
@@ -910,28 +1164,63 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
             </div>
 
             <div className="space-y-3">
-              <p className="text-xs text-slate-600 dark:text-slate-400 leading-relaxed">
-                Hệ thống tự động nhận diện các dòng và cột Thứ 2 – Thứ {mode === 'mon-fri' ? '6' : '7'}. Các ô có định dạng như <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[11px] text-purple-600">10A8-Toán</code>, <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[11px] text-purple-600">12B6-Toán</code>, <code className="px-1 py-0.5 rounded bg-slate-100 dark:bg-slate-800 font-mono text-[11px] text-purple-600">10A8-HĐTN-HN</code> sẽ được phân tách chính xác.
-              </p>
-
               <textarea
-                rows={8}
+                rows={7}
                 value={pasteRawText}
                 onChange={(e) => setPasteRawText(e.target.value)}
-                placeholder="Dán dữ liệu copy từ Excel hoặc văn bản bảng vào đây... (Ctrl + V)"
+                placeholder="Dán dữ liệu copy từ Excel hoặc bảng vào đây... (Ctrl + V)"
                 className="w-full p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
               />
 
               {pasteRawText && (
                 <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300">
                   <span className="font-bold text-indigo-600 dark:text-indigo-400">Xem trước: </span>
-                  Nhận diện được khoảng{' '}
-                  <span className="font-bold">
+                  Nhận diện được{' '}
+                  <span className="font-bold text-purple-600 dark:text-purple-300">
                     {Object.keys(parseTimetableFromText(pasteRawText, mode)).length}
                   </span>{' '}
-                  tiết dạy phù hợp với dạng TKB hiện tại.
+                  tiết dạy phù hợp dạng TKB.
                 </div>
               )}
+
+              {/* Phạm vi áp dụng khi dán */}
+              <div className="space-y-1.5 pt-1">
+                <label className="block text-xs font-bold text-slate-700 dark:text-slate-300">
+                  Phạm vi áp dụng dữ liệu vừa dán:
+                </label>
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-2 text-xs">
+                  <label className="flex items-center gap-1.5 p-2 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="pasteScope"
+                      checked={pasteScope === 'current_week'}
+                      onChange={() => setPasteScope('current_week')}
+                      className="text-indigo-600"
+                    />
+                    <span>Chỉ Tuần {selectedWeekNumber}</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 p-2 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="pasteScope"
+                      checked={pasteScope === 'from_here_on'}
+                      onChange={() => setPasteScope('from_here_on')}
+                      className="text-indigo-600"
+                    />
+                    <span>Từ Tuần {selectedWeekNumber} trở đi</span>
+                  </label>
+                  <label className="flex items-center gap-1.5 p-2 rounded-lg border border-slate-200 dark:border-slate-700 cursor-pointer">
+                    <input
+                      type="radio"
+                      name="pasteScope"
+                      checked={pasteScope === 'all_weeks'}
+                      onChange={() => setPasteScope('all_weeks')}
+                      className="text-indigo-600"
+                    />
+                    <span>TKB chuẩn cả kỳ</span>
+                  </label>
+                </div>
+              </div>
             </div>
 
             <div className="flex items-center justify-end gap-2 pt-2 border-t border-slate-200 dark:border-slate-800">

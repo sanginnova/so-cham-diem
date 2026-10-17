@@ -12,6 +12,10 @@ import {
   getMondayOfCurrentWeek,
   SAMPLE_TIMETABLE_SLOTS,
   TeacherTimetable,
+  getTimetableSlotsForWeek,
+  setTimetableSlotsForWeek,
+  copyTimetableFromWeekToWeek,
+  copyTimetableWeekToRange,
 } from '../src/lib/teacherTimetable';
 
 test('makeSlotKey creates correct keys', () => {
@@ -151,4 +155,40 @@ test('exportTimetableToTsv generates tab delimited table string', () => {
   const tsv = exportTimetableToTsv(timetable, 'mon-sat');
   assert.ok(tsv.includes('Buổi\tTiết\tThời gian'));
   assert.ok(tsv.includes('10A8-HĐTN-HN'));
+});
+
+test('week-by-week timetable copy and inheritance works correctly', () => {
+  let table: TeacherTimetable = {
+    teacherId: 't1',
+    teacherName: 'Nguyễn Văn Sang',
+    schoolYear: '2026-2027',
+    semester: 1,
+    slots: {
+      '2_p1': { dayOfWeek: 2, period: 1, className: '10A8', subjectName: 'HĐTN-HN' },
+    },
+    weekSlots: {},
+    updatedAt: '',
+  };
+
+  // Tuần 3 chưa sửa thì thừa kế slots mặc định (10A8)
+  const w3Initial = getTimetableSlotsForWeek(table, 3);
+  assert.equal(w3Initial['2_p1']?.className, '10A8');
+
+  // Chỉnh sửa Tuần 3: thêm tiết 2 là 12B6-Toán
+  table = setTimetableSlotsForWeek(table, 3, {
+    '2_p1': { dayOfWeek: 2, period: 1, className: '10A8', subjectName: 'HĐTN-HN' },
+    '3_p2': { dayOfWeek: 3, period: 2, className: '12B6', subjectName: 'Toán' },
+  });
+
+  // Sao chép Tuần 3 sang Tuần 4 (như user yêu cầu: tuần 3 giống tuần 4)
+  table = copyTimetableFromWeekToWeek(table, 3, 4);
+
+  const w4Slots = getTimetableSlotsForWeek(table, 4);
+  assert.equal(w4Slots['2_p1']?.className, '10A8');
+  assert.equal(w4Slots['3_p2']?.className, '12B6');
+
+  // Sao chép sang dải tuần (Tuần 5, 6, 7)
+  table = copyTimetableWeekToRange(table, 3, [5, 6, 7]);
+  const w6Slots = getTimetableSlotsForWeek(table, 6);
+  assert.equal(w6Slots['3_p2']?.className, '12B6');
 });
