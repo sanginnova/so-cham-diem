@@ -24,6 +24,7 @@ import { PWAInstallButton } from './PWAInstallButton';
 import { APP_VERSION } from '../version';
 
 interface TopBarProps {
+  academicMode: boolean;
   activeTab: TabType;
   onOpenNewLogModal: () => void;
   onOpenEditClassTeacherModal?: () => void;
@@ -56,6 +57,7 @@ const TAB_LABELS: Record<TabType, { section: string; title: string }> = {
 };
 
 export const TopBar: React.FC<TopBarProps> = ({
+  academicMode,
   activeTab,
   onOpenNewLogModal,
   onOpenEditClassTeacherModal,
@@ -143,9 +145,9 @@ export const TopBar: React.FC<TopBarProps> = ({
               <div className="hidden xl:flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px] font-bold shrink-0 ml-1">
                 <button
                   type="button"
-                  onClick={() => onNavigateTab(activeTab === 'gradebook' ? 'daily-log' : activeTab)}
+                  onClick={() => onNavigateTab('daily-log')}
                   className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition cursor-pointer ${
-                    activeTab !== 'gradebook'
+                    !academicMode
                       ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs font-bold'
                       : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
@@ -158,13 +160,13 @@ export const TopBar: React.FC<TopBarProps> = ({
                   type="button"
                   onClick={() => onNavigateTab('gradebook')}
                   className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition cursor-pointer ${
-                    activeTab === 'gradebook'
+                    academicMode
                       ? 'bg-purple-600 text-white shadow-2xs font-bold'
                       : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
                   }`}
                   title="Chuyển sang phân hệ Chấm điểm học lực (15', 30', 1 tiết...)"
                 >
-                  <span className={`w-1.5 h-1.5 rounded-full ${activeTab === 'gradebook' ? 'bg-white' : 'bg-purple-500'}`} />
+                  <span className={`w-1.5 h-1.5 rounded-full ${academicMode ? 'bg-white' : 'bg-purple-500'}`} />
                   <span>Điểm Học Lực (15′·30′·1 tiết)</span>
                 </button>
               </div>
@@ -191,7 +193,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           )}
 
           {/* Public Live Scoreboard Link button */}
-          {!isGuestOrPortal && onOpenPublicScoreboardModal && (
+          {!academicMode && !isGuestOrPortal && onOpenPublicScoreboardModal && (
             <button
               type="button"
               onClick={onOpenPublicScoreboardModal}
@@ -208,7 +210,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           )}
 
           {/* Sổ Chủ Nhiệm (.docx) Export Modal Button */}
-          {!isGuestOrPortal && userRole !== 'monitor' && (
+          {!academicMode && !isGuestOrPortal && userRole !== 'monitor' && (
             <button
               type="button"
               onClick={() => window.dispatchEvent(new CustomEvent('open-homeroom-book-modal'))}
@@ -221,7 +223,7 @@ export const TopBar: React.FC<TopBarProps> = ({
           )}
 
           {/* Prominent Primary CTA Button '+ GHI NHẬN' */}
-          {!inspectorModeClass && userRole !== 'guest' && (
+          {!academicMode && !inspectorModeClass && userRole !== 'guest' && (
             <button
               type="button"
               onClick={onOpenNewLogModal}

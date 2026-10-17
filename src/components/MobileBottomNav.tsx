@@ -11,6 +11,7 @@ import { TabType } from './Navbar';
 import { useApp } from '../context/AppContext';
 
 interface MobileBottomNavProps {
+  academicMode: boolean;
   activeTab: TabType;
   onNavigateTab: (tab: TabType) => void;
   onOpenNewLogModal: () => void;
@@ -18,6 +19,7 @@ interface MobileBottomNavProps {
 }
 
 export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
+  academicMode,
   activeTab,
   onNavigateTab,
   onOpenNewLogModal,
@@ -56,7 +58,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
             type="button"
             onClick={() => onNavigateTab('teaching-classes')}
             className={`flex flex-col items-center justify-center flex-1 py-1 transition cursor-pointer ${
-              ['gradebook', 'teaching-classes'].includes(activeTab)
+              academicMode
                 ? 'text-purple-600 dark:text-purple-400 font-bold'
                 : 'text-slate-500 dark:text-slate-400 font-medium'
             }`}
@@ -67,7 +69,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
         )}
 
         {/* Floating Center Action: Plus Button (New Log) */}
-        {!inspectorModeClass && (
+        {!academicMode && !inspectorModeClass && (
           <div className="flex-1 flex justify-center -mt-5">
             <button
               type="button"

@@ -1,5 +1,9 @@
 # Nâng cấp GVBM theo từng bước
 
+## Sửa tách menu Học lực / Rèn luyện (17/10/2026)
+
+Lựa chọn phân hệ được giữ riêng với tab đang mở. Học lực hiển thị Lớp tôi dạy, Danh sách học sinh, Sổ điểm và các mục hệ thống chung; ẩn nhóm nề nếp, báo cáo rèn luyện, phụ huynh và trợ lý GVCN. Rèn luyện ẩn nhóm bộ môn. Mở Học sinh/Cài đặt/Quản trị không tự đổi phân hệ. Đồng bộ trạng thái nút chuyển ở sidebar, header và di động; ẩn nút ghi nhận nề nếp, link thi đua và xuất Sổ chủ nhiệm khi ở Học lực. TypeScript và build đạt; chưa kiểm tra màn hình đã đăng nhập trong trình duyệt của người dùng. Chỉ cập nhật mã nguồn local.
+
 ## Bước 1 — Lớp tôi dạy (17/10/2026)
 
 - Thêm trang Lớp tôi dạy trên sidebar và lối vào GVBM trên điện thoại.

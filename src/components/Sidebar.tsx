@@ -34,6 +34,7 @@ import { useApp } from '../context/AppContext';
 import { APP_VERSION } from '../version';
 
 interface SidebarProps {
+  academicMode: boolean;
   activeTab: TabType;
   setActiveTab: (tab: TabType) => void;
   isOpenMobile: boolean;
@@ -70,6 +71,7 @@ interface MenuSection {
 }
 
 export const Sidebar: React.FC<SidebarProps> = ({
+  academicMode,
   activeTab,
   setActiveTab,
   isOpenMobile,
@@ -88,7 +90,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
   } = useApp();
 
   // ── Phân chia rành mạch 2 Phân hệ lớn: ĐIỂM HỌC LỰC vs ĐIỂM RÈN LUYỆN ──
-  const menuSections: MenuSection[] = [
+  const allMenuSections: MenuSection[] = [
     // ── PHÂN HỆ 1: CHẤM ĐIỂM HỌC LỰC (BỘ MÔN) ──
     ...(['teacher', 'admin', 'owner'].includes(userRole)
       ? [
@@ -98,6 +100,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             badge: "15' · 30' · 1 TIẾT · CK",
             badgeClass: 'bg-purple-900/60 text-purple-300 border-purple-700/60',
             groups: [
+              { id: 'academic-students', label: 'Danh sách học sinh', icon: Users, directTab: 'students' as TabType },
               {
                 id: 'teaching-classes',
                 label: 'Lớp tôi dạy',
@@ -254,6 +257,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
       ],
     },
   ];
+  const menuSections: MenuSection[] = allMenuSections.filter(section => section.id === 'system' || section.id === (academicMode ? 'academic' : 'conduct'))
+    .map(section => section.id !== 'system' || !academicMode ? section : {
+      ...section,
+      title: 'HỆ THỐNG',
+      groups: section.groups.map(group => ({ ...group, subItems: group.subItems?.filter(item => item.id !== 'categories') })),
+    });
 
   const menuGroups: MenuGroup[] = menuSections.flatMap((s) => s.groups);
 
@@ -384,9 +393,9 @@ export const Sidebar: React.FC<SidebarProps> = ({
         <div className="grid grid-cols-2 p-1 bg-slate-950/80 rounded-xl border border-slate-800/80 gap-1 text-[11px] font-bold">
           <button
             type="button"
-            onClick={() => handleNavClick(activeTab === 'gradebook' ? 'daily-log' : activeTab)}
+            onClick={() => handleNavClick('daily-log')}
             className={`py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
-              activeTab !== 'gradebook'
+              !academicMode
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
             }`}
@@ -399,7 +408,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             type="button"
             onClick={() => handleNavClick('gradebook')}
             className={`py-1.5 px-2 rounded-lg flex items-center justify-center gap-1.5 transition cursor-pointer ${
-              activeTab === 'gradebook'
+              academicMode
                 ? 'bg-purple-600 text-white shadow-xs'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
             }`}

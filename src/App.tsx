@@ -40,9 +40,15 @@ function MainApp() {
   useEffect(() => {
     initNativeShell();
   }, []);
-  const [activeTab, setActiveTab] = useState<TabType>(() => {
+  const [academicMode, setAcademicMode] = useState(false);
+  const [activeTab, setActiveTabState] = useState<TabType>(() => {
     return userRole === 'guest' || new URLSearchParams(window.location.search).has('report') ? 'portal' : 'dashboard';
   });
+  const setActiveTab = (tab: TabType) => {
+    if (['gradebook', 'teaching-classes'].includes(tab)) setAcademicMode(true);
+    else if (!['students', 'settings', 'admin'].includes(tab)) setAcademicMode(false);
+    setActiveTabState(tab);
+  };
 
   const [isSidebarCollapsed, setIsSidebarCollapsed] = useState<boolean>(() => {
     return localStorage.getItem('app_sidebar_collapsed') === 'true';
@@ -211,6 +217,7 @@ function MainApp() {
       {/* ── LEFT COLUMN: Professional Collapsible Sidebar ── */}
       {userRole !== 'guest' && (
         <Sidebar
+          academicMode={academicMode}
           activeTab={activeTab}
           setActiveTab={setActiveTab}
           isOpenMobile={isMobileSidebarOpen}
@@ -229,6 +236,7 @@ function MainApp() {
 
         {/* Top Header Bar */}
         <TopBar
+          academicMode={academicMode}
           activeTab={activeTab}
           onOpenNewLogModal={() => setIsNewLogModalOpen(true)}
           onOpenEditClassTeacherModal={() => setIsEditClassModalOpen(true)}
@@ -380,6 +388,7 @@ function MainApp() {
         {/* Ergonomic Mobile Bottom Nav Bar (Thumb-zone UX) - Only for authenticated staff in workspace */}
         {activeAccount && userRole !== 'guest' && activeTab !== 'portal' && (
           <MobileBottomNav
+            academicMode={academicMode}
             activeTab={activeTab}
             onNavigateTab={setActiveTab}
             onOpenNewLogModal={() => setIsNewLogModalOpen(true)}
