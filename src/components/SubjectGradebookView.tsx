@@ -21,6 +21,7 @@ import { useApp } from '../context/AppContext';
 import { Student } from '../types';
 import { useSubjectRoster } from '../hooks/useSubjectRoster';
 import { recordGradebookEdit, changeTermLock } from '../lib/gradebookHistory';
+import { previewGradebookRestore, applyGradebookRestore } from '../lib/gradebookRestore';
 import { assessmentKey, assessmentValue, setAssessmentStatus, needsAssessmentFollowup, statusLabels, type AssessmentStatus } from '../lib/assessmentStatus';
 import {
   ClassGradebookData,
@@ -61,6 +62,8 @@ export function SubjectGradebookView() {
   const [hasUnsavedChanges, setHasUnsavedChanges] = useState(false);
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [saveError, setSaveError] = useState(false);
+  const [restorePreview, setRestorePreview] = useState<{ preview: ReturnType<typeof previewGradebookRestore>; baseline: ClassGradebookData; filename: string } | null>(null);
+  const [restoreError, setRestoreError] = useState('');
   const saveInFlight = useRef(false);
   const gradebookRef = useRef(gradebook);
   gradebookRef.current = gradebook;
@@ -1010,6 +1013,36 @@ export function SubjectGradebookView() {
         </table>
       </fieldset>
 
+      {isLocalMode && <details className="rounded-xl border border-purple-200 p-3 text-sm space-y-2">
+        <summary className="cursor-pointer font-semibold">Khôi phục sổ từ JSON</summary>
+        <p className="text-xs text-slate-500">Chọn bản sao của đúng sổ đang mở. Khôi phục thay toàn bộ điểm bằng nội dung tệp; sổ trước khôi phục sẽ được tải xuống để giữ lại.</p>
+        <input aria-label="Chọn bản sao JSON của sổ điểm" type="file" accept=".json,application/json" onChange={async event => {
+          const file = event.target.files?.[0]; event.target.value = '';
+          setRestorePreview(null); setRestoreError('');
+          if (!file) return;
+          try {
+            if (file.size > 10 * 1024 * 1024) throw new Error('Tệp vượt quá 10 MB.');
+            const preview = previewGradebookRestore(await file.text(), gradebook);
+            setRestorePreview({ preview, baseline: gradebook, filename: file.name });
+          } catch (error) { setRestoreError(error instanceof Error ? error.message : String(error)); }
+        }} />
+        {restoreError && <p role="alert" className="text-rose-700">{restoreError}</p>}
+        {restorePreview && <div className="rounded border p-3 space-y-2">
+          <p>{restorePreview.filename}: {restorePreview.preview.students} học sinh trong tệp · {restorePreview.preview.changed} hồ sơ điểm khác hiện tại · {restorePreview.preview.removed} hồ sơ không có trong tệp sẽ được để trống điểm.</p>
+          <button type="button" className="rounded bg-purple-600 text-white px-3 py-2" onClick={() => {
+            try {
+              if (gradebook !== restorePreview.baseline) throw new Error('Sổ đã thay đổi sau khi xem trước. Hãy chọn lại tệp để kiểm tra.');
+              const restored = applyGradebookRestore(gradebook, restorePreview.preview.book, actor);
+              const url = URL.createObjectURL(new Blob([JSON.stringify(gradebook, null, 2)], { type: 'application/json' }));
+              const link = document.createElement('a'); link.href = url; link.download = `Truoc-khoi-phuc-${classConfig.id}-${Date.now()}.json`; link.click(); URL.revokeObjectURL(url);
+              setGradebook(restored); setHasUnsavedChanges(true); setSaveError(false); setRestorePreview(null);
+              setMessage('Đã khôi phục bản nháp trên máy. Đang lưu; bản trước khôi phục đã được yêu cầu tải xuống.');
+            } catch (error) { setRestoreError(error instanceof Error ? error.message : String(error)); }
+          }}>Tải bản hiện tại và khôi phục từ tệp</button>
+          <button type="button" className="ml-2 rounded border px-3 py-2" onClick={() => setRestorePreview(null)}>Hủy</button>
+        </div>}
+      </details>}
+
       {isLocalMode && <details className="rounded-xl border border-slate-300 p-3 text-sm">
         <summary className="cursor-pointer font-semibold">Lịch sử sửa điểm và chốt sổ ({gradebook.history?.length || 0})</summary>
         <p className="my-2 text-xs text-slate-500">Chỉ có thay đổi từ bản cập nhật này. Lịch sử local có thể thay đổi khi dữ liệu trình duyệt bị sửa hoặc xóa.</p>
@@ -1019,8 +1052,8 @@ export function SubjectGradebookView() {
         }}>Tải bản sao sổ và lịch sử (.json)</button>
         <div className="max-h-80 overflow-auto space-y-2">
           {[...(gradebook.history || [])].reverse().map(event => <article key={event.id} className="border-t py-2 text-xs">
-            <p><strong>{event.actor}</strong> · {new Date(event.at).toLocaleString('vi-VN')} · {event.term === 'semester1' ? 'HK1' : 'HK2'}</p>
-            <p>{event.action === 'lock' ? 'Chốt sổ' : event.action === 'unlock' ? 'Mở lại sổ' : 'Sửa điểm'} · {event.detail}</p>
+            <p><strong>{event.actor}</strong> · {new Date(event.at).toLocaleString('vi-VN')} · {event.action === 'restore' ? 'Toàn sổ' : event.term === 'semester1' ? 'HK1' : 'HK2'}</p>
+            <p>{event.action === 'lock' ? 'Chốt sổ' : event.action === 'unlock' ? 'Mở lại sổ' : event.action === 'restore' ? 'Khôi phục sổ' : 'Sửa điểm'} · {event.detail}</p>
             {event.action === 'edit' && <p className="break-words">{event.before} → {event.after}</p>}
           </article>)}
         </div>
