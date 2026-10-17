@@ -16,7 +16,7 @@ import {
   ArrowUpDown,
   Download,
 } from 'lucide-react';
-import * as XLSX from 'xlsx';
+import { exportSubjectGradebookToExcel } from '../lib/subjectGradebookExport';
 import { useApp } from '../context/AppContext';
 import { Student } from '../types';
 import { useSubjectRoster } from '../hooks/useSubjectRoster';
@@ -418,79 +418,29 @@ export function SubjectGradebookView() {
     };
   }, [gradebook, students, semesterTab]);
 
-  // Xuất file Excel bảng điểm
+  // Xuất file Excel bảng điểm chuẩn Sư phạm
   const handleExportExcel = () => {
     if (!gradebook || students.length === 0) {
       alert('Không có dữ liệu điểm để xuất Excel.');
       return;
     }
 
-    const isSem1 = semesterTab === 'sem1';
-    const isSem2 = semesterTab === 'sem2';
-    const titleTerm = isSem1 ? 'HỌC KỲ I' : isSem2 ? 'HỌC KỲ II' : 'CẢ NĂM';
-    const txCount = isSem1 ? gradebook.txCountSemester1 : gradebook.txCountSemester2;
-
-    const dataRows: any[] = [];
-    dataRows.push(['TRƯỜNG CAO ĐẲNG NGHỀ SỐ 1 - BQP', '', '', 'KHOA CƠ BẢN']);
-    dataRows.push([`BẢNG ĐIỂM TỔNG KẾT MÔN ${subjectName.toUpperCase()} - ${titleTerm}`, '', '', '']);
-    dataRows.push([
-      `Lớp: ${classConfig.className}`,
-      `Năm học: ${classConfig.schoolYear}`,
-      `Giáo viên bộ môn: ${teacherName}`,
-      `Ngày xuất: ${new Date().toLocaleDateString('vi-VN')}`,
-    ]);
-    dataRows.push([]); // Dòng trống
-
-    // Header table
-    const headerRow = ['STT', 'Mã HS', 'Họ và tên'];
-    if (semesterTab !== 'year') {
-      const currentLabels = isSem1 ? gradebook.txLabelsSemester1 : gradebook.txLabelsSemester2;
-      for (let i = 0; i < txCount; i++) {
-        const lbl = currentLabels?.[i] || (i === 2 ? '30 phút' : '15 phút');
-        headerRow.push(`TX${i + 1} (${lbl} - H1)`);
-      }
-      headerRow.push('1 tiết / GK (H2)', 'Cuối kỳ CK (H3)', `ĐTB ${titleTerm}`);
-    } else {
-      headerRow.push('ĐTB HK1', 'ĐTB HK2', 'ĐTB Cả năm', 'Xếp loại');
+    try {
+      exportSubjectGradebookToExcel({
+        gradebook,
+        students,
+        classConfig: {
+          className: classConfig.className,
+          schoolYear: classConfig.schoolYear,
+          id: classConfig.id,
+        },
+        teacherName,
+        semesterTab,
+      });
+      setMessage('Đã xuất file Excel bảng điểm thành công.');
+    } catch (err) {
+      alert(`Lỗi xuất file Excel: ${err instanceof Error ? err.message : String(err)}`);
     }
-    dataRows.push(headerRow);
-
-    // Dữ liệu từng học sinh
-    students.forEach((s, idx) => {
-      const g = gradebook.grades[s.id];
-      const row: any[] = [idx + 1, s.studentCode, s.fullName];
-
-      if (semesterTab === 'sem1') {
-        const term = g?.semester1;
-        for (let i = 0; i < txCount; i++) {
-          row.push(assessmentValue(term, 'tx', i));
-        }
-        row.push(assessmentValue(term, 'gk'), assessmentValue(term, 'ck'), term?.average ?? '');
-      } else if (semesterTab === 'sem2') {
-        const term = g?.semester2;
-        for (let i = 0; i < txCount; i++) {
-          row.push(assessmentValue(term, 'tx', i));
-        }
-        row.push(assessmentValue(term, 'gk'), assessmentValue(term, 'ck'), term?.average ?? '');
-      } else {
-        row.push(
-          g?.semester1.average ?? '',
-          g?.semester2.average ?? '',
-          g?.yearAverage ?? '',
-          g?.rank ?? ''
-        );
-      }
-      dataRows.push(row);
-    });
-
-    const ws = XLSX.utils.aoa_to_sheet(dataRows);
-    const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, `Bang_Diem_${subjectName}`);
-
-    XLSX.writeFile(
-      wb,
-      `Bang_Diem_${subjectName}_${classConfig.className}_${semesterTab}_${classConfig.schoolYear}.xlsx`
-    );
   };
 
   const renderAssessmentStatus = (student: Student, field: 'tx' | 'gk' | 'ck', index = 0) => {

@@ -1,7 +1,7 @@
 import React, { useEffect, useMemo, useState } from 'react';
 import { useApp } from '../context/AppContext';
 import { filterTeachingWorkspaces, workspaceSubject } from '../lib/teachingWorkspaces';
-import { readDeviceGradebook, summarizeSubjectBook } from '../lib/subjectStatistics';
+import { readDeviceGradebook, summarizeSubjectBook, exportSubjectStatisticsToExcel } from '../lib/subjectStatistics';
 
 export function SubjectStatisticsView({ onOpenGradebook }: { onOpenGradebook: () => void }) {
   const { activeAccount, workspaceClasses, selectWorkspaceClass } = useApp();
@@ -32,6 +32,24 @@ export function SubjectStatisticsView({ onOpenGradebook }: { onOpenGradebook: ()
       <select aria-label="Kỳ thống kê" className={field} value={period} onChange={event => setPeriod(event.target.value as typeof period)}><option value="semester1">Học kỳ I</option><option value="semester2">Học kỳ II</option><option value="year">Cả năm</option></select>
       <input aria-label="Tìm lớp thống kê" placeholder="Tìm lớp hoặc môn…" className={field} value={search} onChange={event => setSearch(event.target.value)} />
       <button className={field} onClick={() => setRefresh(value => value + 1)}>Làm mới</button>
+      <button className="rounded-lg bg-emerald-600 text-white px-3 py-2 text-sm font-semibold hover:bg-emerald-700 transition" onClick={() => {
+        const exportRows = rows.map(({ config, stats, book, error }) => ({
+          className: config.className,
+          subjectName: workspaceSubject(config),
+          schoolYear: config.schoolYear,
+          pupils: stats?.pupils ?? '—',
+          scored: stats?.scored ?? '—',
+          missing: stats?.missing ?? '—',
+          makeup: stats?.makeup ?? '—',
+          mean: stats?.mean ?? '—',
+          bin0: stats?.bins[0] ?? '—',
+          bin1: stats?.bins[1] ?? '—',
+          bin2: stats?.bins[2] ?? '—',
+          bin3: stats?.bins[3] ?? '—',
+          status: error || (!book ? 'Chưa có dữ liệu local' : `${book.pendingSync ? 'Bản nháp · ' : ''}${period === 'year' ? (book.termLocks?.semester1?.locked && book.termLocks?.semester2?.locked ? 'Đã chốt hai kỳ' : 'Còn kỳ mở') : book.termLocks?.[period]?.locked ? 'Đã chốt' : 'Đang mở'}`),
+        }));
+        exportSubjectStatisticsToExcel(exportRows, period, activeAccount?.displayName || 'Giáo viên');
+      }}>Xuất Excel Thống kê</button>
     </div>
     <p role="status" className="text-sm">{rows.filter(row => row.stats).length}/{rows.length} sổ có dữ liệu local · {rows.reduce((sum, row) => sum + (row.stats?.missing || 0), 0)} hồ sơ thiếu điểm · {rows.reduce((sum, row) => sum + (row.stats?.makeup || 0), 0)} hồ sơ vắng/cần kiểm tra bù</p>
     <div className="overflow-x-auto rounded-xl border border-slate-300"><table className="w-full text-sm text-left">
