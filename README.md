@@ -1,5 +1,9 @@
 # Sổ chấm điểm hàng ngày
 
+## Nhật ký và khôi phục phiên bản
+
+Xem [Nhật ký phiên bản](NHAT_KY_PHIEN_BAN.md) và [Hướng dẫn lưu/khôi phục](KHOI_PHUC_PHIEN_BAN.md). Chạy `npm run versions:journal` để cập nhật nhật ký từ Git; `npm run versions:backup` tạo bản sao lưu lịch sử mã nguồn khi các thay đổi đã được commit. Dữ liệu Firebase cần được sao lưu riêng.
+
 Ứng dụng React/Vite cho nhiều giáo viên trong **một trường**, dùng Firebase Authentication, Cloud Firestore và Firebase Hosting.
 
 - Website: https://qsangtnl-4226a.web.app
