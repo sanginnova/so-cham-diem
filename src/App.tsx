@@ -35,6 +35,7 @@ import { LoginModal } from './components/LoginModal';
 import { CommandPalette } from './components/CommandPalette';
 import { MobileBottomNav } from './components/MobileBottomNav';
 import { HomeroomBookExportModal } from './components/HomeroomBookExportModal';
+import { ExportAllGradebooksModal } from './components/ExportAllGradebooksModal';
 import { initNativeShell } from './lib/nativeBridge';
 
 function MainApp() {
@@ -65,6 +66,7 @@ function MainApp() {
   const [isCommandPaletteOpen, setIsCommandPaletteOpen] = useState(false);
   const [isPublicScoreboardModalOpen, setIsPublicScoreboardModalOpen] = useState(false);
   const [isHomeroomBookModalOpen, setIsHomeroomBookModalOpen] = useState(false);
+  const [isExportAllGradebooksModalOpen, setIsExportAllGradebooksModalOpen] = useState(false);
   const [reportStudentId, setReportStudentId] = useState<string | null>(null);
   const [reportPeriodSelection, setReportPeriodSelection] = useState<import('./lib/weeklyPeriod').ReportPeriodSelection | undefined>();
   const [zaloNavParams, setZaloNavParams] = useState<{
@@ -137,6 +139,13 @@ function MainApp() {
     const handleOpenHomeroomBook = () => setIsHomeroomBookModalOpen(true);
     window.addEventListener('open-homeroom-book-modal', handleOpenHomeroomBook);
     return () => window.removeEventListener('open-homeroom-book-modal', handleOpenHomeroomBook);
+  }, []);
+
+  // Export All Gradebooks Modal listener
+  useEffect(() => {
+    const handleOpenExportAll = () => setIsExportAllGradebooksModalOpen(true);
+    window.addEventListener('open-export-all-gradebooks-modal', handleOpenExportAll);
+    return () => window.removeEventListener('open-export-all-gradebooks-modal', handleOpenExportAll);
   }, []);
 
   // Random Picker listener
@@ -399,6 +408,12 @@ function MainApp() {
           <HomeroomBookExportModal
             isOpen={isHomeroomBookModalOpen}
             onClose={() => setIsHomeroomBookModalOpen(false)}
+          />
+
+          {/* Sổ điểm tất cả các lớp (.xlsx) Export Modal chuẩn TT 22 */}
+          <ExportAllGradebooksModal
+            isOpen={isExportAllGradebooksModalOpen}
+            onClose={() => setIsExportAllGradebooksModalOpen(false)}
           />
         </main>
 

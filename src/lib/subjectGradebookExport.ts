@@ -63,10 +63,9 @@ function sanitizeFileNamePart(str: string): string {
     .replace(/[\\/:*?"<>|]/g, '_');
 }
 
-export function generateSubjectGradebookWorkbook(options: SubjectGradebookExportOptions): {
-  wb: XLSX.WorkBook;
-  fileName: string;
-  sheetName: string;
+export function buildSubjectGradebookWorksheet(options: SubjectGradebookExportOptions): {
+  ws: XLSX.WorkSheet;
+  defaultSheetName: string;
 } {
   const {
     gradebook,
@@ -89,7 +88,6 @@ export function generateSubjectGradebookWorkbook(options: SubjectGradebookExport
     ? gradebook.txLabelsSemester1
     : gradebook.txLabelsSemester2;
 
-  const wb = XLSX.utils.book_new();
   const ws: XLSX.WorkSheet = {};
 
   // Headers list for calculation of columns
@@ -526,17 +524,101 @@ export function generateSubjectGradebookWorkbook(options: SubjectGradebookExport
   ws['!rows'] = rowHeights;
 
   const sheetName = `Bang_Diem_${gradebook.subjectName.replace(/[\\/:*?"<>|]/g, '_')}`.slice(0, 31);
-  XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  return { ws, defaultSheetName: sheetName };
+}
 
-  const cleanSubject = sanitizeFileNamePart(gradebook.subjectName);
-  const cleanClass = sanitizeFileNamePart(classConfig.className);
-  const cleanYear = sanitizeFileNamePart(classConfig.schoolYear);
-  const fileName = `Bang_Diem_${cleanSubject}_${cleanClass}_${semesterTab}_${cleanYear}.xlsx`;
+export function generateSubjectGradebookWorkbook(options: SubjectGradebookExportOptions): {
+  wb: XLSX.WorkBook;
+  fileName: string;
+  sheetName: string;
+} {
+  const wb = XLSX.utils.book_new();
+  const { ws, defaultSheetName } = buildSubjectGradebookWorksheet(options);
+  XLSX.utils.book_append_sheet(wb, ws, defaultSheetName);
 
-  return { wb, fileName, sheetName };
+  const cleanSubject = sanitizeFileNamePart(options.gradebook.subjectName);
+  const cleanClass = sanitizeFileNamePart(options.classConfig.className);
+  const cleanYear = sanitizeFileNamePart(options.classConfig.schoolYear);
+  const fileName = `Bang_Diem_${cleanSubject}_${cleanClass}_${options.semesterTab}_${cleanYear}.xlsx`;
+
+  return { wb, fileName, sheetName: defaultSheetName };
 }
 
 export function exportSubjectGradebookToExcel(options: SubjectGradebookExportOptions): void {
   const { wb, fileName } = generateSubjectGradebookWorkbook(options);
   XLSX.writeFile(wb, fileName);
+}
+
+export interface MultiClassGradebookItem {
+  classConfig: {
+    className: string;
+    schoolYear: string;
+    id?: string;
+  };
+  gradebook: ClassGradebookData;
+  students: Student[];
+}
+
+/**
+ * Xuất sổ điểm của TẤT CẢ các lớp vào 1 file Excel duy nhất, MỖI LỚP 1 SHEET
+ */
+export function exportAllClassesSubjectGradebooksToExcel(params: {
+  classesData: MultiClassGradebookItem[];
+  teacherName: string;
+  semesterTab: 'sem1' | 'sem2' | 'year';
+  schoolName?: string;
+  departmentName?: string;
+}): { wb: XLSX.WorkBook; fileName: string; sheetCount: number } {
+  const {
+    classesData,
+    teacherName,
+    semesterTab,
+    schoolName = 'TRƯỜNG CAO ĐẲNG NGHỀ SỐ 1 - BQP',
+    departmentName = 'KHOA CƠ BẢN',
+  } = params;
+
+  if (!classesData || classesData.length === 0) {
+    throw new Error('Chưa có dữ liệu lớp học để xuất sổ điểm.');
+  }
+
+  const wb = XLSX.utils.book_new();
+  const usedSheetNames = new Set<string>();
+
+  for (const item of classesData) {
+    const { ws } = buildSubjectGradebookWorksheet({
+      gradebook: item.gradebook,
+      students: item.students,
+      classConfig: item.classConfig,
+      teacherName,
+      semesterTab,
+      schoolName,
+      departmentName,
+    });
+
+    // Tên Sheet theo tên lớp (ví dụ: "Lớp 12B6", "10A8", "10A17"...)
+    let baseSheetName = (item.classConfig.className || 'Lop')
+      .replace(/[\\/:*?"<>|\[\]]/g, '_')
+      .trim()
+      .slice(0, 28);
+    if (!baseSheetName) baseSheetName = 'Lop';
+
+    let sheetName = baseSheetName;
+    let counter = 1;
+    while (usedSheetNames.has(sheetName.toLowerCase())) {
+      sheetName = `${baseSheetName}_${counter++}`.slice(0, 31);
+    }
+    usedSheetNames.add(sheetName.toLowerCase());
+
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  }
+
+  const firstSubject = classesData[0]?.gradebook?.subjectName || 'Mon_Hoc';
+  const firstYear = classesData[0]?.classConfig?.schoolYear || '2026-2027';
+  const cleanSubject = sanitizeFileNamePart(firstSubject);
+  const cleanYear = sanitizeFileNamePart(firstYear);
+  const termLabel = semesterTab === 'sem1' ? 'HK1' : semesterTab === 'sem2' ? 'HK2' : 'Ca_Nam';
+  const fileName = `So_Diem_Tat_Ca_Cac_Lop_${cleanSubject}_${cleanYear}_${termLabel}.xlsx`;
+
+  XLSX.writeFile(wb, fileName);
+  return { wb, fileName, sheetCount: classesData.length };
 }

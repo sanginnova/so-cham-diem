@@ -3,7 +3,11 @@ import assert from 'node:assert/strict';
 import XLSX from 'xlsx-js-style';
 import type { ClassGradebookData } from '../src/types/subjectGrade';
 import type { Student } from '../src/types';
-import { generateSubjectGradebookWorkbook, exportSubjectGradebookToExcel } from '../src/lib/subjectGradebookExport';
+import {
+  generateSubjectGradebookWorkbook,
+  exportSubjectGradebookToExcel,
+  exportAllClassesSubjectGradebooksToExcel,
+} from '../src/lib/subjectGradebookExport';
 
 test('subject gradebook excel export creates pedagogical Times New Roman sheet with headers, notes and statuses', () => {
   const mockStudents: Student[] = [
@@ -182,4 +186,79 @@ test('subject gradebook excel export creates pedagogical Times New Roman sheet w
   assert.equal(wsYear['E9'].v, 8.7); // HK2
   assert.equal(wsYear['F9'].v, 8.6); // Year
   assert.equal(wsYear['G9'].v, 'Giỏi'); // Rank Year
+});
+
+test('exportAllClassesSubjectGradebooksToExcel exports multiple classes with one sheet per class', () => {
+  const mockStudentsA: Student[] = [
+    { id: 'st-1', studentCode: '10A8-01', fullName: 'Nguyễn Văn An', status: 'active', classId: 'cls-1', teacherId: 't1' },
+  ];
+  const mockStudentsB: Student[] = [
+    { id: 'st-2', studentCode: '12B6-01', fullName: 'Trần Thị Bình', status: 'active', classId: 'cls-2', teacherId: 't1' },
+  ];
+
+  const bookA: ClassGradebookData = {
+    classId: 'cls-1',
+    subjectName: 'Toán',
+    schoolYear: '2026-2027',
+    teacherName: 'Nguyễn Văn Sang',
+    txCountSemester1: 4,
+    txCountSemester2: 4,
+    grades: {
+      'st-1': {
+        studentId: 'st-1',
+        studentCode: '10A8-01',
+        fullName: 'Nguyễn Văn An',
+        semester1: { tx: [9, 9, 8, 8], gk: 8, ck: 9, average: 8.6 },
+        semester2: { tx: [], gk: null, ck: null, average: null },
+        yearAverage: null,
+      },
+    },
+    updatedAt: '',
+  };
+
+  const bookB: ClassGradebookData = {
+    classId: 'cls-2',
+    subjectName: 'Toán',
+    schoolYear: '2026-2027',
+    teacherName: 'Nguyễn Văn Sang',
+    txCountSemester1: 4,
+    txCountSemester2: 4,
+    grades: {
+      'st-2': {
+        studentId: 'st-2',
+        studentCode: '12B6-01',
+        fullName: 'Trần Thị Bình',
+        semester1: { tx: [7, 8, 8, 8], gk: 7.5, ck: 8, average: 7.8 },
+        semester2: { tx: [], gk: null, ck: null, average: null },
+        yearAverage: null,
+      },
+    },
+    updatedAt: '',
+  };
+
+  // Mock XLSX.writeFile to prevent disk write during test
+  const originalWriteFile = XLSX.writeFile;
+  let writtenFileName = '';
+  XLSX.writeFile = ((wb: XLSX.WorkBook, filename: string) => {
+    writtenFileName = filename;
+  }) as any;
+
+  try {
+    const result = exportAllClassesSubjectGradebooksToExcel({
+      classesData: [
+        { classConfig: { className: '10A8', schoolYear: '2026-2027', id: 'cls-1' }, gradebook: bookA, students: mockStudentsA },
+        { classConfig: { className: '12B6', schoolYear: '2026-2027', id: 'cls-2' }, gradebook: bookB, students: mockStudentsB },
+      ],
+      teacherName: 'Nguyễn Văn Sang',
+      semesterTab: 'sem1',
+    });
+
+    assert.equal(result.sheetCount, 2);
+    assert.ok(result.wb.Sheets['10A8'], 'Sheet 10A8 must exist');
+    assert.ok(result.wb.Sheets['12B6'], 'Sheet 12B6 must exist');
+    assert.ok(writtenFileName.includes('So_Diem_Tat_Ca_Cac_Lop'));
+    assert.ok(writtenFileName.includes('HK1'));
+  } finally {
+    XLSX.writeFile = originalWriteFile;
+  }
 });

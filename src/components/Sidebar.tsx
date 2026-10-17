@@ -573,25 +573,44 @@ export const Sidebar: React.FC<SidebarProps> = ({
           </div>
         ))}
 
-        {/* ── Nút Xuất Sổ Chủ Nhiệm CĐN01 Nổi Bật ── */}
+        {/* ── Nút Xuất Tài Liệu Nổi Bật: Sổ điểm tất cả các lớp (.xlsx) khi ở Học Lực, hoặc Sổ Chủ Nhiệm (.docx) khi ở Rèn Luyện ── */}
         {userRole !== 'monitor' && (
           <div className="pt-2">
-            <button
-              type="button"
-              onClick={() => window.dispatchEvent(new CustomEvent('open-homeroom-book-modal'))}
-              className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gradient-to-r from-red-600/20 via-rose-600/20 to-amber-600/20 hover:from-red-600/30 hover:via-rose-600/30 hover:to-amber-600/30 text-rose-300 border border-red-500/30 text-xs font-bold transition shadow-xs cursor-pointer group active:scale-95 ${
-                isCollapsed && !isOpenMobile ? 'justify-center p-2' : ''
-              }`}
-              title="Xuất Sổ công tác giáo viên chủ nhiệm (.docx)"
-            >
-              <BookOpen className="h-4 w-4 text-rose-400 group-hover:scale-110 transition shrink-0" />
-              {(!isCollapsed || isOpenMobile) && (
-                <div className="text-left flex-1 min-w-0">
-                  <div className="text-white font-bold truncate">Sổ Chủ Nhiệm (.docx)</div>
-                  <div className="text-[10px] text-rose-300/80 truncate">Theo mẫu sổ GVCN</div>
-                </div>
-              )}
-            </button>
+            {academicMode ? (
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('open-export-all-gradebooks-modal'))}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gradient-to-r from-purple-600/25 via-indigo-600/25 to-blue-600/25 hover:from-purple-600/40 hover:via-indigo-600/40 hover:to-blue-600/40 text-purple-200 border border-purple-500/40 text-xs font-bold transition shadow-xs cursor-pointer group active:scale-95 ${
+                  isCollapsed && !isOpenMobile ? 'justify-center p-2' : ''
+                }`}
+                title="Xuất sổ điểm tất cả các lớp vào 1 file Excel (Mỗi lớp 1 sheet)"
+              >
+                <FileSpreadsheet className="h-4 w-4 text-purple-400 group-hover:scale-110 transition shrink-0" />
+                {(!isCollapsed || isOpenMobile) && (
+                  <div className="text-left flex-1 min-w-0">
+                    <div className="text-white font-bold truncate">Sổ điểm các lớp (.xlsx)</div>
+                    <div className="text-[10px] text-purple-300/80 truncate">Mỗi lớp 1 sheet · TT 22</div>
+                  </div>
+                )}
+              </button>
+            ) : (
+              <button
+                type="button"
+                onClick={() => window.dispatchEvent(new CustomEvent('open-homeroom-book-modal'))}
+                className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-xl bg-gradient-to-r from-red-600/20 via-rose-600/20 to-amber-600/20 hover:from-red-600/30 hover:via-rose-600/30 hover:to-amber-600/30 text-rose-300 border border-red-500/30 text-xs font-bold transition shadow-xs cursor-pointer group active:scale-95 ${
+                  isCollapsed && !isOpenMobile ? 'justify-center p-2' : ''
+                }`}
+                title="Xuất Sổ công tác giáo viên chủ nhiệm (.docx)"
+              >
+                <BookOpen className="h-4 w-4 text-rose-400 group-hover:scale-110 transition shrink-0" />
+                {(!isCollapsed || isOpenMobile) && (
+                  <div className="text-left flex-1 min-w-0">
+                    <div className="text-white font-bold truncate">Sổ Chủ Nhiệm (.docx)</div>
+                    <div className="text-[10px] text-rose-300/80 truncate">Theo mẫu sổ GVCN</div>
+                  </div>
+                )}
+              </button>
+            )}
           </div>
         )}
       </nav>
