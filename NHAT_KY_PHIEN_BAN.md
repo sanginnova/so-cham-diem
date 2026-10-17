@@ -6,6 +6,8 @@ Mỗi mã commit là một mốc mã nguồn có thể mở lại. Xem [hướng
 
 | Mã phiên bản (commit) | Ngày | Thay đổi |
 | --- | --- | --- |
+| `8259631cf5e2d31be9e0dad7b0b2472cf8bd0b8c` | 2026-10-17 | feat(gvbm): add local semester locks and grade edit history |
+| `82159912fe4cd34f2cec13ef4e08fd654385f2b8` | 2026-10-17 | docs: record device gradebook recovery checkpoint |
 | `1dee0af3b8d5f0d7b86616c82d2e30635561d60a` | 2026-10-17 | fix(gvbm): allow account scoped device gradebooks before cloud deployment |
 | `9f7dfec1222ff082aea180cfcf5421fd2139ea76` | 2026-10-17 | docs: record separated navigation checkpoint |
 | `6a9035e6c38aa453cfbe08d3cabae9cbe7150b23` | 2026-10-17 | fix(navigation): separate academic and conduct menus |
