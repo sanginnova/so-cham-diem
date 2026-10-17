@@ -28,6 +28,7 @@ import {
   BookOpen,
   LayoutGrid,
   Wallet,
+  Sparkles,
 } from 'lucide-react';
 import { TabType } from './Navbar';
 import { useApp } from '../context/AppContext';
@@ -116,6 +117,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 directTab: 'gradebook' as TabType,
                 badge: 'TT 22',
                 badgeClass: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
+              },
+              {
+                id: 'random-picker',
+                label: 'Gọi tên ngẫu nhiên',
+                icon: Sparkles,
+                directTab: 'random-picker' as TabType,
+                badge: 'Vòng quay',
+                badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
               },
             ],
           },

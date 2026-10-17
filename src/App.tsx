@@ -22,6 +22,7 @@ import { StudentsView } from './components/StudentsView';
 import { BehaviorCatalogView } from './components/BehaviorCatalogView';
 import { ParentReportView } from './components/ParentReportView';
 import { ZaloMessageComposerView } from './components/ZaloMessageComposerView';
+import { RandomStudentPickerView } from './components/RandomStudentPickerView';
 import { SettingsBackupView } from './components/SettingsBackupView';
 import { EditClassTeacherModal } from './components/EditClassTeacherModal';
 import { PublicPortalView } from './components/PublicPortalView';
@@ -47,7 +48,7 @@ function MainApp() {
     return userRole === 'guest' || new URLSearchParams(window.location.search).has('report') ? 'portal' : 'dashboard';
   });
   const setActiveTab = (tab: TabType) => {
-    if (['gradebook', 'teaching-classes', 'subject-statistics', 'subject-attendance'].includes(tab)) setAcademicMode(true);
+    if (['gradebook', 'teaching-classes', 'subject-statistics', 'subject-attendance', 'random-picker'].includes(tab)) setAcademicMode(true);
     else if (!['students', 'settings', 'admin'].includes(tab)) setAcademicMode(false);
     setActiveTabState(tab);
   };
@@ -135,6 +136,13 @@ function MainApp() {
     const handleOpenHomeroomBook = () => setIsHomeroomBookModalOpen(true);
     window.addEventListener('open-homeroom-book-modal', handleOpenHomeroomBook);
     return () => window.removeEventListener('open-homeroom-book-modal', handleOpenHomeroomBook);
+  }, []);
+
+  // Random Picker listener
+  useEffect(() => {
+    const handleOpenPicker = () => setActiveTab('random-picker');
+    window.addEventListener('open-random-picker', handleOpenPicker);
+    return () => window.removeEventListener('open-random-picker', handleOpenPicker);
   }, []);
 
   // Pro-Max Keyboard Shortcuts: Press 'N' to open new log modal
@@ -321,6 +329,7 @@ function MainApp() {
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'teaching-classes' && <TeachingClassesView onOpenGradebook={() => setActiveTab('gradebook')} />}
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'subject-statistics' && <SubjectStatisticsView onOpenGradebook={() => setActiveTab('gradebook')} />}
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'subject-attendance' && <SubjectAttendanceView key={classConfig.id} />}
+          {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'random-picker' && <RandomStudentPickerView key={classConfig.id} />}
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'gradebook' && <SubjectGradebookView key={classConfig.id} />}
           {userRole !== 'guest' && activeTab === 'categories' && <BehaviorCatalogView />}
 

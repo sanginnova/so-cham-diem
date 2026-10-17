@@ -695,6 +695,16 @@ export function SubjectGradebookView() {
           }}>Tải lại bản máy chủ</button>}
           <button
             type="button"
+            onClick={() => window.dispatchEvent(new CustomEvent('open-random-picker'))}
+            className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-gradient-to-r from-amber-500 to-rose-500 hover:from-amber-600 hover:to-rose-600 text-white shadow-sm transition active:scale-95 cursor-pointer"
+            title="Mở Vòng quay may mắn gọi tên học sinh ngẫu nhiên"
+          >
+            <Sparkles className="h-4 w-4" />
+            <span>🎲 Gọi tên</span>
+          </button>
+
+          <button
+            type="button"
             onClick={handleExportExcel}
             className="inline-flex items-center gap-1.5 px-3.5 py-2 rounded-xl text-xs font-bold bg-emerald-600 hover:bg-emerald-700 text-white shadow-sm transition active:scale-95 cursor-pointer"
           >

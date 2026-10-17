@@ -49,6 +49,7 @@ export type TabType =
   | 'categories'
   | 'parent-report'
   | 'zalo-composer'
+  | 'random-picker'
   | 'settings'
   | 'admin';
 

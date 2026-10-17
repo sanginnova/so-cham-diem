@@ -51,6 +51,7 @@ const TAB_LABELS: Record<TabType, { section: string; title: string }> = {
   'teaching-classes': { section: 'Giáo viên bộ môn', title: 'Lớp tôi dạy' },
   'subject-statistics': { section: 'Giáo viên bộ môn', title: 'Thống kê sổ điểm trên máy' },
   'subject-attendance': { section: 'Giáo viên bộ môn', title: 'Điểm danh chuyên cần lớp bộ môn' },
+  'random-picker': { section: 'Giáo viên bộ môn', title: '🎲 Gọi tên học sinh ngẫu nhiên' },
   'zalo-composer': { section: 'Liên hệ', title: 'Soạn tin Zalo phụ huynh' },
   'parent-report': { section: 'Liên hệ', title: 'Báo cáo phụ huynh định kỳ' },
   categories: { section: 'Quy chế', title: 'Biểu điểm lỗi & thưởng' },
@@ -191,6 +192,23 @@ export const TopBar: React.FC<TopBarProps> = ({
               <kbd className="hidden lg:inline-block px-1.5 py-0.5 bg-white dark:bg-slate-700 text-slate-500 dark:text-slate-300 font-mono text-[10px] rounded border border-slate-200 dark:border-slate-600 shadow-2xs">
                 ⌘K
               </kbd>
+            </button>
+          )}
+
+          {/* Nút Gọi tên ngẫu nhiên nhanh */}
+          {!isGuestOrPortal && (
+            <button
+              type="button"
+              onClick={() => onNavigateTab('random-picker')}
+              className={`flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-xl border text-xs font-bold transition active:scale-95 cursor-pointer shadow-2xs ${
+                activeTab === 'random-picker'
+                  ? 'bg-amber-500 text-white border-amber-600 shadow-amber-500/25 ring-2 ring-amber-400/30'
+                  : 'bg-gradient-to-r from-amber-500/10 via-rose-500/10 to-purple-500/10 hover:from-amber-500/20 hover:to-purple-500/20 text-amber-700 dark:text-amber-300 border-amber-300/60 dark:border-amber-700/60'
+              }`}
+              title="Gọi tên học sinh ngẫu nhiên (Vòng quay may mắn / Rút thăm)"
+            >
+              <Sparkles className="h-3.5 w-3.5 text-amber-500" />
+              <span className="hidden md:inline">🎲 Gọi tên</span>
             </button>
           )}
 
