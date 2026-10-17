@@ -111,8 +111,26 @@ export function getWeekDates(mondayStr: string, mode: TimetableMode = 'mon-sat')
  * Tách nội dung chuỗi ô thành className và subjectName (vd: 10A8-Toán, 10A8-HĐTN-HN, 10A8-Ôn Toán, 12B6-Toán)
  */
 export function parseTimetableCell(rawText: string): { className: string; subjectName: string; room?: string } {
-  const clean = rawText.trim();
-  if (!clean || clean === '—' || clean === '-') {
+  const clean = (rawText || '').trim();
+  if (!clean || clean === '—' || clean === '-' || clean.toLowerCase() === 'x' || clean.toLowerCase() === 'none') {
+    return { className: '', subjectName: '' };
+  }
+
+  // Bỏ qua các chuỗi không phải là môn học/lớp:
+  // 1. Số nguyên thuần túy (số thứ tự tiết: 1, 2, 3...)
+  if (/^\d{1,2}$/.test(clean)) {
+    return { className: '', subjectName: '' };
+  }
+  // 2. Định dạng giờ (7h15-8h00, 14h20-15h05, 07:15...)
+  if (/\d{1,2}[h:]\d{2}/i.test(clean)) {
+    return { className: '', subjectName: '' };
+  }
+  // 3. Tên thứ (Thứ 2, Thứ Hai, T2, Mon, Tue...)
+  if (/^(thứ\s*\d+|thứ\s*hai|thứ\s*ba|thứ\s*tư|thứ\s*năm|thứ\s*sáu|thứ\s*bảy|thu\s*\d+|t[2-7]|mon|tue|wed|thu|fri|sat)$/i.test(clean)) {
+    return { className: '', subjectName: '' };
+  }
+  // 4. Nhãn buổi hoặc nhãn tiết
+  if (/^(sáng|chiều|buổi|sang|chieu|tiết\s*\d+|tiet\s*\d+)$/i.test(clean)) {
     return { className: '', subjectName: '' };
   }
 
@@ -147,28 +165,75 @@ export function parseTimetableCell(rawText: string): { className: string; subjec
 }
 
 /**
- * Phân tích chuỗi Copy-Paste (dạng Tab-separated từ Excel hoặc dòng xuống) thành ma trận slots
+ * Đối chiếu chuỗi thời gian thực tế với số thứ tự tiết 1 -> 10 chuẩn
+ */
+export function matchPeriodFromTime(str: string): number | null {
+  const clean = str.toLowerCase().replace(/\s+/g, '');
+  if (/7h15|07:15|7:15/i.test(clean)) return 1;
+  if (/8h05|08:05|8:05/i.test(clean)) return 2;
+  if (/9h00|09:00|9:00/i.test(clean)) return 3;
+  if (/9h50|09:50|9:50/i.test(clean)) return 4;
+  if (/10h40|10:40/i.test(clean)) return 5;
+  if (/13h30|13:30/i.test(clean)) return 6;
+  if (/14h20|14:20/i.test(clean)) return 7;
+  if (/15h15|15:15/i.test(clean)) return 8;
+  if (/16h05|16:05/i.test(clean)) return 9;
+  if (/16h55|16:55/i.test(clean)) return 10;
+  return null;
+}
+
+/**
+ * Nhận diện chỉ mục các cột tương ứng với từng Thứ (Thứ 2..Thứ 7) trong dòng tiêu đề
+ */
+export function extractDayColumnsFromRow(cells: string[]): Record<number, number> | null {
+  const dayMap: Record<number, number> = {};
+  cells.forEach((cell, idx) => {
+    const lower = cell.toLowerCase().trim();
+    if (/^(thứ\s*2|thứ\s*hai|t2|mon|thu\s*2)$/i.test(lower)) dayMap[2] = idx;
+    else if (/^(thứ\s*3|thứ\s*ba|t3|tue|thu\s*3)$/i.test(lower)) dayMap[3] = idx;
+    else if (/^(thứ\s*4|thứ\s*tư|t4|wed|thu\s*4)$/i.test(lower)) dayMap[4] = idx;
+    else if (/^(thứ\s*5|thứ\s*năm|t5|thu|thu\s*5)$/i.test(lower)) dayMap[5] = idx;
+    else if (/^(thứ\s*6|thứ\s*sáu|t6|fri|thu\s*6)$/i.test(lower)) dayMap[6] = idx;
+    else if (/^(thứ\s*7|thứ\s*bảy|t7|sat|thu\s*7)$/i.test(lower)) dayMap[7] = idx;
+  });
+  return Object.keys(dayMap).length >= 2 ? dayMap : null;
+}
+
+/**
+ * Tự động phát hiện dạng TKB (Thứ 2-Thứ 6 hay Thứ 2-Thứ 7) từ chuỗi copy
+ */
+export function detectTimetableModeFromText(text: string): TimetableMode | null {
+  const lines = text.split(/\r?\n/);
+  for (const line of lines) {
+    const cols = line.split('\t').map(c => c.trim());
+    const dayMap = extractDayColumnsFromRow(cols);
+    if (dayMap) {
+      if (dayMap[7] !== undefined) return 'mon-sat';
+      if (dayMap[2] !== undefined && dayMap[6] !== undefined) return 'mon-fri';
+    }
+  }
+  return null;
+}
+
+/**
+ * Phân tích chuỗi Copy-Paste (dạng Tab-separated từ Excel, TSV, hoặc bảng có merge ô) thành ma trận slots
  */
 export function parseTimetableFromText(
   text: string,
-  mode: TimetableMode = 'mon-sat'
+  mode: TimetableMode = 'mon-fri'
 ): Record<string, TimetableSlot> {
   const result: Record<string, TimetableSlot> = {};
   if (!text || !text.trim()) return result;
 
-  const targetDays = mode === 'mon-fri' ? [2, 3, 4, 5, 6] : [2, 3, 4, 5, 6, 7];
-  const rawLines = text.split(/\r?\n/).filter(l => l.length > 0);
-  const dataLines = rawLines.filter(line => {
-    const lower = line.toLowerCase();
-    // Bỏ qua dòng header nếu có
-    return !(lower.includes('thứ') || lower.includes('thu') || (lower.includes('buổi') && lower.includes('tiết')));
-  });
+  const rawLines = text.split(/\r?\n/).filter(l => l.replace(/[\t\s]/g, '').length > 0);
+  if (rawLines.length === 0) return result;
 
-  let currentPeriod = 1;
-  for (const line of dataLines) {
-    if (currentPeriod > 10) break;
+  let activeDayMap: Record<number, number> | null = null;
+  let currentSession: 'morning' | 'afternoon' = 'morning';
+  let lastPeriod = 0;
 
-    // Tách bằng Tab (\t) nếu từ Excel, hoặc phân tách bằng 2 dấu cách trở lên / dấu |
+  for (const line of rawLines) {
+    // Tách cột bằng Tab (\t), dấu gạch dọc (|), hoặc 2 dấu cách
     let cols = line.split('\t').map(c => c.trim());
     if (cols.length === 1 && line.includes('|')) {
       cols = line.split('|').map(c => c.trim()).filter(Boolean);
@@ -176,42 +241,118 @@ export function parseTimetableFromText(
       cols = line.split(/\s{2,}/).map(c => c.trim());
     }
 
-    // Bỏ qua dòng rỗng hoàn toàn
     if (cols.every(c => !c)) continue;
 
-    // Thông minh loại bỏ các cột Buổi, Tiết, Thời gian ở đầu
-    let cellCols = [...cols];
-    // 1. Cột Buổi
-    if (cellCols.length > 0 && /^(sáng|chiều|buổi)$/i.test(cellCols[0])) {
-      cellCols.shift();
-    }
-    // 2. Cột Tiết
-    if (cellCols.length > 0 && /^(tiết\s*\d+|\d+)$/i.test(cellCols[0])) {
-      cellCols.shift();
-    }
-    // 3. Cột Giờ / Thời gian (vd "7h15-8h00", "07:15-08:00")
-    if (cellCols.length > 0 && (/\d+h\d*|\d{1,2}:\d{2}/i.test(cellCols[0]))) {
-      cellCols.shift();
+    // Kiểm tra xem dòng này có đổi Buổi (Sáng/Chiều) không
+    const hasSang = cols.some(c => /^sáng$/i.test(c));
+    const hasChieu = cols.some(c => /^chiều$/i.test(c));
+    if (hasChieu) currentSession = 'afternoon';
+    else if (hasSang) currentSession = 'morning';
+
+    // Kiểm tra xem dòng này có phải là dòng tiêu đề Thứ (Header: Thứ 2, Thứ 3...) không
+    const detectedDayMap = extractDayColumnsFromRow(cols);
+    if (detectedDayMap) {
+      activeDayMap = detectedDayMap;
+      // Dòng header không chứa tiết học, tiếp tục quét dòng dữ liệu kế tiếp
+      continue;
     }
 
-    // Gán dữ liệu vào từng Thứ của tiết hiện tại
-    for (let i = 0; i < targetDays.length; i++) {
-      const d = targetDays[i];
-      const rawCell = cellCols[i] || '';
-      const parsed = parseTimetableCell(rawCell);
-      if (parsed.className) {
-        const key = makeSlotKey(d, currentPeriod);
-        result[key] = {
-          dayOfWeek: d,
-          period: currentPeriod,
-          className: parsed.className,
-          subjectName: parsed.subjectName,
-          room: parsed.room || '',
-        };
+    // Xác định Tiết học (period: 1 -> 10) của dòng này:
+    let period: number | null = null;
+
+    // 1. Ưu tiên cao nhất: Tìm khung giờ khớp chính xác (vd: 7h15-8h00, 14h20-15h05, 15h15...)
+    for (const c of cols) {
+      const match = matchPeriodFromTime(c);
+      if (match !== null) {
+        period = match;
+        break;
       }
     }
 
-    currentPeriod++;
+    // 2. Nếu không tìm thấy giờ, tìm số thứ tự tiết (vd: Tiết 1, 1, 2, 3...)
+    if (period === null) {
+      for (const c of cols) {
+        const periodMatch = c.match(/^(?:tiết\s*)?(\d{1,2})$/i);
+        if (periodMatch) {
+          const num = parseInt(periodMatch[1], 10);
+          if (num >= 6 && num <= 10) {
+            period = num;
+            break;
+          } else if (num >= 1 && num <= 5) {
+            period = currentSession === 'afternoon' ? num + 5 : num;
+            break;
+          }
+        }
+      }
+    }
+
+    // 3. Fallback: Nếu không có cả giờ lẫn số tiết, tự động tăng từ tiết trước
+    if (period === null) {
+      if (lastPeriod === 0) {
+        period = currentSession === 'afternoon' ? 6 : 1;
+      } else if (lastPeriod < 10) {
+        period = lastPeriod + 1;
+      } else {
+        continue;
+      }
+    }
+
+    lastPeriod = period;
+
+    // Gán dữ liệu cho từng Thứ trong tuần:
+    if (activeDayMap) {
+      // Trường hợp A: Đã nhận diện chính xác cột nào ứng với Thứ nào
+      for (const [dayStr, colIdx] of Object.entries(activeDayMap)) {
+        const day = parseInt(dayStr, 10);
+        if (mode === 'mon-fri' && day > 6) continue;
+        const cellValue = cols[colIdx] || '';
+        const parsed = parseTimetableCell(cellValue);
+        if (parsed.className) {
+          result[makeSlotKey(day, period)] = {
+            dayOfWeek: day,
+            period,
+            className: parsed.className,
+            subjectName: parsed.subjectName,
+            room: parsed.room || '',
+          };
+        }
+      }
+    } else {
+      // Trường hợp B: Người dùng copy không kèm dòng header Thứ 2, Thứ 3...
+      // Bỏ qua các cột metadata ở đầu (Buổi, Tiết, Thời gian hoặc ô trống do merge ô dọc)
+      let startIndex = 0;
+      for (let idx = 0; idx < cols.length; idx++) {
+        const c = cols[idx];
+        if (!c) {
+          startIndex = idx + 1;
+        } else if (/^(sáng|chiều|buổi)$/i.test(c)) {
+          startIndex = idx + 1;
+        } else if (/^(tiết\s*\d+|\d{1,2})$/i.test(c)) {
+          startIndex = idx + 1;
+        } else if (/\d{1,2}[h:]\d{2}/i.test(c)) {
+          startIndex = idx + 1;
+        } else {
+          break;
+        }
+      }
+
+      const targetDays = mode === 'mon-fri' ? [2, 3, 4, 5, 6] : [2, 3, 4, 5, 6, 7];
+      const dataCols = cols.slice(startIndex);
+      for (let i = 0; i < targetDays.length && i < dataCols.length; i++) {
+        const day = targetDays[i];
+        const cellValue = dataCols[i];
+        const parsed = parseTimetableCell(cellValue);
+        if (parsed.className) {
+          result[makeSlotKey(day, period)] = {
+            dayOfWeek: day,
+            period,
+            className: parsed.className,
+            subjectName: parsed.subjectName,
+            room: parsed.room || '',
+          };
+        }
+      }
+    }
   }
 
   return result;
@@ -389,6 +530,26 @@ export function setWeekAsDefaultTimetable(
   };
 }
 
+export const DEFAULT_TIMETABLE_MODE_KEY = (teacherId: string) =>
+  `teacher_timetable_default_mode_${teacherId || 'guest'}`;
+
+export function getTeacherDefaultTimetableMode(
+  storage: Pick<Storage, 'getItem'>,
+  teacherId: string
+): TimetableMode {
+  const saved = storage.getItem(DEFAULT_TIMETABLE_MODE_KEY(teacherId)) as TimetableMode | null;
+  if (saved === 'mon-sat' || saved === 'mon-fri') return saved;
+  return 'mon-fri'; // Mặc định là Thứ 2 - Thứ 6 (5 ngày) theo yêu cầu giáo viên
+}
+
+export function setTeacherDefaultTimetableMode(
+  storage: Pick<Storage, 'setItem'>,
+  teacherId: string,
+  mode: TimetableMode
+): void {
+  storage.setItem(DEFAULT_TIMETABLE_MODE_KEY(teacherId), mode);
+}
+
 export function loadTeacherTimetable(
   storage: Pick<Storage, 'getItem'>,
   teacherId: string,
@@ -396,12 +557,14 @@ export function loadTeacherTimetable(
   schoolYear: string,
   semester: 1 | 2 = 1
 ): TeacherTimetable {
+  const preferredDefaultMode = getTeacherDefaultTimetableMode(storage, teacherId);
+
   const defaultTable: TeacherTimetable = {
     teacherId: teacherId || 'guest',
     teacherName: teacherName || 'Nguyễn Văn Sang',
     schoolYear: schoolYear || '2026-2027',
     semester,
-    mode: 'mon-sat',
+    mode: preferredDefaultMode,
     weekStartDate: getMondayOfCurrentWeek(),
     slots: {},
     weekSlots: {},
@@ -416,7 +579,7 @@ export function loadTeacherTimetable(
     return {
       ...defaultTable,
       ...parsed,
-      mode: parsed.mode || 'mon-sat',
+      mode: parsed.mode || preferredDefaultMode,
       weekStartDate: parsed.weekStartDate || getMondayOfCurrentWeek(),
       slots: parsed.slots || {},
       weekSlots: parsed.weekSlots || {},

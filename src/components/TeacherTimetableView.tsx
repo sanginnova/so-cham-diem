@@ -41,6 +41,9 @@ import {
   getMondayOfCurrentWeek,
   getWeekDates,
   parseTimetableFromText,
+  detectTimetableModeFromText,
+  getTeacherDefaultTimetableMode,
+  setTeacherDefaultTimetableMode,
   exportTimetableToTsv,
   SAMPLE_TIMETABLE_SLOTS,
   getTimetableSlotsForWeek,
@@ -73,8 +76,27 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
     return loadTeacherTimetable(localStorage, teacherId, teacherName, schoolYear, 1);
   });
 
-  // 2 Dạng TKB: 6 ngày (Thứ 2 - Thứ 7) hoặc 5 ngày (Thứ 2 - Thứ 6)
-  const [mode, setMode] = useState<TimetableMode>(timetable.mode || 'mon-sat');
+  const [defaultMode, setDefaultMode] = useState<TimetableMode>(() => {
+    return getTeacherDefaultTimetableMode(localStorage, teacherId);
+  });
+
+  // 2 Dạng TKB: Mặc định Thứ 2 - Thứ 6 (5 ngày) hoặc Thứ 2 - Thứ 7 (6 ngày)
+  const [mode, setMode] = useState<TimetableMode>(timetable.mode || defaultMode);
+  const [defaultSaveToast, setDefaultSaveToast] = useState(false);
+
+  // Lưu dạng TKB hiện tại làm mặc định cho mọi lần mở sau
+  const handleSaveCurrentModeAsDefault = () => {
+    setTeacherDefaultTimetableMode(localStorage, teacherId, mode);
+    setDefaultMode(mode);
+    const nextTable: TeacherTimetable = {
+      ...timetable,
+      mode,
+    };
+    setTimetable(nextTable);
+    saveTeacherTimetable(localStorage, nextTable);
+    setDefaultSaveToast(true);
+    setTimeout(() => setDefaultSaveToast(false), 2500);
+  };
 
   // Danh sách 35 tuần chuẩn của năm học
   const allSchoolWeeks = useMemo(() => {
@@ -285,19 +307,27 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
 
   // Áp dụng dán TKB từ text / Excel
   const handleApplyPastedText = () => {
-    const parsedSlots = parseTimetableFromText(pasteRawText, mode);
+    const detected = detectTimetableModeFromText(pasteRawText);
+    const activeMode = detected || mode;
+    if (detected && detected !== mode) {
+      setMode(detected);
+    }
+    const parsedSlots = parseTimetableFromText(pasteRawText, activeMode);
     const count = Object.keys(parsedSlots).length;
     if (count === 0) {
       alert('Không tìm thấy dữ liệu tiết học hợp lệ. Vui lòng kiểm tra lại nội dung dán.');
       return;
     }
 
-    let nextTable = timetable;
+    let nextTable: TeacherTimetable = {
+      ...timetable,
+      mode: activeMode,
+    };
 
     if (pasteScope === 'current_week') {
       // Chỉ áp dụng cho tuần hiện tại
       const nextWeekSlots = { ...currentWeekSlots, ...parsedSlots };
-      nextTable = setTimetableSlotsForWeek(timetable, selectedWeekNumber, nextWeekSlots);
+      nextTable = setTimetableSlotsForWeek(nextTable, selectedWeekNumber, nextWeekSlots);
     } else if (pasteScope === 'from_here_on') {
       // Áp dụng từ tuần này đến hết học kỳ
       const targetWeeks: number[] = [];
@@ -305,12 +335,12 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
       for (let w = selectedWeekNumber; w <= maxWeek; w++) {
         targetWeeks.push(w);
       }
-      nextTable = setTimetableSlotsForWeek(timetable, selectedWeekNumber, parsedSlots);
+      nextTable = setTimetableSlotsForWeek(nextTable, selectedWeekNumber, parsedSlots);
       nextTable = copyTimetableWeekToRange(nextTable, selectedWeekNumber, targetWeeks);
     } else {
       // Áp dụng làm TKB chung mặc định
       nextTable = {
-        ...timetable,
+        ...nextTable,
         slots: { ...timetable.slots, ...parsedSlots },
       };
       nextTable = setTimetableSlotsForWeek(nextTable, selectedWeekNumber, parsedSlots);
@@ -524,8 +554,8 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
 
       {/* ── BỘ ĐIỀU KHIỂN CHỌN TUẦN & 2 DẠNG TKB ── */}
       <div className="p-3.5 rounded-2xl bg-white dark:bg-slate-850 border border-slate-200 dark:border-slate-800 shadow-xs flex flex-wrap items-center justify-between gap-3">
-        {/* Toggle 2 Dạng TKB (6 ngày / 5 ngày) */}
-        <div className="flex items-center gap-2">
+        {/* Toggle 2 Dạng TKB (6 ngày / 5 ngày) kèm nút Lưu làm mặc định */}
+        <div className="flex items-center gap-2 flex-wrap">
           <span className="text-xs font-bold text-slate-500 dark:text-slate-400">Dạng:</span>
           <div className="inline-flex rounded-xl bg-slate-100 dark:bg-slate-800 p-1 border border-slate-200 dark:border-slate-700">
             <button
@@ -551,6 +581,33 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
               Thứ 2 – Thứ 6 (5 ngày)
             </button>
           </div>
+
+          {/* Nút / Huy hiệu Lưu làm mặc định */}
+          {mode === defaultMode ? (
+            <span
+              className="inline-flex items-center gap-1 px-2.5 py-1 rounded-lg text-xs font-semibold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800"
+              title="Dạng TKB này đang là mặc định khi mở ứng dụng"
+            >
+              <Check className="h-3.5 w-3.5 text-emerald-600 dark:text-emerald-400" />
+              Mặc định
+            </span>
+          ) : (
+            <button
+              type="button"
+              onClick={handleSaveCurrentModeAsDefault}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-lg text-xs font-semibold text-purple-700 dark:text-purple-300 bg-purple-50 hover:bg-purple-100 dark:bg-purple-950/40 dark:hover:bg-purple-900/50 border border-purple-200 dark:border-purple-800 transition cursor-pointer"
+              title={`Lưu dạng ${mode === 'mon-fri' ? 'Thứ 2 – Thứ 6 (5 ngày)' : 'Thứ 2 – Thứ 7 (6 ngày)'} làm mặc định`}
+            >
+              <Sparkles className="h-3.5 w-3.5 text-purple-600 dark:text-purple-400" />
+              Đặt làm mặc định
+            </button>
+          )}
+
+          {defaultSaveToast && (
+            <span className="text-xs font-bold text-emerald-600 dark:text-emerald-400 animate-fade-in">
+              ✓ Đã lưu dạng này làm mặc định!
+            </span>
+          )}
         </div>
 
         {/* Bộ chọn tuần học (Tuần 1 đến Tuần 35) */}
@@ -1172,16 +1229,31 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
                 className="w-full p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
               />
 
-              {pasteRawText && (
-                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300">
-                  <span className="font-bold text-indigo-600 dark:text-indigo-400">Xem trước: </span>
-                  Nhận diện được{' '}
-                  <span className="font-bold text-purple-600 dark:text-purple-300">
-                    {Object.keys(parseTimetableFromText(pasteRawText, mode)).length}
-                  </span>{' '}
-                  tiết dạy phù hợp dạng TKB.
-                </div>
-              )}
+              {pasteRawText && (() => {
+                const detected = detectTimetableModeFromText(pasteRawText);
+                const activeMode = detected || mode;
+                const parsed = parseTimetableFromText(pasteRawText, activeMode);
+                const slotCount = Object.keys(parsed).length;
+                return (
+                  <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 space-y-1">
+                    <div className="flex items-center justify-between flex-wrap gap-1">
+                      <div>
+                        <span className="font-bold text-indigo-600 dark:text-indigo-400">Xem trước: </span>
+                        Nhận diện được{' '}
+                        <span className="font-bold text-purple-600 dark:text-purple-300">
+                          {slotCount}
+                        </span>{' '}
+                        tiết dạy.
+                      </div>
+                      {detected && (
+                        <span className="text-[11px] px-2 py-0.5 rounded-md bg-purple-100 dark:bg-purple-900/40 text-purple-700 dark:text-purple-300 font-bold">
+                          Dạng tự động khớp: {detected === 'mon-fri' ? 'Thứ 2 – Thứ 6 (5 ngày)' : 'Thứ 2 – Thứ 7 (6 ngày)'}
+                        </span>
+                      )}
+                    </div>
+                  </div>
+                );
+              })()}
 
               {/* Phạm vi áp dụng khi dán */}
               <div className="space-y-1.5 pt-1">

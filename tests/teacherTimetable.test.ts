@@ -94,7 +94,7 @@ test('loadTeacherTimetable returns default when empty and persists updates', () 
   const initial = loadTeacherTimetable(storage, 'teacher1', 'Nguyễn Văn Sang', '2026-2027', 1);
   assert.equal(initial.teacherName, 'Nguyễn Văn Sang');
   assert.equal(initial.semester, 1);
-  assert.equal(initial.mode, 'mon-sat');
+  assert.equal(initial.mode, 'mon-fri'); // Mặc định Thứ 2 - Thứ 6 theo yêu cầu GV
   assert.deepEqual(initial.slots, {});
 
   // Lưu một tiết dạy
@@ -192,3 +192,74 @@ test('week-by-week timetable copy and inheritance works correctly', () => {
   const w6Slots = getTimetableSlotsForWeek(table, 6);
   assert.equal(w6Slots['3_p2']?.className, '12B6');
 });
+
+test('parseTimetableFromText accurately parses merged Excel timetable from Image 3 without column shifting', () => {
+  // Bảng Excel sao chép thực tế từ ảnh của Thầy (Image 3)
+  const excelCopiedText = [
+    'Sáng\t\t\tThứ 2\tThứ 3\tThứ 4\tThứ 5\tThứ 6',
+    '\t1\t7h15-8h00\t10A8-HĐTN-HN\t\t\t10A8-HĐTN-HN\t',
+    '\t2\t8h05-8h50\t\t\t\t\t',
+    '\t3\t9h00-9h45\t12B1-Toán\t10A8-Toán\t12B1-Toán\t12B6-Toán\t10A8-Toán',
+    '\t4\t9h50-10h35\t12B1-Toán\t10A8-Toán\t12B6-Toán\t12B6-Toán\t10A8-HĐTN-HN',
+    '\t5\t10h40-11h25\t\t\t\t\t',
+    'Chiều\t\t13h30-14h15\tThứ 2\tThứ 3\tThứ 4\tThứ 5\tThứ 6',
+    '\t1\t14h20-15h05\t\t10A17-Toán\t\t\t10A15-Toán',
+    '\t2\t15h15-16h00\t10A11-Toán\t10A17-Toán\t\t\t10A15-Toán',
+    '\t3\t16h05-16h50\t\t\t10A11-Toán\t\t10A17-Toán',
+    '\t4\t16h55-17h40\t\t10A15-Toán\t10A11-Toán\t\t',
+  ].join('\n');
+
+  const slots = parseTimetableFromText(excelCopiedText, 'mon-fri');
+
+  // Kiểm tra không có tiết nào bị nhận nhầm số "1", "2" hay giờ "7h15-8h00", "14h20-15h05" làm tên lớp
+  for (const slot of Object.values(slots)) {
+    assert.notEqual(slot.className, '1');
+    assert.notEqual(slot.className, '2');
+    assert.notEqual(slot.className, '3');
+    assert.notEqual(slot.className, '4');
+    assert.ok(!slot.className.includes('h'), `Class name ${slot.className} should not contain time`);
+  }
+
+  // Sáng:
+  // Tiết 1: Thứ 2 (10A8), Thứ 5 (10A8)
+  assert.equal(slots['2_p1']?.className, '10A8');
+  assert.equal(slots['2_p1']?.subjectName, 'HĐTN-HN');
+  assert.equal(slots['5_p1']?.className, '10A8');
+
+  // Tiết 3: Thứ 2 (12B1), Thứ 3 (10A8), Thứ 4 (12B1), Thứ 5 (12B6), Thứ 6 (10A8)
+  assert.equal(slots['2_p3']?.className, '12B1');
+  assert.equal(slots['3_p3']?.className, '10A8');
+  assert.equal(slots['4_p3']?.className, '12B1');
+  assert.equal(slots['5_p3']?.className, '12B6');
+  assert.equal(slots['6_p3']?.className, '10A8');
+
+  // Tiết 4: Thứ 2 (12B1), Thứ 3 (10A8), Thứ 4 (12B6), Thứ 5 (12B6), Thứ 6 (10A8)
+  assert.equal(slots['2_p4']?.className, '12B1');
+  assert.equal(slots['3_p4']?.className, '10A8');
+  assert.equal(slots['4_p4']?.className, '12B6');
+  assert.equal(slots['5_p4']?.className, '12B6');
+  assert.equal(slots['6_p4']?.className, '10A8');
+  assert.equal(slots['6_p4']?.subjectName, 'HĐTN-HN');
+
+  // Chiều:
+  // Tiết 7 (14h20-15h05): Thứ 3 (10A17), Thứ 6 (10A15)
+  assert.equal(slots['3_p7']?.className, '10A17');
+  assert.equal(slots['6_p7']?.className, '10A15');
+
+  // Tiết 8 (15h15-16h00): Thứ 2 (10A11), Thứ 3 (10A17), Thứ 6 (10A15)
+  assert.equal(slots['2_p8']?.className, '10A11');
+  assert.equal(slots['3_p8']?.className, '10A17');
+  assert.equal(slots['6_p8']?.className, '10A15');
+
+  // Tiết 9 (16h05-16h50): Thứ 4 (10A11), Thứ 6 (10A17)
+  assert.equal(slots['4_p9']?.className, '10A11');
+  assert.equal(slots['6_p9']?.className, '10A17');
+
+  // Tiết 10 (16h55-17h40): Thứ 3 (10A15), Thứ 4 (10A11)
+  assert.equal(slots['3_p10']?.className, '10A15');
+  assert.equal(slots['4_p10']?.className, '10A11');
+
+  // Tổng số tiết nhận diện phải chính xác là 21 tiết
+  assert.equal(Object.keys(slots).length, 21);
+});
+
