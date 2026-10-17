@@ -396,6 +396,10 @@ export function exportSubjectAttendanceToExcel(options: AttendanceExportOptions)
 
   ws['!merges'] = merges;
   ws['!cols'] = headerCols.map(c => ({ wch: c.width }));
+  ws['!ref'] = XLSX.utils.encode_range({
+    s: { r: 0, c: 0 },
+    e: { r: Math.max(r - 1, 5), c: lastColIdx },
+  });
 
   const sheetName = 'Chuyen_Can_Bo_Mon';
   XLSX.utils.book_append_sheet(wb, ws, sheetName);

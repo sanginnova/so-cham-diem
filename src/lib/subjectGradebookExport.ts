@@ -228,6 +228,29 @@ export function buildSubjectGradebookWorksheet(options: SubjectGradebookExportOp
   };
   merges.push({ s: { r: 5, c: 0 }, e: { r: 5, c: lastColIdx } });
 
+  // Resolve effective students list (fallback to gradebook.grades if students array is empty)
+  let effectiveStudents: Student[] = students && students.length > 0 ? students : [];
+  if (effectiveStudents.length === 0 && gradebook?.grades && Object.keys(gradebook.grades).length > 0) {
+    effectiveStudents = Object.entries(gradebook.grades).map(([id, g], idx) => {
+      const rawName = g.fullName || `Học sinh ${idx + 1}`;
+      const parts = rawName.trim().split(/\s+/);
+      const firstName = parts.pop() || '';
+      const lastName = parts.join(' ');
+      return {
+        id: g.studentId || id,
+        fullName: rawName,
+        firstName,
+        lastName,
+        studentCode: g.studentCode || '',
+        status: 'active' as const,
+        classId: classConfig.id || '',
+        teacherId: gradebook.teacherId || '',
+        createdAt: new Date().toISOString(),
+        updatedAt: new Date().toISOString(),
+      };
+    });
+  }
+
   // Row 7: Table Column Headers
   const tableHeaderRowIndex = 7;
   headerCols.forEach((col, idx) => {
@@ -239,13 +262,31 @@ export function buildSubjectGradebookWorksheet(options: SubjectGradebookExportOp
   let currentRow = 8;
   const averagesList: number[] = [];
 
-  students.forEach((student, studentIndex) => {
-    const g: StudentSubjectGrade | undefined = gradebook.grades[student.id];
-    let colIdx = 0;
+  if (effectiveStudents.length === 0) {
+    // If no students yet, render one placeholder row with styled borders
+    const refStt = XLSX.utils.encode_cell({ r: currentRow, c: 0 });
+    ws[refStt] = { t: 'n', v: 1, s: cellCenterStyle };
+    const refCode = XLSX.utils.encode_cell({ r: currentRow, c: 1 });
+    ws[refCode] = { t: 's', v: '', s: cellCenterStyle };
+    const refName = XLSX.utils.encode_cell({ r: currentRow, c: 2 });
+    ws[refName] = {
+      t: 's',
+      v: '(Chưa nhập danh sách học sinh)',
+      s: { ...cellLeftStyle, font: { ...cellLeftStyle.font, italic: true } },
+    };
+    for (let c = 3; c < totalCols; c++) {
+      const refEmpty = XLSX.utils.encode_cell({ r: currentRow, c });
+      ws[refEmpty] = { t: 's', v: '', s: cellCenterStyle };
+    }
+    currentRow++;
+  } else {
+    effectiveStudents.forEach((student, studentIndex) => {
+      const g: StudentSubjectGrade | undefined = gradebook.grades[student.id];
+      let colIdx = 0;
 
-    // Col 0: STT
-    const refStt = XLSX.utils.encode_cell({ r: currentRow, c: colIdx++ });
-    ws[refStt] = { t: 'n', v: studentIndex + 1, s: cellCenterStyle };
+      // Col 0: STT
+      const refStt = XLSX.utils.encode_cell({ r: currentRow, c: colIdx++ });
+      ws[refStt] = { t: 'n', v: studentIndex + 1, s: cellCenterStyle };
 
     // Col 1: Mã HS
     const refCode = XLSX.utils.encode_cell({ r: currentRow, c: colIdx++ });
@@ -376,6 +417,7 @@ export function buildSubjectGradebookWorksheet(options: SubjectGradebookExportOp
 
     currentRow++;
   });
+}
 
   // Summary Row under table
   const summaryRowIndex = currentRow;
@@ -425,7 +467,7 @@ export function buildSubjectGradebookWorksheet(options: SubjectGradebookExportOp
 
   // Statistics details block
   currentRow = summaryRowIndex + 2;
-  const totalStudents = students.length;
+  const totalStudents = effectiveStudents.length;
   const hasAvgCount = averagesList.length;
   const gioCount = averagesList.filter(a => a >= 8.0).length;
   const khaCount = averagesList.filter(a => a >= 6.5 && a < 8.0).length;
@@ -522,6 +564,10 @@ export function buildSubjectGradebookWorksheet(options: SubjectGradebookExportOp
   ws['!merges'] = merges;
   ws['!cols'] = headerCols.map(c => ({ wch: c.width }));
   ws['!rows'] = rowHeights;
+  ws['!ref'] = XLSX.utils.encode_range({
+    s: { r: 0, c: 0 },
+    e: { r: Math.max(currentRow - 1, 0), c: lastColIdx },
+  });
 
   const sheetName = `Bang_Diem_${gradebook.subjectName.replace(/[\\/:*?"<>|]/g, '_')}`.slice(0, 31);
   return { ws, defaultSheetName: sheetName };

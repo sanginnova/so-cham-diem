@@ -37,7 +37,7 @@ export function ExportAllGradebooksModal({ isOpen, onClose }: ExportAllGradebook
   const [successMsg, setSuccessMsg] = useState<string | null>(null);
 
   const teacherName = activeAccount?.displayName || classConfig.homeroomTeacher || 'Nguyễn Văn Sang';
-  const teacherId = activeAccount?.uid || '';
+  const teacherId = activeAccount?.uid || classConfig.teacherId || 'guest';
 
   // Lọc tất cả các lớp bộ môn (hoặc toàn bộ lớp học của Thầy trong năm học)
   const targetClasses = useMemo(() => {
@@ -57,11 +57,37 @@ export function ExportAllGradebooksModal({ isOpen, onClose }: ExportAllGradebook
         book = readDeviceGradebook(localStorage, teacherId, config);
         // Fallback đọc thẳng nếu readDeviceGradebook trả về null
         if (!book) {
-          const raw = localStorage.getItem(`subject_gradebook_v2_local_${teacherId}_${config.id}`)
-            || localStorage.getItem(`subject_gradebook_v2_${teacherId}_${config.id}`)
-            || localStorage.getItem(`subject_gradebook_${config.id}`);
-          if (raw) {
-            book = JSON.parse(raw) as ClassGradebookData;
+          const keysToTry = [
+            `subject_gradebook_v2_local_${teacherId}_${config.id}`,
+            `subject_gradebook_v2_${teacherId}_${config.id}`,
+            `subject_gradebook_v2_local_${config.teacherId}_${config.id}`,
+            `subject_gradebook_v2_${config.teacherId}_${config.id}`,
+            `subject_gradebook_v2_local_guest_${config.id}`,
+            `subject_gradebook_${config.id}`,
+          ];
+          for (const k of keysToTry) {
+            const raw = localStorage.getItem(k);
+            if (raw) {
+              try {
+                book = JSON.parse(raw) as ClassGradebookData;
+                if (book && book.grades) break;
+              } catch {}
+            }
+          }
+          // Quét mọi key localStorage có chứa subject_gradebook và config.id
+          if (!book) {
+            for (let i = 0; i < localStorage.length; i++) {
+              const k = localStorage.key(i);
+              if (k && k.includes('subject_gradebook') && k.endsWith(`_${config.id}`)) {
+                try {
+                  const val = localStorage.getItem(k);
+                  if (val) {
+                    book = JSON.parse(val) as ClassGradebookData;
+                    if (book && book.grades) break;
+                  }
+                } catch {}
+              }
+            }
           }
         }
       } catch (err) {
@@ -72,14 +98,16 @@ export function ExportAllGradebooksModal({ isOpen, onClose }: ExportAllGradebook
       let classStudents: Student[] = [];
       if (config.id === classConfig.id && currentClassStudents.length > 0) {
         classStudents = currentClassStudents;
-      } else if (book && book.grades) {
+      } else if (config.rosterSourceClassId && config.rosterSourceClassId === classConfig.id && currentClassStudents.length > 0) {
+        classStudents = currentClassStudents;
+      } else if (book && book.grades && Object.keys(book.grades).length > 0) {
         classStudents = Object.entries(book.grades).map(([id, g], idx) => {
           const rawName = g.fullName || `Học sinh ${idx + 1}`;
           const parts = rawName.trim().split(/\s+/);
           const firstName = parts.pop() || '';
           const lastName = parts.join(' ');
           return {
-            id,
+            id: g.studentId || id,
             fullName: rawName,
             firstName,
             lastName,
@@ -101,7 +129,7 @@ export function ExportAllGradebooksModal({ isOpen, onClose }: ExportAllGradebook
         hasData: !!book && Object.keys(book.grades || {}).length > 0,
       };
     });
-  }, [targetClasses, teacherId, classConfig.id, currentClassStudents]);
+  }, [targetClasses, teacherId, classConfig.id, classConfig.teacherId, currentClassStudents]);
 
   if (!isOpen) return null;
 

@@ -256,9 +256,52 @@ test('exportAllClassesSubjectGradebooksToExcel exports multiple classes with one
     assert.equal(result.sheetCount, 2);
     assert.ok(result.wb.Sheets['10A8'], 'Sheet 10A8 must exist');
     assert.ok(result.wb.Sheets['12B6'], 'Sheet 12B6 must exist');
+    assert.ok(result.wb.Sheets['10A8']['!ref'], 'Sheet 10A8 must have !ref defined');
+    assert.ok(result.wb.Sheets['12B6']['!ref'], 'Sheet 12B6 must have !ref defined');
     assert.ok(writtenFileName.includes('So_Diem_Tat_Ca_Cac_Lop'));
     assert.ok(writtenFileName.includes('HK1'));
+
+    // Verify roundtrip through xlsx buffer (simulating Microsoft Excel opening the file)
+    const buf = XLSX.write(result.wb, { type: 'buffer', bookType: 'xlsx' });
+    const roundtrip = XLSX.read(buf, { type: 'buffer' });
+    assert.ok(roundtrip.Sheets['10A8'], 'Roundtrip Sheet 10A8 must exist');
+    assert.ok(roundtrip.Sheets['12B6'], 'Roundtrip Sheet 12B6 must exist');
+    assert.ok(roundtrip.Sheets['10A8']['!ref'], 'Roundtrip Sheet 10A8 must have !ref');
+    assert.ok(roundtrip.Sheets['12B6']['!ref'], 'Roundtrip Sheet 12B6 must have !ref');
+    assert.equal(roundtrip.Sheets['10A8']['A4']?.v, 'BẢNG ĐIỂM ĐÁNH GIÁ KẾT QUẢ HỌC TẬP - HỌC KỲ I');
+    assert.equal(roundtrip.Sheets['12B6']['A4']?.v, 'BẢNG ĐIỂM ĐÁNH GIÁ KẾT QUẢ HỌC TẬP - HỌC KỲ I');
   } finally {
     XLSX.writeFile = originalWriteFile;
   }
 });
+
+test('subject gradebook export handles empty student list with placeholder and valid !ref', () => {
+  const emptyBook: ClassGradebookData = {
+    classId: 'cls-empty',
+    subjectName: 'Toán',
+    schoolYear: '2026-2027',
+    teacherName: 'Nguyễn Văn Sang',
+    txCountSemester1: 4,
+    txCountSemester2: 4,
+    grades: {},
+    updatedAt: '',
+  };
+
+  const workbookData = generateSubjectGradebookWorkbook({
+    gradebook: emptyBook,
+    students: [],
+    classConfig: { id: 'cls-empty', className: '12B6', schoolYear: '2026-2027' },
+    teacherName: 'Nguyễn Văn Sang',
+    semesterTab: 'sem1',
+  });
+
+  const sheet = workbookData.wb.Sheets[workbookData.sheetName];
+  assert.ok(sheet['!ref'], 'Empty class sheet must have !ref');
+  const buf = XLSX.write(workbookData.wb, { type: 'buffer', bookType: 'xlsx' });
+  const roundtrip = XLSX.read(buf, { type: 'buffer' });
+  const rtSheet = roundtrip.Sheets[workbookData.sheetName];
+  assert.ok(rtSheet['!ref'], 'Roundtrip empty sheet must have !ref');
+  assert.equal(rtSheet['A4']?.v, 'BẢNG ĐIỂM ĐÁNH GIÁ KẾT QUẢ HỌC TẬP - HỌC KỲ I');
+  assert.equal(rtSheet['C9']?.v, '(Chưa nhập danh sách học sinh)');
+});
+
