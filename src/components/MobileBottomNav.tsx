@@ -30,7 +30,7 @@ export const MobileBottomNav: React.FC<MobileBottomNavProps> = ({
   // Hide on public guest portal or inspector mode
   if (userRole === 'guest') return null;
 
-  const isMenuTabActive = !['dashboard', 'daily-log', 'students', 'gradebook', 'teaching-classes'].includes(activeTab);
+  const isMenuTabActive = !['dashboard', 'daily-log', 'students', 'gradebook', 'teaching-classes', 'subject-statistics'].includes(activeTab);
 
   return (
     <nav

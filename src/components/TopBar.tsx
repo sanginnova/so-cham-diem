@@ -49,6 +49,7 @@ const TAB_LABELS: Record<TabType, { section: string; title: string }> = {
   students: { section: 'Hồ sơ', title: 'Danh sách hồ sơ học sinh' },
   gradebook: { section: 'Điểm Học Lực (TT 22)', title: 'Sổ điểm bộ môn (15′ · 30′ · 1 tiết · Cuối kỳ)' },
   'teaching-classes': { section: 'Giáo viên bộ môn', title: 'Lớp tôi dạy' },
+  'subject-statistics': { section: 'Giáo viên bộ môn', title: 'Thống kê sổ điểm trên máy' },
   'zalo-composer': { section: 'Liên hệ', title: 'Soạn tin Zalo phụ huynh' },
   'parent-report': { section: 'Liên hệ', title: 'Báo cáo phụ huynh định kỳ' },
   categories: { section: 'Quy chế', title: 'Biểu điểm lỗi & thưởng' },

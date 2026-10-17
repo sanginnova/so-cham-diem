@@ -1,5 +1,11 @@
 # Nâng cấp GVBM theo từng bước
 
+## Thống kê GVBM local
+
+Thêm mục Thống kê GVBM trong phân hệ Học lực: lọc năm học/môn/lớp/học kỳ hoặc cả năm, tổng hợp số hồ sơ có ĐTB, thiếu điểm, vắng/cần bù, TB các ĐTB và phân bố theo khoảng điểm; hiển thị trạng thái chốt/bản nháp và mở từng sổ. Chỉ đọc cache sổ lưu trên máy của tài khoản hiện tại, không ghi dữ liệu và không đọc Firebase. Sổ thiếu cache hoặc cache lỗi được phân biệt với điểm 0. Giữ ĐTB đã chốt khi tính thống kê; ô miễn không tính là thiếu, học sinh vắng ở cả hai kỳ chỉ tính một hồ sơ trong thống kê cả năm.
+
+Phạm vi là hồ sơ còn trong sổ local, gồm hồ sơ được giữ khi học sinh rời danh sách; không khẳng định sĩ số hiện tại của lớp. Một học sinh học nhiều môn được tính riêng mỗi sổ. TB các ĐTB và khoảng điểm là số mô tả, không thay thế kết quả đánh giá chính thức; kết quả thiếu bài vẫn tạm tính. Nút Làm mới và sự kiện focus/storage cập nhật dữ liệu đã lưu trên trình duyệt. Chưa có dữ liệu local thì cần mở sổ lưu trên máy và lưu trước. Kiểm thử thống kê, TypeScript và build; chưa kiểm tra thao tác trên tài khoản thật trong trình duyệt.
+
 ## Dùng sổ điểm trên máy khi rules chưa triển khai
 
 Nếu tải sổ máy chủ bị từ chối, chọn “Dùng sổ điểm trên máy”. Lựa chọn được nhớ theo tài khoản trên trình duyệt. Điểm lưu riêng theo tài khoản và lớp trong localStorage, không gửi Firebase; danh sách học sinh vẫn lấy từ lớp đã đăng nhập. Khôi phục bản nháp/cache cũ nếu khớp lớp, môn, năm học và chủ sở hữu. Có thông báo thường trực và nút thử lại máy chủ. Điểm local không tự nhập/gộp lên máy chủ khi chuyển lại; cần xuất Excel để giữ bản sao. Không phải chế độ offline toàn ứng dụng.
