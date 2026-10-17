@@ -149,6 +149,17 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
     },
     {
+      id: 'teaching-schedule',
+      title: 'Thời khóa biểu GVBM (TKB)',
+      subtitle: 'Xem lịch dạy, tiết dạy hôm nay, xuất Excel TKB',
+      icon: CalendarDays,
+      color: 'text-indigo-600',
+      run: () => {
+        onClose();
+        onNavigateTab('teaching-schedule');
+      },
+    },
+    {
       id: 'zalo',
       title: 'Soạn tin nhắn thông báo gửi phụ huynh qua Zalo',
       subtitle: 'Mẫu tin tự động cá nhân hóa cho từng em',

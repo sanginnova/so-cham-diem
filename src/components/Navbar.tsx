@@ -44,6 +44,7 @@ export type TabType =
   | 'students'
   | 'gradebook'
   | 'teaching-classes'
+  | 'teaching-schedule'
   | 'subject-statistics'
   | 'subject-attendance'
   | 'categories'

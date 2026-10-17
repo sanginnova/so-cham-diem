@@ -51,6 +51,7 @@ const TAB_LABELS: Record<TabType, { section: string; title: string }> = {
   'teaching-classes': { section: 'Giáo viên bộ môn', title: 'Lớp tôi dạy' },
   'subject-statistics': { section: 'Giáo viên bộ môn', title: 'Thống kê sổ điểm trên máy' },
   'subject-attendance': { section: 'Giáo viên bộ môn', title: 'Điểm danh chuyên cần lớp bộ môn' },
+  'teaching-schedule': { section: 'Giáo viên bộ môn', title: 'Thời khóa biểu giảng dạy (TKB)' },
   'random-picker': { section: 'Giáo viên bộ môn', title: '🎲 Gọi tên học sinh ngẫu nhiên' },
   'zalo-composer': { section: 'Liên hệ', title: 'Soạn tin Zalo phụ huynh' },
   'parent-report': { section: 'Liên hệ', title: 'Báo cáo phụ huynh định kỳ' },

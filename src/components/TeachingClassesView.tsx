@@ -1,8 +1,16 @@
 import React, { useMemo, useState } from 'react';
+import { Calendar } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { filterTeachingWorkspaces, workspaceSubject } from '../lib/teachingWorkspaces';
+import { TabType } from './Navbar';
 
-export function TeachingClassesView({ onOpenGradebook }: { onOpenGradebook: () => void }) {
+export function TeachingClassesView({
+  onOpenGradebook,
+  onNavigateTab,
+}: {
+  onOpenGradebook: () => void;
+  onNavigateTab?: (tab: TabType) => void;
+}) {
   const { workspaceClasses, classConfig, selectWorkspaceClass } = useApp();
   const [year, setYear] = useState('');
   const [subject, setSubject] = useState('');
@@ -14,9 +22,20 @@ export function TeachingClassesView({ onOpenGradebook }: { onOpenGradebook: () =
   const fieldStyle = 'rounded-lg border border-slate-300 dark:border-slate-600 bg-white dark:bg-slate-800 p-2 text-sm';
 
   return <section className="p-4 sm:p-6 space-y-4">
-    <div>
-      <h1 className="text-xl font-bold">Lớp tôi dạy</h1>
-      <p className="text-sm text-slate-500">{classes.length} sổ lớp/môn · Chọn sổ để nhập điểm. Thêm lớp bằng nút “Thêm lớp mới” phía trên và chọn loại Bộ môn.</p>
+    <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3">
+      <div>
+        <h1 className="text-xl font-bold">Lớp tôi dạy</h1>
+        <p className="text-sm text-slate-500">{classes.length} sổ lớp/môn · Chọn sổ để nhập điểm. Thêm lớp bằng nút “Thêm lớp mới” phía trên và chọn loại Bộ môn.</p>
+      </div>
+      {onNavigateTab && (
+        <button
+          onClick={() => onNavigateTab('teaching-schedule')}
+          className="inline-flex items-center gap-2 self-start sm:self-auto px-3.5 py-2 rounded-xl text-sm font-semibold bg-indigo-50 dark:bg-indigo-950/60 text-indigo-700 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 hover:bg-indigo-100 dark:hover:bg-indigo-900/60 transition shadow-sm"
+        >
+          <Calendar className="w-4 h-4 text-indigo-600 dark:text-indigo-400" />
+          <span>Thời khóa biểu GVBM (TKB)</span>
+        </button>
+      )}
     </div>
     <div className="flex flex-wrap gap-3">
       <select aria-label="Lọc năm học" value={year} onChange={e => setYear(e.target.value)} className={fieldStyle}>

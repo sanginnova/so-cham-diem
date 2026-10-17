@@ -29,6 +29,7 @@ import {
   LayoutGrid,
   Wallet,
   Sparkles,
+  Calendar,
 } from 'lucide-react';
 import { TabType } from './Navbar';
 import { useApp } from '../context/AppContext';
@@ -109,6 +110,14 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 label: 'Lớp tôi dạy',
                 icon: BookOpen,
                 directTab: 'teaching-classes' as TabType,
+              },
+              {
+                id: 'teaching-schedule',
+                label: 'Thời khóa biểu GVBM',
+                icon: Calendar,
+                directTab: 'teaching-schedule' as TabType,
+                badge: 'TKB',
+                badgeClass: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
               },
               {
                 id: 'gradebook',
