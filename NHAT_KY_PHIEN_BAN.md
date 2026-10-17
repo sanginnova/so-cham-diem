@@ -6,6 +6,8 @@ Mỗi mã commit là một mốc mã nguồn có thể mở lại. Xem [hướng
 
 | Mã phiên bản (commit) | Ngày | Thay đổi |
 | --- | --- | --- |
+| `1dee0af3b8d5f0d7b86616c82d2e30635561d60a` | 2026-10-17 | fix(gvbm): allow account scoped device gradebooks before cloud deployment |
+| `9f7dfec1222ff082aea180cfcf5421fd2139ea76` | 2026-10-17 | docs: record separated navigation checkpoint |
 | `6a9035e6c38aa453cfbe08d3cabae9cbe7150b23` | 2026-10-17 | fix(navigation): separate academic and conduct menus |
 | `96e843efc021082264b32643cb8ae2ee26359b37` | 2026-10-17 | docs: record local GVBM shared roster checkpoint |
 | `d9fe16d46b9a072d64fcb9d3dcfe4e36128009c4` | 2026-10-17 | feat(gvbm): share roster sources across new subject workspaces |
