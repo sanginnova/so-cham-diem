@@ -101,6 +101,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
             badgeClass: 'bg-purple-900/60 text-purple-300 border-purple-700/60',
             groups: [
               { id: 'academic-students', label: 'Danh sách học sinh', icon: Users, directTab: 'students' as TabType },
+              { id: 'subject-attendance', label: 'Điểm danh bộ môn', icon: CalendarCheck, directTab: 'subject-attendance' as TabType },
               { id: 'subject-statistics', label: 'Thống kê GVBM', icon: LayoutDashboard, directTab: 'subject-statistics' as TabType },
               {
                 id: 'teaching-classes',

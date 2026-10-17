@@ -45,6 +45,7 @@ export type TabType =
   | 'gradebook'
   | 'teaching-classes'
   | 'subject-statistics'
+  | 'subject-attendance'
   | 'categories'
   | 'parent-report'
   | 'zalo-composer'
