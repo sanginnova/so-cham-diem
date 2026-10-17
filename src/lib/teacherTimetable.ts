@@ -319,25 +319,24 @@ export function parseTimetableFromText(
       }
     } else {
       // Trường hợp B: Người dùng copy không kèm dòng header Thứ 2, Thứ 3...
-      // Bỏ qua các cột metadata ở đầu (Buổi, Tiết, Thời gian hoặc ô trống do merge ô dọc)
-      let startIndex = 0;
-      for (let idx = 0; idx < cols.length; idx++) {
-        const c = cols[idx];
-        if (!c) {
-          startIndex = idx + 1;
-        } else if (/^(sáng|chiều|buổi)$/i.test(c)) {
-          startIndex = idx + 1;
-        } else if (/^(tiết\s*\d+|\d{1,2})$/i.test(c)) {
-          startIndex = idx + 1;
-        } else if (/\d{1,2}[h:]\d{2}/i.test(c)) {
-          startIndex = idx + 1;
+      let dataStartCol = 0;
+      const timeColIdx = cols.findIndex(c => /\d{1,2}[h:]\d{2}/i.test(c));
+      if (timeColIdx !== -1) {
+        dataStartCol = timeColIdx + 1;
+      } else {
+        const periodColIdx = cols.findIndex((c, idx) => idx < 3 && /^(?:tiết\s*)?\d{1,2}$/i.test(c));
+        if (periodColIdx !== -1) {
+          dataStartCol = periodColIdx + 1;
         } else {
-          break;
+          const sessionColIdx = cols.findIndex(c => /^(sáng|chiều|buổi)$/i.test(c));
+          if (sessionColIdx !== -1) {
+            dataStartCol = sessionColIdx + 1;
+          }
         }
       }
 
       const targetDays = mode === 'mon-fri' ? [2, 3, 4, 5, 6] : [2, 3, 4, 5, 6, 7];
-      const dataCols = cols.slice(startIndex);
+      const dataCols = cols.slice(dataStartCol);
       for (let i = 0; i < targetDays.length && i < dataCols.length; i++) {
         const day = targetDays[i];
         const cellValue = dataCols[i];
@@ -355,7 +354,24 @@ export function parseTimetableFromText(
     }
   }
 
-  return result;
+  return sanitizeTimetableSlots(result);
+}
+
+/**
+ * Lọc sạch 100% các ô lỗi / rác (ví dụ: bị nhận nhầm số tiết "1", "2" hoặc giờ "7h15-8h00" thành tên lớp)
+ */
+export function sanitizeTimetableSlots(slots: Record<string, TimetableSlot>): Record<string, TimetableSlot> {
+  const clean: Record<string, TimetableSlot> = {};
+  for (const [key, slot] of Object.entries(slots || {})) {
+    if (!slot || !slot.className) continue;
+    const name = slot.className.trim();
+    // Bỏ qua các chuỗi rác do bug cũ tạo ra
+    if (/^\d{1,2}$/.test(name)) continue;
+    if (/\d{1,2}[h:]\d{2}/i.test(name)) continue;
+    if (/^(sáng|chiều|buổi|sang|chieu|tiết\s*\d+|tiet\s*\d+)$/i.test(name)) continue;
+    clean[key] = slot;
+  }
+  return clean;
 }
 
 /**
@@ -451,12 +467,12 @@ export function getTimetableSlotsForWeek(
   timetable: TeacherTimetable,
   weekNumber?: number
 ): Record<string, TimetableSlot> {
-  if (!weekNumber) return timetable.slots || {};
+  if (!weekNumber) return sanitizeTimetableSlots(timetable.slots || {});
   const weekKey = `w${weekNumber}`;
   if (timetable.weekSlots && timetable.weekSlots[weekKey] && Object.keys(timetable.weekSlots[weekKey]).length > 0) {
-    return timetable.weekSlots[weekKey];
+    return sanitizeTimetableSlots(timetable.weekSlots[weekKey]);
   }
-  return timetable.slots || {};
+  return sanitizeTimetableSlots(timetable.slots || {});
 }
 
 /**
@@ -470,7 +486,7 @@ export function setTimetableSlotsForWeek(
   const weekKey = `w${weekNumber}`;
   const nextWeekSlots = {
     ...(timetable.weekSlots || {}),
-    [weekKey]: slots,
+    [weekKey]: sanitizeTimetableSlots(slots),
   };
   return {
     ...timetable,
@@ -576,13 +592,20 @@ export function loadTeacherTimetable(
     const raw = storage.getItem(key);
     if (!raw) return defaultTable;
     const parsed = JSON.parse(raw) as TeacherTimetable;
+
+    const sanitizedSlots = sanitizeTimetableSlots(parsed.slots || {});
+    const sanitizedWeekSlots: Record<string, Record<string, TimetableSlot>> = {};
+    for (const [wKey, wSlots] of Object.entries(parsed.weekSlots || {})) {
+      sanitizedWeekSlots[wKey] = sanitizeTimetableSlots(wSlots);
+    }
+
     return {
       ...defaultTable,
       ...parsed,
       mode: parsed.mode || preferredDefaultMode,
       weekStartDate: parsed.weekStartDate || getMondayOfCurrentWeek(),
-      slots: parsed.slots || {},
-      weekSlots: parsed.weekSlots || {},
+      slots: sanitizedSlots,
+      weekSlots: sanitizedWeekSlots,
     };
   } catch {
     return defaultTable;

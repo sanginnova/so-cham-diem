@@ -325,9 +325,8 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
     };
 
     if (pasteScope === 'current_week') {
-      // Chỉ áp dụng cho tuần hiện tại
-      const nextWeekSlots = { ...currentWeekSlots, ...parsedSlots };
-      nextTable = setTimetableSlotsForWeek(nextTable, selectedWeekNumber, nextWeekSlots);
+      // Thay thế hoàn toàn các tiết của tuần hiện tại bằng TKB mới dán (xóa sạch rác cũ)
+      nextTable = setTimetableSlotsForWeek(nextTable, selectedWeekNumber, parsedSlots);
     } else if (pasteScope === 'from_here_on') {
       // Áp dụng từ tuần này đến hết học kỳ
       const targetWeeks: number[] = [];
@@ -338,10 +337,10 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
       nextTable = setTimetableSlotsForWeek(nextTable, selectedWeekNumber, parsedSlots);
       nextTable = copyTimetableWeekToRange(nextTable, selectedWeekNumber, targetWeeks);
     } else {
-      // Áp dụng làm TKB chung mặc định
+      // Áp dụng làm TKB chung mặc định cho toàn bộ tuần
       nextTable = {
         ...nextTable,
-        slots: { ...timetable.slots, ...parsedSlots },
+        slots: parsedSlots,
       };
       nextTable = setTimetableSlotsForWeek(nextTable, selectedWeekNumber, parsedSlots);
     }
@@ -351,6 +350,19 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
     setIsPasteModalOpen(false);
     setPasteRawText('');
     alert(`Đã nhập thành công ${count} tiết học từ Excel vào Thời khóa biểu!`);
+  };
+
+  // Xóa sạch toàn bộ các tiết học trong tuần đang chọn
+  const handleClearCurrentWeekTimetable = () => {
+    if (!window.confirm(`Xóa toàn bộ các tiết học của Tuần ${selectedWeekNumber}? Bạn có thể dán mới từ Excel sau khi xóa.`)) {
+      return;
+    }
+    let nextTable = setTimetableSlotsForWeek(timetable, selectedWeekNumber, {});
+    if (selectedWeekNumber === 1 || !timetable.weekSlots || Object.keys(timetable.weekSlots).length === 0) {
+      nextTable = { ...nextTable, slots: {} };
+    }
+    setTimetable(nextTable);
+    saveTeacherTimetable(localStorage, nextTable);
   };
 
   // Nạp bộ dữ liệu mẫu thực tế từ ảnh
@@ -500,6 +512,17 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
           >
             <Sparkles className="h-4 w-4 text-amber-600" />
             <span className="hidden sm:inline">Nạp mẫu</span>
+          </button>
+
+          {/* Nút Xóa TKB tuần này */}
+          <button
+            type="button"
+            onClick={handleClearCurrentWeekTimetable}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-rose-50 dark:bg-rose-950/60 hover:bg-rose-100 dark:hover:bg-rose-900/60 text-rose-700 dark:text-rose-300 border border-rose-300 dark:border-rose-800 shadow-2xs transition active:scale-95 cursor-pointer"
+            title="Xóa toàn bộ các tiết học của tuần này để dán mới từ đầu"
+          >
+            <Trash2 className="h-4 w-4 text-rose-600" />
+            <span className="hidden sm:inline">Xóa tuần</span>
           </button>
 
           {/* Chuyển học kỳ */}
