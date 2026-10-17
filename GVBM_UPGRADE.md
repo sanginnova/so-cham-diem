@@ -30,7 +30,18 @@ Chưa triển khai Firebase thật. Cần triển khai rules và Hosting tương
 
 ## Bước 3 — Danh sách lớp dùng chung và phân công
 
-Tách lớp/năm học, học sinh trong lớp và phân công lớp/môn/giáo viên. Có phương án đối chiếu trùng học sinh và bản sao lưu trước chuyển đổi; không tự gộp/xóa các sổ cũ.
+Đã làm bản đầu trong mã nguồn local ngày 17/10/2026, chưa triển khai website/rules:
+
+- Khi tạo sổ bộ môn mới, chọn danh sách riêng hoặc dùng chung từ một workspace cùng giáo viên, tên lớp và năm học. Mỗi workspace bộ môn vẫn xác định một môn và giáo viên phụ trách.
+- Sổ bộ môn theo dõi danh sách lớp nguồn theo thời gian thực; giữ nguyên ID học sinh, lưu điểm riêng theo ID workspace môn. Thay tên học sinh ở nguồn không làm mất điểm cũ. Bản ghi điểm của học sinh rời danh sách vẫn được giữ trong sổ, không tự xóa.
+- Mục Học sinh của sổ liên kết dẫn về lớp nguồn để quản lý. Chặn thêm/sửa/xóa/nhập/khôi phục danh sách riêng tại sổ liên kết. Giao diện chặn xóa hoặc đổi tên/năm học lớp nguồn khi có sổ phụ thuộc.
+- Không liên kết chéo giáo viên, năm học, tên lớp hoặc tạo chuỗi nguồn qua nhiều sổ. Rules kiểm tra nguồn khi tạo cấu hình, giữ liên kết bất biến khi sửa cấu hình và chặn tạo học sinh riêng trong sổ liên kết.
+- Sổ cũ không tự gộp hoặc đổi nguồn. Sao lưu nhập vào cũng không được thay liên kết nguồn hiện tại. Chưa có công cụ đối chiếu/gộp sổ cũ và chưa có phân công nhiều giáo viên cùng một lớp chung toàn trường.
+- Chia sẻ danh sách hiện áp dụng cho sổ điểm bộ môn; nhật ký nề nếp, khoản thu và báo cáo GVCN vẫn thuộc workspace cũ. Nếu lớp nguồn biến mất hoặc không tải được, sổ báo lỗi thay vì tự thay bằng danh sách rỗng để nhập điểm.
+
+Kiểm tra: 12 kiểm thử danh sách/cache/backup/phạm vi lớp, 20 kiểm thử Firestore Rules/emulator, TypeScript và build đạt. Chưa đăng nhập và thao tác dữ liệu thật trên giao diện.
+
+Chạy thử bằng `npm run dev`, mở địa chỉ Vite trả về. Chạy trên localhost vẫn sử dụng Firebase theo cấu hình hiện tại; không phải chế độ offline. Chưa triển khai rules bước 2/3 nên phần đồng bộ sổ điểm trên project thật chưa sẵn sàng. Kiểm thử dữ liệu ghi của bước này được thực hiện trên emulator project demo, không thay đổi database thật.
 
 ## Bước 4 — Chốt sổ và lịch sử
 

@@ -2,6 +2,7 @@ import React, { useState } from 'react';
 import { Trash2, AlertTriangle, Plus, X, BookOpen, Home, GraduationCap, Sparkles } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { currentSchoolYear, defaultWeekOneStart } from '../lib/classScope';
+import { rosterCandidates } from '../lib/teachingWorkspaces';
 
 export function ClassWorkspaceSwitcher() {
   const {
@@ -19,6 +20,7 @@ export function ClassWorkspaceSwitcher() {
   const [name, setName] = useState('');
   const [classType, setClassType] = useState<'homeroom' | 'subject'>('subject');
   const [subjectName, setSubjectName] = useState('Toán');
+  const [rosterSourceClassId, setRosterSourceClassId] = useState('');
   const [schoolYear, setSchoolYear] = useState(currentSchoolYear);
   const [start, setStart] = useState(() => defaultWeekOneStart(currentSchoolYear()));
   const [busy, setBusy] = useState(false);
@@ -29,6 +31,7 @@ export function ClassWorkspaceSwitcher() {
 
   const homeroomClasses = workspaceClasses.filter((c) => c.classType !== 'subject');
   const subjectClasses = workspaceClasses.filter((c) => c.classType === 'subject');
+  const sources = rosterCandidates(workspaceClasses, { id: '', teacherId: classConfig.teacherId, className: name, schoolYear });
 
   return (
     <section className="mx-3 sm:mx-6 mt-3 p-3 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 shadow-2xs">
@@ -208,9 +211,11 @@ export function ClassWorkspaceSwitcher() {
               await createWorkspaceClass(name, schoolYear, start, undefined, {
                 classType,
                 subjectName: classType === 'subject' ? subjectName.trim() || 'Toán' : undefined,
+                rosterSourceClassId: classType === 'subject' ? rosterSourceClassId : undefined,
               });
               setOpen(false);
               setName('');
+              setRosterSourceClassId('');
               setNotice(
                 classType === 'subject'
                   ? `Đã tạo lớp bộ môn "${name} · Môn ${subjectName}" và chuyển sang lớp làm việc mới.`
@@ -377,6 +382,15 @@ export function ClassWorkspaceSwitcher() {
               />
             </div>
           </div>
+
+          {classType === 'subject' && <label className="block text-xs font-semibold space-y-1">
+            <span>Danh sách học sinh</span>
+            <select aria-label="Nguồn danh sách học sinh" className="block w-full rounded-lg border p-2 bg-white dark:bg-slate-900" value={rosterSourceClassId} onChange={event => setRosterSourceClassId(event.target.value)}>
+              <option value="">Danh sách riêng cho sổ mới</option>
+              {sources.map(source => <option key={source.id} value={source.id}>Dùng chung từ {source.className} · {source.schoolYear} · {source.classType === 'subject' ? source.subjectName || source.teachingSubject : 'Chủ nhiệm'}</option>)}
+            </select>
+            <span className="block text-slate-500">Nhập tên lớp và năm học để tìm nguồn cùng lớp. Danh sách được quản lý tại lớp nguồn; điểm từng môn vẫn riêng. Sổ cũ không tự gộp.</span>
+          </label>}
 
           <p className="text-[11px] text-slate-500 italic">
             * Sau khi tạo lớp, thầy có thể bấm vào mục “Học sinh” để <strong>dán nhanh danh sách tên học sinh</strong> hoặc tải lên file Excel lớp đó.

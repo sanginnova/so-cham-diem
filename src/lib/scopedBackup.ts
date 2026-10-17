@@ -32,6 +32,6 @@ export function scopeBackup(data: { students: Student[]; disciplineLogs: Discipl
       return { ...record, data: recordData, id: ownedId(record.id), studentId, teacherId, classId, createdBy: actorId };
     }),
     behaviorCategories: (data.behaviorCategories || []).map((category) => ({ ...category, id: ownedId(category.id), teacherId, classId })),
-    classConfig: { ...currentConfig, ...data.classConfig, id: classId, teacherId, scopeVersion: currentConfig.scopeVersion, classDirectoryId: currentConfig.classDirectoryId, schoolYear: currentConfig.schoolYear },
+    classConfig: { ...currentConfig, ...data.classConfig, rosterSourceClassId: currentConfig.rosterSourceClassId || '', id: classId, teacherId, scopeVersion: currentConfig.scopeVersion, classDirectoryId: currentConfig.classDirectoryId, schoolYear: currentConfig.schoolYear },
   };
 }

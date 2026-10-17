@@ -172,6 +172,7 @@ export interface RankThresholds {
 }
 
 export interface ClassConfig {
+  rosterSourceClassId?: string;
   monthlyAverageFromMonth?: number;
   scopeVersion?: 2;
   classDirectoryId?: string;

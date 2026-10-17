@@ -4,6 +4,13 @@ const normalize = (value: string) => value.trim().replace(/\s+/g, ' ').toLocaleL
 const normalizeYear = (value: string) => value.replace(/\s/g, '').replace(/[–—]/g, '-');
 export const workspaceSubject = (config: ClassConfig) => config.subjectName || config.teachingSubject || 'Toán';
 
+export function rosterCandidates(configs: ClassConfig[], target: Pick<ClassConfig, 'id' | 'teacherId' | 'className' | 'schoolYear'>): ClassConfig[] {
+  return configs.filter(source => source.id !== target.id && source.teacherId === target.teacherId
+    && normalize(source.className) === normalize(target.className)
+    && normalizeYear(source.schoolYear) === normalizeYear(target.schoolYear)
+    && !source.rosterSourceClassId);
+}
+
 export function sameTeachingWorkspace(a: ClassConfig, b: ClassConfig): boolean {
   return a.teacherId === b.teacherId
     && normalize(a.className) === normalize(b.className)

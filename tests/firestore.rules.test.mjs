@@ -9,6 +9,21 @@ const dbFor = (uid, provider = 'password') => env.authenticatedContext(uid, { fi
 const log = (teacherId, createdBy, extra = {}) => ({ teacherId, createdBy, studentId: `student-${teacherId}`, classId: `cfg-${teacherId}`, type: 'deduct', weekNumber: 1, month: 9, count: 1, scorePerUnit: 1, totalScore: 1, ...extra });
 
 const gradebook = (extra = {}) => ({ classId: 'cfg-a', teacherId: 'a', subjectName: 'Toán', schoolYear: '2026-2027', teacherName: 'GV A', txCountSemester1: 4, txCountSemester2: 4, grades: {}, revision: 1, pendingSync: false, updatedAt: '2026-10-17', ...extra });
+test('shared roster: validates source scope, prevents relinking old books and separate student creation', async () => {
+  const db = dbFor('a');
+  const source = { id: 'source', teacherId: 'a', className: '6A1', schoolYear: '2026-2027', classType: 'homeroom' };
+  await setDoc(doc(db, 'classConfigs', 'source'), source);
+  const target = { ...source, id: 'linked', classType: 'subject', subjectName: 'Toán', rosterSourceClassId: 'source' };
+  await assertSucceeds(setDoc(doc(db, 'classConfigs', 'linked'), target));
+  await assertFails(setDoc(doc(db, 'classConfigs', 'bad-class'), { ...target, id: 'bad-class', className: '6A2' }));
+  await assertFails(setDoc(doc(db, 'classConfigs', 'bad-year'), { ...target, id: 'bad-year', schoolYear: '2027-2028' }));
+  await assertFails(setDoc(doc(dbFor('b'), 'classConfigs', 'bad-owner'), { ...target, id: 'bad-owner', teacherId: 'b' }));
+  await assertFails(setDoc(doc(db, 'classConfigs', 'chain'), { ...target, id: 'chain', rosterSourceClassId: 'linked' }));
+  await assertFails(updateDoc(doc(db, 'classConfigs', 'linked'), { rosterSourceClassId: '' }));
+  await assertFails(updateDoc(doc(db, 'classConfigs', 'cfg-a'), { rosterSourceClassId: 'source' }));
+  await assertFails(setDoc(doc(db, 'students', 'separate'), { teacherId: 'a', classId: 'linked' }));
+  await assertSucceeds(setDoc(doc(db, 'students', 'shared'), { teacherId: 'a', classId: 'source' }));
+});
 async function prepareGradebook() {
   await env.withSecurityRulesDisabled(async context => {
     await setDoc(doc(context.firestore(), 'classConfigs', 'cfg-a'), { teacherId: 'a', schoolYear: '2026-2027', classType: 'subject', subjectName: 'Toán' });

@@ -32,6 +32,7 @@ export function TeachingClassesView({ onOpenGradebook }: { onOpenGradebook: () =
       {visible.map(config => <article key={config.id} className="rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 p-4 space-y-2">
         <h2 className="font-bold text-lg">{config.className}</h2>
         <p>{workspaceSubject(config)} · {config.schoolYear}</p>
+        {config.rosterSourceClassId && <p className="text-xs text-purple-600 dark:text-purple-300">Dùng chung danh sách học sinh</p>}
         {config.id === classConfig.id && <p className="text-xs text-purple-600 dark:text-purple-300">Lớp đang chọn</p>}
         <button className="rounded-lg bg-purple-600 px-4 py-2 text-sm font-semibold text-white hover:bg-purple-700" onClick={() => {
           if (config.id !== classConfig.id) selectWorkspaceClass(config.id);

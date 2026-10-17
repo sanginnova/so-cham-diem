@@ -19,6 +19,15 @@ service cloud.firestore {
     function readable(data) { return admin() || ownData(data) || monitorData(data); }
     function writable(data) { return admin() || ownData(data); }
     function stableOwner() { return request.resource.data.teacherId == resource.data.teacherId; }
+    function validRosterSource(data) {
+      let sourceId = data.get('rosterSourceClassId', '');
+      return sourceId == '' || (data.get('classType', '') == 'subject'
+        && sourceId != data.id
+        && get(/databases/$(database)/documents/classConfigs/$(sourceId)).data.teacherId == data.teacherId
+        && get(/databases/$(database)/documents/classConfigs/$(sourceId)).data.className == data.className
+        && get(/databases/$(database)/documents/classConfigs/$(sourceId)).data.schoolYear == data.schoolYear
+        && get(/databases/$(database)/documents/classConfigs/$(sourceId)).data.get('rosterSourceClassId', '') == '');
+    }
     function managesMonitor(data) { return teacher() && data.role == 'monitor' && data.teacherId == request.auth.uid; }
     function validProfile(uid) {
       return request.resource.data.uid == uid && request.resource.data.role in ['teacher', 'monitor', 'admin', 'owner']
@@ -84,8 +93,11 @@ service cloud.firestore {
       allow read: if collection in ['students', 'classConfigs', 'behaviorCategories', 'weeklySnapshots', 'monthlySummaries', 'semesterSummaries', 'parentReports']
         && (collection in ['classConfigs', 'behaviorCategories'] ? readable(resource.data)
           : (admin() || ownData(resource.data) || monitorClass(resource.data)));
-      allow create: if collection in ['students', 'classConfigs', 'behaviorCategories', 'weeklySnapshots', 'monthlySummaries', 'semesterSummaries', 'parentReports'] && writable(request.resource.data);
+      allow create: if collection in ['students', 'classConfigs', 'behaviorCategories', 'weeklySnapshots', 'monthlySummaries', 'semesterSummaries', 'parentReports'] && writable(request.resource.data)
+        && (collection != 'classConfigs' || validRosterSource(request.resource.data))
+        && (collection != 'students' || get(/databases/$(database)/documents/classConfigs/$(request.resource.data.classId)).data.get('rosterSourceClassId', '') == '');
       allow update: if collection in ['students', 'classConfigs', 'behaviorCategories', 'weeklySnapshots', 'monthlySummaries', 'semesterSummaries', 'parentReports'] && writable(resource.data) && stableOwner()
+        && (collection != 'classConfigs' || (request.resource.data.get('rosterSourceClassId', '') == resource.data.get('rosterSourceClassId', '') && validRosterSource(request.resource.data)))
         && (collection != 'classConfigs' || resource.data.get('scopeVersion', 1) != 2
           || (request.resource.data.scopeVersion == 2 && request.resource.data.schoolYear == resource.data.schoolYear
             && request.resource.data.classDirectoryId == resource.data.classDirectoryId));

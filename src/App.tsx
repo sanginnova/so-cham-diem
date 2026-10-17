@@ -34,7 +34,7 @@ import { HomeroomBookExportModal } from './components/HomeroomBookExportModal';
 import { initNativeShell } from './lib/nativeBridge';
 
 function MainApp() {
-  const { classConfig, userRole, activeAccount, isAuthLoading } = useApp();
+  const { classConfig, userRole, activeAccount, isAuthLoading, selectWorkspaceClass } = useApp();
 
   // Khởi tạo shell Native (Phím Back phần cứng, Status Bar) khi chạy trên app Android
   useEffect(() => {
@@ -295,7 +295,10 @@ function MainApp() {
             />
           )}
 
-          {userRole !== 'guest' && activeTab === 'students' && (
+          {userRole !== 'guest' && activeTab === 'students' && classConfig.rosterSourceClassId && (
+            <div className="p-6 space-y-3"><p>Sổ này dùng chung danh sách học sinh từ lớp nguồn. Quản lý tại lớp nguồn để các môn cùng cập nhật.</p><button className="rounded-lg bg-purple-600 px-4 py-2 text-white" onClick={() => selectWorkspaceClass(classConfig.rosterSourceClassId!)}>Mở danh sách lớp nguồn</button></div>
+          )}
+          {userRole !== 'guest' && activeTab === 'students' && !classConfig.rosterSourceClassId && (
             <StudentsView
               onNavigateTab={setActiveTab}
               onSelectStudentForReport={handleSelectStudentForReport}

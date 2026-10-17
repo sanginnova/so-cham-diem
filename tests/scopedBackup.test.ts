@@ -14,3 +14,7 @@ test('import separates two teachers and preserves student references', () => {
 test('import rejects dangling student references', () => {
   assert.throws(() => scopeBackup({ ...fixture, students: [] }, 'a', 'a', {} as any));
 });
+test('backup import cannot replace the current shared roster link', () => {
+  const restored = scopeBackup({ ...fixture, classConfig: { ...fixture.classConfig, rosterSourceClassId: 'foreign' } }, 'a', 'a', { id: 'cfg_a', rosterSourceClassId: 'source-a' } as any);
+  assert.equal(restored.classConfig.rosterSourceClassId, 'source-a');
+});

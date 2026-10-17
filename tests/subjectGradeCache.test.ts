@@ -31,6 +31,16 @@ test('drafts survive switching classes, isolate accounts and clear only the sele
     const saved = await saveClassGradebook(recovered, true);
     assert.equal(saved.pendingSync, false);
     assert.equal(items.has('subject_gradebook_v2_teacher-a_class-b'), true);
+    // Two subjects share stable student identities but keep independent scores.
+    const roster = [{ id: 'shared-student', studentCode: 'HS01', fullName: 'Học sinh A' }] as any;
+    const math = await loadClassGradebook('math', 'Toán', book.schoolYear, 'GV', roster, true, 'teacher-a');
+    math.grades['shared-student'].semester1.tx[0] = 8;
+    await saveClassGradebook(math, true);
+    const computing = await loadClassGradebook('computing', 'Tin', book.schoolYear, 'GV', roster, true, 'teacher-a');
+    assert.equal(computing.grades['shared-student'].semester1.tx[0], null);
+    const reopened = await loadClassGradebook('math', 'Toán', book.schoolYear, 'GV', [{ ...roster[0], fullName: 'Tên đã sửa' }], true, 'teacher-a');
+    assert.equal(reopened.grades['shared-student'].fullName, 'Tên đã sửa');
+    assert.equal(reopened.grades['shared-student'].semester1.tx[0], 8);
   } finally {
     Object.defineProperty(auth, 'currentUser', { value: original });
     delete (globalThis as { localStorage?: unknown }).localStorage;

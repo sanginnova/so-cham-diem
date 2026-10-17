@@ -1,5 +1,5 @@
 import { collectionMembers } from '../lib/collections';
-import { sameTeachingWorkspace } from '../lib/teachingWorkspaces';
+import { sameTeachingWorkspace, rosterCandidates } from '../lib/teachingWorkspaces';
 import { useHomeroomRecords } from '../hooks/useHomeroomRecords';
 import React, { createContext, useContext, useState, useEffect, useMemo, useRef, ReactNode } from 'react';
 import { User, onAuthStateChanged } from 'firebase/auth';
@@ -90,7 +90,7 @@ interface AppContextType extends ReturnType<typeof useHomeroomRecords> {
     year: string,
     start: string,
     ownerUid?: string,
-    options?: { classType?: 'homeroom' | 'subject'; subjectName?: string }
+    options?: { classType?: 'homeroom' | 'subject'; subjectName?: string; rosterSourceClassId?: string }
   ) => Promise<void>;
   deleteWorkspaceClass: (classConfigId: string) => Promise<void>;
   currentUser: User | null;
@@ -528,7 +528,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     year: string,
     start: string,
     ownerUid?: string,
-    options?: { classType?: 'homeroom' | 'subject'; subjectName?: string }
+    options?: { classType?: 'homeroom' | 'subject'; subjectName?: string; rosterSourceClassId?: string }
   ) => {
     if (!activeAccount || activeAccount.role === 'monitor' || inspectorModeClass) throw new Error('Không có quyền tạo lớp ở chế độ hiện tại.');
     const schoolYear = validateSchoolYear(year);
@@ -557,6 +557,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       teacherEmail: owner.email,
       teacherPhone: owner.phone || '',
       classType,
+      rosterSourceClassId: classType === 'subject' ? options?.rosterSourceClassId || '' : '',
       subjectName,
       teachingSubject: subjectName || classConfig.teachingSubject || 'Toán',
       classPresident: '',
@@ -567,6 +568,11 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     };
     if (workspaceClasses.some(existing => sameTeachingWorkspace(existing, config))) {
       throw new Error('Lớp và môn này trong niên khóa đã tồn tại. Vui lòng mở sổ đã có.');
+    }
+    if (config.rosterSourceClassId) {
+      const source = rosterCandidates(workspaceClasses, config).find(item => item.id === config.rosterSourceClassId);
+      if (!source) throw new Error('Nguồn danh sách phải cùng giáo viên, lớp và năm học; không liên kết qua một sổ khác.');
+      config.className = source.className;
     }
     const source = behaviorCategories.length ? behaviorCategories : INITIAL_BEHAVIOR_CATEGORIES;
     const categories = source.map(category => ({ ...category, id: `cat_${id}_${crypto.randomUUID()}`, classId: id, teacherId }));
@@ -591,6 +597,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     }
     const targetConfig = workspaceClasses.find((c) => c.id === configId);
     if (!targetConfig) throw new Error('Không tìm thấy lớp học cần xóa.');
+    if (workspaceClasses.some(config => config.rosterSourceClassId === configId)) throw new Error('Lớp đang cung cấp danh sách học sinh cho sổ bộ môn. Không thể xóa lớp nguồn.');
 
     if (
       targetConfig.teacherId &&
@@ -1097,6 +1104,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Update Class Config
   const updateClassConfig = async (updates: Partial<ClassConfig>) => {
+    if ((classConfig.rosterSourceClassId || workspaceClasses.some(config => config.rosterSourceClassId === classConfig.id)) && updates.schoolYear !== undefined && updates.schoolYear !== classConfig.schoolYear) throw new Error('Lớp dùng danh sách chung cần giữ nguyên năm học. Hãy tạo sổ cho năm mới.');
+    if ((classConfig.rosterSourceClassId || workspaceClasses.some(config => config.rosterSourceClassId === classConfig.id)) && ((updates.className !== undefined && updates.className !== classConfig.className) || (updates.classType !== undefined && updates.classType !== classConfig.classType))) throw new Error('Lớp đang dùng danh sách chung. Hãy giữ tên và loại lớp để bảo toàn liên kết.');
+    if (updates.rosterSourceClassId !== undefined && updates.rosterSourceClassId !== (classConfig.rosterSourceClassId || '')) throw new Error('Nguồn danh sách chỉ được chọn khi tạo sổ mới để bảo toàn điểm cũ.');
     if (classConfig.scopeVersion === 2 && updates.schoolYear && updates.schoolYear !== classConfig.schoolYear) throw new Error('Để chuyển niên khóa, hãy tạo lớp/niên khóa mới. Dữ liệu năm cũ được giữ riêng.');
     const updated = {
       ...classConfig,
@@ -1115,6 +1125,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Add Student
   const addStudent = async (data: Omit<Student, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'classId'>): Promise<Student> => {
+    if (classConfig.rosterSourceClassId) throw new Error('Hãy quản lý học sinh tại lớp nguồn của sổ bộ môn.');
     if (userRole === 'monitor') {
       throw new Error('Lớp trưởng chỉ được phép chấm điểm nề nếp, không có quyền thêm học sinh mới vào danh sách lớp.');
     }
@@ -1142,6 +1153,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Persist before reflecting an edit in the interface.
   const updateStudent = async (id: string, updates: Partial<Student>) => {
+    if (classConfig.rosterSourceClassId) throw new Error('Hãy quản lý học sinh tại lớp nguồn của sổ bộ môn.');
     if (userRole === 'monitor') throw new Error('Lớp trưởng không được chỉnh sửa học sinh.');
     const student = students.find((item) => item.id === id);
     if (!student) return;
@@ -1163,6 +1175,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     ids: string[],
     deleteRelatedLogs: boolean = true
   ): Promise<{ count: number }> => {
+    if (classConfig.rosterSourceClassId) throw new Error('Hãy quản lý học sinh tại lớp nguồn của sổ bộ môn.');
     if (userRole === 'monitor') {
       throw new Error('Lớp trưởng không có quyền xóa học sinh.');
     }
@@ -1213,6 +1226,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     newStudents: Array<Omit<Student, 'id' | 'createdAt' | 'updatedAt' | 'teacherId' | 'classId'>>,
     onDuplicate: 'update' | 'skip' = 'update'
   ): Promise<{ imported: number; updated: number }> => {
+    if (classConfig.rosterSourceClassId) throw new Error('Hãy nhập học sinh tại lớp nguồn của sổ bộ môn.');
     if (userRole === 'monitor') throw new Error('Lớp trưởng không có quyền nhập dữ liệu học sinh.');
     const teacherId = getEffectiveTeacherId();
     const plan = planStudentImport(students, newStudents, onDuplicate, teacherId, classConfig.id,
@@ -2065,6 +2079,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   // Import is additive; every imported ID is scoped to the recipient teacher.
   const restoreFromJson = async (jsonStr: string): Promise<{ success: boolean; message: string; studentCount?: number; logCount?: number }> => {
     try {
+      if (classConfig.rosterSourceClassId) throw new Error('Hãy khôi phục danh sách học sinh tại lớp nguồn; sổ bộ môn dùng danh sách chung.');
       const teacherId = getEffectiveTeacherId();
       if (activeAccount?.role === 'monitor') throw new Error('Lớp trưởng không được khôi phục dữ liệu.');
       const parsed = JSON.parse(jsonStr);

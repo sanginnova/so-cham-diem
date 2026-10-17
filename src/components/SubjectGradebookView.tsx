@@ -19,6 +19,7 @@ import {
 import * as XLSX from 'xlsx';
 import { useApp } from '../context/AppContext';
 import { Student } from '../types';
+import { useSubjectRoster } from '../hooks/useSubjectRoster';
 import {
   ClassGradebookData,
   StudentSubjectGrade,
@@ -35,12 +36,14 @@ import {
 
 export function SubjectGradebookView() {
   const {
-    students,
+    students: ownStudents,
     classConfig,
     userRole,
     isLocalMode,
     activeAccount,
+    workspaceClasses,
   } = useApp();
+  const { students, ready: rosterReady, error: rosterError } = useSubjectRoster(classConfig, workspaceClasses, ownStudents);
 
   const [semesterTab, setSemesterTab] = useState<'sem1' | 'sem2' | 'year'>('sem1');
   const [gradebook, setGradebook] = useState<ClassGradebookData | null>(null);
@@ -63,6 +66,7 @@ export function SubjectGradebookView() {
 
   // 1. Tải sổ điểm khi đổi lớp
   useEffect(() => {
+    if (!rosterReady) return;
     let isCancelled = false;
     setLoading(true);
     setGradebook(null);
@@ -96,7 +100,7 @@ export function SubjectGradebookView() {
     return () => {
       isCancelled = true;
     };
-  }, [classConfig.id, classConfig.teacherId, subjectName, classConfig.schoolYear, teacherName, students, isLocalMode, activeAccount?.uid, loadAttempt]);
+  }, [classConfig.id, classConfig.teacherId, subjectName, classConfig.schoolYear, teacherName, students, isLocalMode, activeAccount?.uid, loadAttempt, rosterReady]);
 
   // Persist drafts before navigation can unmount this view. Never silently report cloud success.
   useLayoutEffect(() => {
@@ -463,7 +467,8 @@ export function SubjectGradebookView() {
     );
   };
 
-  if (loading) {
+  if (rosterError) return <div role="alert" className="p-6 text-rose-700">{rosterError}</div>;
+  if (loading || !rosterReady) {
     return (
       <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
         <Clock className="h-6 w-6 animate-spin text-blue-600" />
@@ -484,6 +489,7 @@ export function SubjectGradebookView() {
 
   return (
     <fieldset disabled={saving} className="min-w-0 space-y-4 text-slate-800 dark:text-slate-100">
+      {classConfig.rosterSourceClassId && <p className="rounded-xl border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">Danh sách học sinh dùng chung từ lớp nguồn. Thêm, sửa học sinh tại lớp nguồn; điểm trong sổ này chỉ thuộc môn {subjectName}.</p>}
       {/* ── Page Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-3">
