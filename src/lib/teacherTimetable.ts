@@ -587,9 +587,45 @@ export function loadTeacherTimetable(
     updatedAt: new Date().toISOString(),
   };
 
-  const key = getTimetableStorageKey(teacherId, schoolYear, semester);
+  const key = getTimetableStorageKey(teacherId, schoolYear || '2026-2027', semester);
   try {
-    const raw = storage.getItem(key);
+    let raw = storage.getItem(key);
+
+    // Fallback 1: Thử key với năm học chuẩn 2026-2027 nếu năm học truyền vào khác hoặc rỗng
+    if (!raw && schoolYear !== '2026-2027') {
+      raw = storage.getItem(getTimetableStorageKey(teacherId, '2026-2027', semester));
+    }
+
+    // Fallback 2: Thử key với teacherId gốc teacher_sang hoặc guest
+    if (!raw && teacherId !== 'teacher_sang') {
+      raw = storage.getItem(getTimetableStorageKey('teacher_sang', schoolYear || '2026-2027', semester));
+    }
+    if (!raw && teacherId !== 'guest') {
+      raw = storage.getItem(getTimetableStorageKey('guest', schoolYear || '2026-2027', semester));
+    }
+
+    // Fallback 3: Quét tìm bất kỳ key TKB nào trong storage có dữ liệu slots hợp lệ
+    if (!raw && typeof (storage as any).length === 'number' && typeof (storage as any).key === 'function') {
+      const fullStorage = storage as Storage;
+      for (let i = 0; i < fullStorage.length; i++) {
+        const k = fullStorage.key(i);
+        if (k && k.startsWith('teacher_timetable_v1_') && k.includes(`_s${semester}`)) {
+          const candidate = fullStorage.getItem(k);
+          if (candidate) {
+            try {
+              const testParsed = JSON.parse(candidate);
+              if (testParsed.slots && Object.keys(testParsed.slots).length > 0) {
+                raw = candidate;
+                break;
+              }
+            } catch {
+              // bỏ qua lỗi parse json ứng viên
+            }
+          }
+        }
+      }
+    }
+
     if (!raw) return defaultTable;
     const parsed = JSON.parse(raw) as TeacherTimetable;
 
@@ -616,8 +652,16 @@ export function saveTeacherTimetable(
   storage: Pick<Storage, 'setItem'>,
   timetable: TeacherTimetable
 ): void {
-  const key = getTimetableStorageKey(timetable.teacherId, timetable.schoolYear, timetable.semester);
-  storage.setItem(key, JSON.stringify({ ...timetable, updatedAt: new Date().toISOString() }));
+  const normalizedYear = timetable.schoolYear || '2026-2027';
+  const key = getTimetableStorageKey(timetable.teacherId, normalizedYear, timetable.semester);
+  const data = JSON.stringify({ ...timetable, schoolYear: normalizedYear, updatedAt: new Date().toISOString() });
+  storage.setItem(key, data);
+
+  // Lưu thêm bản sao lưu cố định để TKB không bao giờ bị ảnh hưởng khi chuyển đổi lớp/tài khoản
+  if (timetable.teacherId !== 'teacher_sang') {
+    const backupKey = getTimetableStorageKey('teacher_sang', normalizedYear, timetable.semester);
+    storage.setItem(backupKey, data);
+  }
 }
 
 /**

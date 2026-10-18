@@ -67,9 +67,10 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
     selectWorkspaceClass,
   } = useApp();
 
-  const teacherName = activeAccount?.displayName || classConfig.homeroomTeacher || 'Nguyễn Văn Sang';
+  // TKB là lịch dạy toàn trường của Giáo viên bộ môn, độc lập hoàn toàn với việc chuyển đổi lớp chủ nhiệm
+  const teacherName = activeAccount?.displayName || 'Nguyễn Văn Sang';
   const teacherId = activeAccount?.uid || 'teacher_sang';
-  const schoolYear = classConfig.schoolYear || '2026-2027';
+  const schoolYear = '2026-2027';
 
   const [semester, setSemester] = useState<1 | 2>(1);
   const [timetable, setTimetable] = useState<TeacherTimetable>(() => {
