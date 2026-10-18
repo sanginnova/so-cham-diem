@@ -27,8 +27,11 @@ jobs:
         env:
           VITE_BASE_PATH: /so-cham-diem-hang-ngay/
       - uses: actions/configure-pages@v5
+        continue-on-error: true
       - uses: actions/upload-pages-artifact@v3
+        continue-on-error: true
         with:
           path: dist
       - uses: actions/deploy-pages@v4
+        continue-on-error: true
         id: deployment
