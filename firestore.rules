@@ -248,6 +248,9 @@ service cloud.firestore {
       allow create, update: if writable(request.resource.data) || (active() && request.resource.data.teacherId == request.auth.uid);
       allow delete: if writable(resource.data) || (active() && resource.data.teacherId == request.auth.uid);
     }
+    match /teacherTimetables/{id} {
+      allow read, write: if active();
+    }
     // V2 hierarchy is restricted to administrators until its dedicated migration.
     match /{collection}/{id} {
       allow read, write: if collection in ['schools', 'academicYears', 'semesters', 'enrollments', 'systemConfigs'] && admin();

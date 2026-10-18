@@ -26,6 +26,8 @@ import {
   Share2,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
+import { db, auth } from '../lib/firebase';
+import { doc, setDoc, onSnapshot } from 'firebase/firestore';
 import {
   TeacherTimetable,
   TimetableSlot,
@@ -85,6 +87,38 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
   const [mode, setMode] = useState<TimetableMode>(timetable.mode || defaultMode);
   const [defaultSaveToast, setDefaultSaveToast] = useState(false);
 
+  // Lưu và đồng bộ TKB cả LocalStorage và Firestore Cloud (Real-time giữa Máy tính & Điện thoại)
+  const persistTimetable = useCallback((nextTable: TeacherTimetable) => {
+    setTimetable(nextTable);
+    saveTeacherTimetable(localStorage, nextTable);
+    if (auth.currentUser) {
+      const docId = `${teacherId}_${schoolYear}_s${semester}`;
+      setDoc(doc(db, 'teacherTimetables', docId), nextTable, { merge: true }).catch(() => {});
+      if (teacherId !== 'teacher_sang') {
+        setDoc(doc(db, 'teacherTimetables', `teacher_sang_${schoolYear}_s${semester}`), nextTable, { merge: true }).catch(() => {});
+      }
+    }
+  }, [teacherId, schoolYear, semester]);
+
+  // Lắng nghe dữ liệu TKB thời gian thực (Real-time onSnapshot) từ Cloud Firestore
+  useEffect(() => {
+    if (!auth.currentUser) return;
+    const docId = `${teacherId}_${schoolYear}_s${semester}`;
+    const unsub = onSnapshot(doc(db, 'teacherTimetables', docId), (snap) => {
+      if (snap.exists()) {
+        const cloudData = snap.data() as TeacherTimetable;
+        if (cloudData.slots && Object.keys(cloudData.slots).length > 0) {
+          setTimetable((prev) => ({
+            ...prev,
+            ...cloudData,
+          }));
+          saveTeacherTimetable(localStorage, cloudData);
+        }
+      }
+    }, () => {});
+    return () => unsub();
+  }, [teacherId, schoolYear, semester]);
+
   // Lưu dạng TKB hiện tại làm mặc định cho mọi lần mở sau
   const handleSaveCurrentModeAsDefault = () => {
     setTeacherDefaultTimetableMode(localStorage, teacherId, mode);
@@ -93,8 +127,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
       ...timetable,
       mode,
     };
-    setTimetable(nextTable);
-    saveTeacherTimetable(localStorage, nextTable);
+    persistTimetable(nextTable);
     setDefaultSaveToast(true);
     setTimeout(() => setDefaultSaveToast(false), 2500);
   };
@@ -146,8 +179,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
       mode: newMode,
       currentWeekNumber: selectedWeekNumber,
     };
-    setTimetable(nextTable);
-    saveTeacherTimetable(localStorage, nextTable);
+    persistTimetable(nextTable);
   };
 
   // Tính danh sách ngày cho từng Thứ trong tuần đã chọn
@@ -254,8 +286,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
 
     const nextWeekSlots = { ...currentWeekSlots, [key]: updatedSlot };
     const nextTable = setTimetableSlotsForWeek(timetable, selectedWeekNumber, nextWeekSlots);
-    setTimetable(nextTable);
-    saveTeacherTimetable(localStorage, nextTable);
+    persistTimetable(nextTable);
     setEditingSlot(null);
   };
 
@@ -267,8 +298,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
     const nextWeekSlots = { ...currentWeekSlots };
     delete nextWeekSlots[key];
     const nextTable = setTimetableSlotsForWeek(timetable, selectedWeekNumber, nextWeekSlots);
-    setTimetable(nextTable);
-    saveTeacherTimetable(localStorage, nextTable);
+    persistTimetable(nextTable);
     setEditingSlot(null);
   };
 
@@ -346,8 +376,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
       nextTable = setTimetableSlotsForWeek(nextTable, selectedWeekNumber, parsedSlots);
     }
 
-    setTimetable(nextTable);
-    saveTeacherTimetable(localStorage, nextTable);
+    persistTimetable(nextTable);
     setIsPasteModalOpen(false);
     setPasteRawText('');
     alert(`Đã nhập thành công ${count} tiết học từ Excel vào Thời khóa biểu!`);
@@ -362,16 +391,14 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
     if (selectedWeekNumber === 1 || !timetable.weekSlots || Object.keys(timetable.weekSlots).length === 0) {
       nextTable = { ...nextTable, slots: {} };
     }
-    setTimetable(nextTable);
-    saveTeacherTimetable(localStorage, nextTable);
+    persistTimetable(nextTable);
   };
 
   // Nạp bộ dữ liệu mẫu thực tế từ ảnh
   const handleLoadSampleFromImage = () => {
     if (window.confirm(`Thầy có muốn nạp Thời khóa biểu mẫu thực tế (10A8, 12B6, 12B1, 10A17) vào Tuần ${selectedWeekNumber} không?`)) {
       const nextTable = setTimetableSlotsForWeek(timetable, selectedWeekNumber, SAMPLE_TIMETABLE_SLOTS);
-      setTimetable(nextTable);
-      saveTeacherTimetable(localStorage, nextTable);
+      persistTimetable(nextTable);
     }
   };
 
@@ -402,8 +429,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
       alert(`Đã đặt lịch dạy của Tuần ${selectedWeekNumber} làm Thời khóa biểu chuẩn cho toàn kỳ!`);
     }
 
-    setTimetable(nextTable);
-    saveTeacherTimetable(localStorage, nextTable);
+    persistTimetable(nextTable);
     setIsCopyModalOpen(false);
   };
 
@@ -416,8 +442,7 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
         ...timetable,
         weekSlots: nextWeekSlots,
       };
-      setTimetable(nextTable);
-      saveTeacherTimetable(localStorage, nextTable);
+      persistTimetable(nextTable);
     }
   };
 
