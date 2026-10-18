@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { Trash2, AlertTriangle, Plus, X, BookOpen, Home, GraduationCap, Sparkles } from 'lucide-react';
+import { Trash2, AlertTriangle, Plus, X, BookOpen, Home, GraduationCap, Sparkles, UserCheck } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { currentSchoolYear, defaultWeekOneStart } from '../lib/classScope';
 import { rosterCandidates } from '../lib/teachingWorkspaces';
@@ -110,6 +110,16 @@ export function ClassWorkspaceSwitcher() {
             >
               {open ? <X className="h-3.5 w-3.5" /> : <Plus className="h-3.5 w-3.5" />}
               <span>{open ? 'Đóng' : '+ Thêm lớp mới'}</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => window.dispatchEvent(new CustomEvent('open-edit-class-modal'))}
+              className="px-3 py-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 hover:bg-slate-100 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-bold cursor-pointer flex items-center gap-1.5 shadow-2xs active:scale-95 transition"
+              title="Đổi vai trò GVCN / GVBM, môn học hoặc thông tin lớp"
+            >
+              <UserCheck className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
+              <span>Đổi GVCN/GVBM</span>
             </button>
 
             {workspaceClasses.length > 1 && (

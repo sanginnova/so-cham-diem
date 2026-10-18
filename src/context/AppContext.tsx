@@ -158,6 +158,7 @@ interface AppContextType extends ReturnType<typeof useHomeroomRecords> {
   deleteSchoolClass: (classId: string) => Promise<void>;
   purgeOrphanedClasses: () => Promise<number>;
   addSchoolClass: (cls: SchoolClass) => Promise<void>;
+  updateSchoolClass: (classId: string, updates: Partial<SchoolClass>) => Promise<void>;
 
   // Data
   classConfig: ClassConfig;
@@ -386,6 +387,14 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const addSchoolClass = async (cls: SchoolClass) => {
     await saveClassToCloud(cls);
     setSchoolClasses(prev => [...prev.filter(item => item.id !== cls.id), cls]);
+  };
+
+  const updateSchoolClass = async (classId: string, updates: Partial<SchoolClass>) => {
+    const current = schoolClasses.find(item => item.id === classId);
+    if (!current) return;
+    const updated: SchoolClass = { ...current, ...updates };
+    await saveClassToCloud(updated);
+    setSchoolClasses(prev => prev.map(item => item.id === classId ? updated : item));
   };
 
   const deleteSchoolClass = async (classId: string) => {
@@ -1118,6 +1127,24 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     try {
       await saveClassConfigToCloud(updated);
       setClassConfig(updated);
+      setWorkspaceClasses((prev) => prev.map((c) => (c.id === updated.id ? updated : c)));
+      if (updated.classDirectoryId || schoolClasses.some((c) => c.id === updated.id)) {
+        setSchoolClasses((prev) =>
+          prev.map((c) =>
+            c.id === updated.id || c.id === updated.classDirectoryId
+              ? {
+                  ...c,
+                  className: updated.className,
+                  teacherName: updated.homeroomTeacher,
+                  department:
+                    (updated.classType === 'subject'
+                      ? updated.subjectName
+                      : updated.teachingSubject) || c.department,
+                }
+              : c
+          )
+        );
+      }
     } catch (err) {
       setCloudSyncError(String(err)); throw err;
     }
@@ -2158,6 +2185,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         deleteSchoolClass,
         purgeOrphanedClasses,
         addSchoolClass,
+        updateSchoolClass,
 
         classConfig,
         students,

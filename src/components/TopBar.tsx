@@ -17,6 +17,7 @@ import {
   Share2,
   Radio,
   BookOpen,
+  Home,
 } from 'lucide-react';
 import { TabType } from './Navbar';
 import { useApp } from '../context/AppContext';
@@ -116,65 +117,76 @@ export const TopBar: React.FC<TopBarProps> = ({
             </button>
           )}
 
-          {/* Badge: Show Class Pill when authenticated, School name when guest / public portal */}
-          <div className="flex items-center gap-2 min-w-0">
-            {!isGuestOrPortal ? (
+          {/* Badge: Class Pill with GVCN / GVBM role + Quick Switcher */}
+          <div className="flex items-center gap-2 min-w-0 flex-wrap sm:flex-nowrap">
+            <button
+              type="button"
+              onClick={onOpenEditClassTeacherModal}
+              className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/80 transition cursor-pointer shrink-0 shadow-2xs"
+              title="Nhấn để đổi GVCN / GVBM, môn học hoặc thông tin lớp học"
+            >
+              <span>Lớp {classConfig.className || '10A8'}</span>
+              {classConfig.classType === 'subject' ? (
+                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-200 dark:border-purple-800 font-semibold">
+                  GVBM: {classConfig.subjectName || classConfig.teachingSubject || 'Toán'}
+                </span>
+              ) : (
+                <span className="inline-flex items-center gap-1 text-[10px] px-1.5 py-0.5 rounded-full bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300 border border-blue-200 dark:border-blue-800 font-semibold">
+                  GVCN: {classConfig.homeroomTeacher || 'Thầy Sang'}
+                </span>
+              )}
+              <Edit2 className="h-3 w-3 opacity-60" />
+            </button>
+
+            {/* Quick Switcher Phân hệ: GVCN vs GVBM - Luôn hiển thị trên mọi độ phân giải */}
+            <div className="flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px] font-bold shrink-0">
               <button
                 type="button"
-                onClick={onOpenEditClassTeacherModal}
-                className="inline-flex items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-blue-50 dark:bg-blue-950/60 text-blue-700 dark:text-blue-300 border border-blue-200 dark:border-blue-800 hover:bg-blue-100 dark:hover:bg-blue-900/80 transition cursor-pointer shrink-0"
-                title="Nhấn để đổi thông tin giáo viên hoặc lớp chủ nhiệm"
+                onClick={() => onNavigateTab('daily-log')}
+                className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition cursor-pointer ${
+                  !academicMode
+                    ? 'bg-blue-600 text-white shadow-2xs font-bold'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+                title="Chuyển sang chế độ Giáo viên chủ nhiệm (GVCN) - Chấm điểm rèn luyện, thi đua"
               >
-                <span>Lớp {classConfig.className}</span>
-                <Edit2 className="h-3 w-3 opacity-60" />
+                <Home className="h-3.5 w-3.5" />
+                <span>GVCN</span>
               </button>
-            ) : (
-              <div className="inline-flex min-w-0 items-center gap-1.5 px-2.5 py-1 rounded-xl text-xs font-bold bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 border border-slate-200 dark:border-slate-700">
-                <School className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                <span className="truncate">Trường CĐ Nghề 01 - BQP</span>
-              </div>
-            )}
+              <button
+                type="button"
+                onClick={() => onNavigateTab('gradebook')}
+                className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition cursor-pointer ${
+                  academicMode
+                    ? 'bg-purple-600 text-white shadow-2xs font-bold'
+                    : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
+                }`}
+                title="Chuyển sang chế độ Giáo viên bộ môn (GVBM) - Sổ điểm bộ môn, điểm học lực"
+              >
+                <BookOpen className="h-3.5 w-3.5" />
+                <span>GVBM</span>
+              </button>
+              {onOpenEditClassTeacherModal && (
+                <button
+                  type="button"
+                  onClick={onOpenEditClassTeacherModal}
+                  className="px-2.5 py-1 ml-1 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 text-amber-700 dark:text-amber-300 border border-amber-400/40 transition cursor-pointer flex items-center gap-1.5 text-[11px] font-bold shadow-2xs active:scale-95"
+                  title="Mở bảng cài đặt đổi thông tin GVCN / GVBM, đổi giáo viên hoặc đổi môn dạy"
+                >
+                  <UserCog className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>Đổi GVCN/GVBM</span>
+                </button>
+              )}
+            </div>
 
             {/* Breadcrumb View Title */}
-            <div className="hidden sm:flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 truncate">
+            <div className="hidden lg:flex items-center gap-1.5 text-xs text-slate-500 dark:text-slate-400 truncate">
               <span className="opacity-70">{currentTabInfo.section}</span>
               <span>/</span>
               <span className="font-semibold text-slate-800 dark:text-slate-200 truncate">
                 {currentTabInfo.title}
               </span>
             </div>
-
-            {/* Quick Switcher Phân hệ: Rèn Luyện vs Học Lực (15'/30'/1 tiết) */}
-            {!isGuestOrPortal && ['teacher', 'admin', 'owner'].includes(userRole) && (
-              <div className="hidden xl:flex items-center p-0.5 bg-slate-100 dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 text-[11px] font-bold shrink-0 ml-1">
-                <button
-                  type="button"
-                  onClick={() => onNavigateTab('daily-log')}
-                  className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition cursor-pointer ${
-                    !academicMode
-                      ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 shadow-2xs font-bold'
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
-                  title="Chuyển sang phân hệ Chấm điểm rèn luyện (Nề nếp, chuyên cần, thi đua)"
-                >
-                  <span className="w-1.5 h-1.5 rounded-full bg-blue-500" />
-                  <span>Điểm Rèn Luyện</span>
-                </button>
-                <button
-                  type="button"
-                  onClick={() => onNavigateTab('gradebook')}
-                  className={`px-2.5 py-1 rounded-lg flex items-center gap-1.5 transition cursor-pointer ${
-                    academicMode
-                      ? 'bg-purple-600 text-white shadow-2xs font-bold'
-                      : 'text-slate-500 hover:text-slate-800 dark:hover:text-slate-200'
-                  }`}
-                  title="Chuyển sang phân hệ Chấm điểm học lực (15', 30', 1 tiết...)"
-                >
-                  <span className={`w-1.5 h-1.5 rounded-full ${academicMode ? 'bg-white' : 'bg-purple-500'}`} />
-                  <span>Điểm Học Lực (15′·30′·1 tiết)</span>
-                </button>
-              </div>
-            )}
           </div>
         </div>
 
@@ -346,10 +358,10 @@ export const TopBar: React.FC<TopBarProps> = ({
                           setIsProfileOpen(false);
                           onOpenEditClassTeacherModal();
                         }}
-                        className="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 flex items-center gap-2.5 transition cursor-pointer"
+                        className="w-full text-left px-3.5 py-2 hover:bg-slate-50 dark:hover:bg-slate-800/80 text-slate-700 dark:text-slate-200 flex items-center gap-2.5 transition cursor-pointer font-medium"
                       >
-                        <UserCog className="h-4 w-4 text-blue-500" />
-                        <span>Đổi thông tin GV & Lớp học</span>
+                        <UserCog className="h-4 w-4 text-amber-500" />
+                        <span>⚙️ Đổi GVCN / GVBM & Lớp học</span>
                       </button>
                     )}
 

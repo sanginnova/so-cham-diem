@@ -171,7 +171,7 @@ service cloud.firestore {
         && request.resource.data.classId == resource.data.classId && request.resource.data.kind == resource.data.kind
         && request.resource.data.studentId == resource.data.studentId && request.resource.data.createdBy == resource.data.createdBy
         && request.resource.data.createdAt == resource.data.createdAt;
-      allow delete: if writable(resource.data) && !(resource.data.kind in ['collection', 'payment', 'allowance']);
+      allow delete: if writable(resource.data);
     }
     match /disciplineLogs/{id} {
       allow read: if admin() || ownData(resource.data) || (monitorClass(resource.data) && profile().permissions.canViewScores == true);

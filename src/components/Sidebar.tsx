@@ -408,8 +408,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
         )}
       </div>
 
-      {/* ── BỘ CHUYỂN PHÂN HỆ: RÈN LUYỆN vs HỌC LỰC ── */}
-      <div className="px-3 pt-3 pb-2 border-b border-slate-800 shrink-0">
+      {/* ── BỘ CHUYỂN PHÂN HỆ: GVCN vs GVBM & ĐỔI VAI TRÒ ── */}
+      <div className="px-3 pt-3 pb-2 border-b border-slate-800 shrink-0 space-y-2">
         <div className="grid grid-cols-2 p-1 bg-slate-950/80 rounded-xl border border-slate-800/80 gap-1 text-[11px] font-bold">
           <button
             type="button"
@@ -419,10 +419,10 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ? 'bg-blue-600 text-white shadow-xs'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
             }`}
-            title="Phân hệ Chấm điểm rèn luyện (Nề nếp, chuyên cần, thi đua)"
+            title="Phân hệ GVCN: Chấm điểm rèn luyện (Nề nếp, chuyên cần, thi đua)"
           >
             <ShieldCheck className="h-3.5 w-3.5 shrink-0" />
-            {(!isCollapsed || isOpenMobile) && <span>Rèn luyện</span>}
+            {(!isCollapsed || isOpenMobile) && <span>🏠 GVCN</span>}
           </button>
           <button
             type="button"
@@ -432,12 +432,25 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 ? 'bg-purple-600 text-white shadow-xs'
                 : 'text-slate-400 hover:text-slate-200 hover:bg-slate-800/40'
             }`}
-            title="Phân hệ Chấm điểm học lực (15 phút, 30 phút, 1 tiết...)"
+            title="Phân hệ GVBM: Chấm điểm học lực bộ môn (15 phút, 30 phút, 1 tiết...)"
           >
             <BookOpen className="h-3.5 w-3.5 shrink-0" />
-            {(!isCollapsed || isOpenMobile) && <span>Học lực</span>}
+            {(!isCollapsed || isOpenMobile) && <span>📚 GVBM</span>}
           </button>
         </div>
+
+        {/* Nút bấm Đổi vai trò GVCN/GVBM trực tiếp trong sidebar */}
+        {(!isCollapsed || isOpenMobile) && onOpenEditClassTeacherModal && userRole !== 'monitor' && (
+          <button
+            type="button"
+            onClick={onOpenEditClassTeacherModal}
+            className="w-full py-1.5 px-2.5 rounded-lg bg-amber-500/15 hover:bg-amber-500/25 border border-amber-500/30 text-amber-300 text-[11px] font-semibold flex items-center justify-center gap-1.5 transition cursor-pointer shadow-xs active:scale-98"
+            title="Cài đặt đổi vai trò Lớp Chủ nhiệm (GVCN) ↔ Lớp Bộ môn (GVBM), đổi môn dạy hoặc đổi giáo viên"
+          >
+            <UserCog className="h-3.5 w-3.5 text-amber-400 shrink-0" />
+            <span>⚙️ Đổi GVCN / GVBM</span>
+          </button>
+        )}
       </div>
 
       {/* ── Navigation Tree Theo Phân Hệ ── */}
@@ -635,7 +648,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {activeAccount.displayName}
                 </p>
                 <p className="text-[10px] text-slate-400 truncate">
-                  {userRole === 'owner' ? 'Chủ hệ thống' : userRole === 'admin' ? 'Ban Giám Hiệu' : userRole === 'monitor' ? '⭐ Lớp trưởng chấm điểm' : `Lớp ${classConfig.className}`}
+                  {userRole === 'owner' ? 'Chủ hệ thống' : userRole === 'admin' ? 'Ban Giám Hiệu' : userRole === 'monitor' ? '⭐ Lớp trưởng chấm điểm' : (classConfig.classType === 'subject' ? `GVBM ${classConfig.subjectName || classConfig.teachingSubject || 'Toán'} • Lớp ${classConfig.className}` : `GVCN • Lớp ${classConfig.className}`)}
                 </p>
               </div>
             )}

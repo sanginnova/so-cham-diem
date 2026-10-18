@@ -143,6 +143,13 @@ function MainApp() {
 
   // Export All Gradebooks Modal listener
   useEffect(() => {
+    const handleOpenEditClass = () => setIsEditClassModalOpen(true);
+    window.addEventListener('open-edit-class-modal', handleOpenEditClass);
+    return () => window.removeEventListener('open-edit-class-modal', handleOpenEditClass);
+  }, []);
+
+  // Export All Gradebooks Modal listener
+  useEffect(() => {
     const handleOpenExportAll = () => setIsExportAllGradebooksModalOpen(true);
     window.addEventListener('open-export-all-gradebooks-modal', handleOpenExportAll);
     return () => window.removeEventListener('open-export-all-gradebooks-modal', handleOpenExportAll);

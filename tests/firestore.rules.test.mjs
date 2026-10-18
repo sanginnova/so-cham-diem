@@ -267,8 +267,9 @@ test('collection ledger validates links, preserves amounts and keeps voided hist
   await assertFails(updateDoc(doc(db,'homeroomRecords',payment.id),{'data.amount':'40000'}));
   await assertFails(updateDoc(doc(db,'homeroomRecords',fund.id),{'data.amount':'200000'}));
   await assertFails(updateDoc(doc(db,'homeroomRecords',fund.id),{'data.studentIds':'[]'}));
-  await assertFails(deleteDoc(doc(db,'homeroomRecords',payment.id)));
-  await assertFails(deleteDoc(doc(db,'homeroomRecords',fund.id)));
+  await assertFails(deleteDoc(doc(dbFor('b'),'homeroomRecords',fund.id)));
+  await assertSucceeds(deleteDoc(doc(db,'homeroomRecords',payment.id)));
+  await assertSucceeds(deleteDoc(doc(db,'homeroomRecords',fund.id)));
   await assertFails(setDoc(doc(db,'homeroomRecords','negative'),{...payment,id:'negative',data:{...payment.data,amount:'-1'}}));
   await assertFails(setDoc(doc(db,'homeroomRecords','foreign-student'),{...payment,id:'foreign-student',studentId:'student-b'}));
   await assertFails(setDoc(doc(db,'homeroomRecords','missing-fund'),{...payment,id:'missing-fund',data:{...payment.data,collectionId:'missing'}}));

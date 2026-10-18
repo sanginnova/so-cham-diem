@@ -216,11 +216,11 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
                 <button
                   type="button"
                   onClick={onOpenEditClassTeacherModal}
-                  className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl border border-slate-200 dark:border-slate-700 transition active:scale-95 shadow-xs cursor-pointer"
-                  title="Thay đổi thông tin giáo viên và thông tin lớp học"
+                  className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/60 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-200 text-xs font-bold rounded-xl border border-amber-300 dark:border-amber-700 transition active:scale-95 shadow-xs cursor-pointer"
+                  title="Thay đổi vai trò lớp Chủ nhiệm (GVCN) ↔ Bộ môn (GVBM), đổi giáo viên hoặc đổi môn dạy"
                 >
-                  <UserCog className="h-3.5 w-3.5 text-blue-600 dark:text-blue-400" />
-                  <span>Đổi thông tin GV & Lớp</span>
+                  <UserCog className="h-3.5 w-3.5 text-amber-600 dark:text-amber-400" />
+                  <span>⚙️ Đổi GVCN / GVBM</span>
                 </button>
               )}
             </div>

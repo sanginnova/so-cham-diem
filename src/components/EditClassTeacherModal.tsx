@@ -18,6 +18,9 @@ import {
   MapPin,
   Sliders,
   Trash2,
+  Home,
+  AlertTriangle,
+  UserCheck,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { DEFAULT_RANK_THRESHOLDS } from '../lib/utils';
@@ -33,11 +36,15 @@ export const EditClassTeacherModal: React.FC<EditClassTeacherModalProps> = ({
   onClose,
   defaultTab = 'teacher',
 }) => {
-  const { classConfig, updateClassConfig, students, userRole, activeAccount, schoolClasses, workspaceClasses, deleteWorkspaceClass } = useApp();
+  const { classConfig, updateClassConfig, students, userRole, activeAccount, userAccounts, schoolClasses, workspaceClasses, deleteWorkspaceClass } = useApp();
 
   const [activeTab, setActiveTab] = useState<'teacher' | 'class' | 'cadres' | 'scoring'>(defaultTab);
   const [confirmDeleteClass, setConfirmDeleteClass] = useState(false);
   const [isDeletingClass, setIsDeletingClass] = useState(false);
+
+  // Class Type & Subject states
+  const [classType, setClassType] = useState<'homeroom' | 'subject'>(classConfig.classType || 'homeroom');
+  const [subjectName, setSubjectName] = useState(classConfig.subjectName || classConfig.teachingSubject || 'Toán');
 
   // Form states
   const [homeroomTeacher, setHomeroomTeacher] = useState(classConfig.homeroomTeacher || '');
@@ -72,9 +79,21 @@ export const EditClassTeacherModal: React.FC<EditClassTeacherModalProps> = ({
   const [isSaving, setIsSaving] = useState(false);
   const [saveSuccess, setSaveSuccess] = useState(false);
 
+  // Check if class is part of shared roster hierarchy
+  const isLockedRoster = Boolean(
+    classConfig.rosterSourceClassId ||
+    workspaceClasses.some((config) => config.rosterSourceClassId === classConfig.id)
+  );
+
+  // Available staff accounts (excluding student monitors)
+  const availableTeachers = (userAccounts || []).filter((u) => u.role !== 'monitor');
+
   // Sync inputs whenever modal opens or classConfig updates
   useEffect(() => {
     if (isOpen) {
+      setClassType(classConfig.classType || 'homeroom');
+      setSubjectName(classConfig.subjectName || classConfig.teachingSubject || 'Toán');
+
       setHomeroomTeacher(classConfig.homeroomTeacher || '');
       setTeacherPhone(classConfig.teacherPhone || '');
       setTeacherEmail(classConfig.teacherEmail || '');
@@ -119,7 +138,11 @@ export const EditClassTeacherModal: React.FC<EditClassTeacherModalProps> = ({
       return;
     }
     if (!homeroomTeacher.trim()) {
-      alert('Vui lòng nhập họ tên Giáo viên chủ nhiệm.');
+      alert(classType === 'subject' ? 'Vui lòng nhập họ tên Giáo viên bộ môn (GVBM).' : 'Vui lòng nhập họ tên Giáo viên chủ nhiệm (GVCN).');
+      return;
+    }
+    if (classType === 'subject' && !subjectName.trim()) {
+      alert('Vui lòng nhập hoặc chọn Tên môn học giảng dạy của GVBM.');
       return;
     }
 
@@ -147,10 +170,12 @@ export const EditClassTeacherModal: React.FC<EditClassTeacherModalProps> = ({
     try {
       setIsSaving(true);
       await updateClassConfig({
+        classType,
+        subjectName: classType === 'subject' ? (subjectName.trim() || 'Toán') : undefined,
+        teachingSubject: classType === 'subject' ? (subjectName.trim() || teachingSubject.trim() || 'Toán') : teachingSubject.trim(),
         homeroomTeacher: homeroomTeacher.trim(),
         teacherPhone: teacherPhone.trim(),
         teacherEmail: teacherEmail.trim(),
-        teachingSubject: teachingSubject.trim(),
         defaultTeacherNote: defaultTeacherNote.trim(),
 
         className: className.trim(),
@@ -198,15 +223,21 @@ export const EditClassTeacherModal: React.FC<EditClassTeacherModalProps> = ({
         {/* Header */}
         <div className="px-5 py-4 bg-gradient-to-r from-blue-700 via-indigo-700 to-blue-800 text-white flex items-center justify-between shrink-0">
           <div className="flex items-center gap-3">
-            <div className="p-2.5 bg-white/10 rounded-xl backdrop-blur-sm">
-              <GraduationCap className="h-6 w-6 text-white" />
+            <div className={`p-2.5 rounded-xl backdrop-blur-sm ${classType === 'subject' ? 'bg-purple-500/20' : 'bg-white/10'}`}>
+              {classType === 'subject' ? (
+                <BookOpen className="h-6 w-6 text-purple-200" />
+              ) : (
+                <GraduationCap className="h-6 w-6 text-white" />
+              )}
             </div>
             <div>
               <h3 className="font-bold text-base sm:text-lg">
-                Thay Đổi Thông Tin Giáo Viên & Lớp Học
+                Thay Đổi Thông Tin {classType === 'subject' ? 'Giáo Viên Bộ Môn' : 'Giáo Viên Chủ Nhiệm'} & Lớp Học
               </h3>
               <p className="text-xs text-blue-100">
-                Cập nhật hồ sơ GVCN, lớp phụ trách, ban cán sự và thang điểm thi đua
+                {classType === 'subject'
+                  ? 'Cập nhật hồ sơ GVBM, môn giảng dạy, ban cán sự và cấu hình lớp'
+                  : 'Cập nhật hồ sơ GVCN, lớp phụ trách, ban cán sự và thang điểm thi đua'}
               </p>
             </div>
           </div>
@@ -225,12 +256,14 @@ export const EditClassTeacherModal: React.FC<EditClassTeacherModalProps> = ({
             onClick={() => setActiveTab('teacher')}
             className={`flex items-center gap-2 px-4 py-2.5 rounded-t-xl border-b-2 transition ${
               activeTab === 'teacher'
-                ? 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 border-blue-600'
+                ? classType === 'subject'
+                  ? 'bg-white dark:bg-slate-900 text-purple-600 dark:text-purple-400 border-purple-600'
+                  : 'bg-white dark:bg-slate-900 text-blue-600 dark:text-blue-400 border-blue-600'
                 : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white border-transparent'
             }`}
           >
-            <User className="h-4 w-4" />
-            <span>Thông Tin Giáo Viên</span>
+            {classType === 'subject' ? <BookOpen className="h-4 w-4" /> : <User className="h-4 w-4" />}
+            <span>Thông Tin {classType === 'subject' ? 'GVBM' : 'GVCN'}</span>
           </button>
 
           <button
@@ -275,20 +308,158 @@ export const EditClassTeacherModal: React.FC<EditClassTeacherModalProps> = ({
 
         {/* Content Form */}
         <form onSubmit={handleSave} className="flex-1 overflow-y-auto p-5 sm:p-6 space-y-5 text-xs sm:text-sm">
-          {/* TAB 1: TEACHER INFO */}
+          {/* TAB 1: TEACHER INFO & ROLE SELECTION */}
           {activeTab === 'teacher' && (
             <div className="space-y-4 animate-fadeIn">
-              <div className="p-3 bg-blue-50 dark:bg-blue-950/40 rounded-xl border border-blue-200 dark:border-blue-800 text-xs text-blue-900 dark:text-blue-300 flex items-center gap-2">
-                <Sparkles className="h-4 w-4 text-blue-600 shrink-0" />
-                <span>
-                  Thông tin Giáo viên chủ nhiệm sẽ xuất hiện trang trọng trong tất cả các báo cáo nề nếp, phiếu rèn luyện Zalo gửi phụ huynh và xuất file Excel.
-                </span>
+              {/* Vai trò / Loại lớp: GVCN vs GVBM */}
+              <div className="p-3.5 bg-slate-50 dark:bg-slate-800/80 rounded-2xl border border-slate-200 dark:border-slate-700 space-y-2">
+                <div className="flex items-center justify-between">
+                  <label className="font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <UserCheck className="h-4 w-4 text-blue-600 dark:text-blue-400" />
+                    <span>Vai Trò Giảng Dạy & Loại Lớp:</span>
+                  </label>
+                  <span className="text-[11px] text-slate-400 font-medium">
+                    {classType === 'subject' ? 'Chế độ Sổ điểm bộ môn' : 'Chế độ Sổ chủ nhiệm & rèn luyện'}
+                  </span>
+                </div>
+
+                <div className="grid grid-cols-2 gap-2.5 p-1 bg-white dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    disabled={isLockedRoster}
+                    onClick={() => setClassType('homeroom')}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm transition cursor-pointer ${
+                      classType === 'homeroom'
+                        ? 'bg-blue-600 text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                    } ${isLockedRoster ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={isLockedRoster ? 'Lớp đang liên kết danh sách chung nên không đổi loại lớp' : 'Chuyển sang Lớp Chủ Nhiệm (GVCN)'}
+                  >
+                    <Home className="h-4 w-4" />
+                    <span>🏠 Lớp Chủ nhiệm (GVCN)</span>
+                  </button>
+
+                  <button
+                    type="button"
+                    disabled={isLockedRoster}
+                    onClick={() => setClassType('subject')}
+                    className={`flex items-center justify-center gap-2 py-2.5 px-3 rounded-lg font-bold text-xs sm:text-sm transition cursor-pointer ${
+                      classType === 'subject'
+                        ? 'bg-purple-600 text-white shadow-sm'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white hover:bg-slate-100 dark:hover:bg-slate-800'
+                    } ${isLockedRoster ? 'opacity-50 cursor-not-allowed' : ''}`}
+                    title={isLockedRoster ? 'Lớp đang liên kết danh sách chung nên không đổi loại lớp' : 'Chuyển sang Lớp Bộ Môn (GVBM)'}
+                  >
+                    <BookOpen className="h-4 w-4" />
+                    <span>📚 Lớp Bộ môn (GVBM)</span>
+                  </button>
+                </div>
+
+                {isLockedRoster && (
+                  <p className="text-[11px] text-amber-600 dark:text-amber-400 flex items-center gap-1.5 pt-0.5 font-medium">
+                    <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                    <span>Lớp đang dùng chung danh sách học sinh với sổ bộ môn khác. Giữ nguyên loại lớp để bảo toàn điểm số và liên kết.</span>
+                  </p>
+                )}
               </div>
 
+              {/* Nếu là Lớp Bộ môn (GVBM): Nhập môn học và chip chọn nhanh */}
+              {classType === 'subject' && (
+                <div className="p-3.5 bg-purple-50 dark:bg-purple-950/40 rounded-2xl border border-purple-200 dark:border-purple-800/80 space-y-2 animate-fadeIn">
+                  <div className="flex items-center justify-between">
+                    <label className="block font-bold text-purple-900 dark:text-purple-200">
+                      Tên môn học giảng dạy (GVBM) <span className="text-rose-500">*</span>
+                    </label>
+                    <span className="text-[11px] text-purple-600 dark:text-purple-300">
+                      Hiển thị trên Sổ điểm & Thời khóa biểu
+                    </span>
+                  </div>
+
+                  <div className="relative">
+                    <BookOpen className="absolute left-3 top-2.5 h-4 w-4 text-purple-500" />
+                    <input
+                      type="text"
+                      required={classType === 'subject'}
+                      value={subjectName}
+                      onChange={(e) => {
+                        setSubjectName(e.target.value);
+                        setTeachingSubject(e.target.value);
+                      }}
+                      placeholder="Ví dụ: Toán học, Ngữ văn, Tiếng Anh, Vật lý..."
+                      className="w-full pl-9 pr-3 py-2 bg-white dark:bg-slate-900 border border-purple-300 dark:border-purple-700 rounded-xl font-bold text-purple-700 dark:text-purple-300 focus:ring-2 focus:ring-purple-500 text-sm"
+                    />
+                  </div>
+
+                  {/* Quick subject chips */}
+                  <div className="flex flex-wrap items-center gap-1.5 pt-1">
+                    <span className="text-[11px] text-purple-700 dark:text-purple-300 font-semibold mr-1">
+                      Gợi ý nhanh:
+                    </span>
+                    {['Toán', 'Ngữ văn', 'Tiếng Anh', 'Vật lý', 'Hóa học', 'Sinh học', 'Lịch sử', 'Địa lý', 'Tin học', 'Công nghệ', 'GDCD', 'GDQP-AN', 'Thể dục'].map((sub) => (
+                      <button
+                        key={sub}
+                        type="button"
+                        onClick={() => {
+                          setSubjectName(sub);
+                          setTeachingSubject(sub);
+                        }}
+                        className={`px-2.5 py-1 rounded-lg text-xs font-semibold border transition cursor-pointer ${
+                          subjectName.toLowerCase() === sub.toLowerCase()
+                            ? 'bg-purple-600 text-white border-purple-600 shadow-2xs'
+                            : 'bg-white dark:bg-slate-900 text-purple-700 dark:text-purple-300 border-purple-200 dark:border-purple-800 hover:bg-purple-100 dark:hover:bg-purple-900/60'
+                        }`}
+                      >
+                        {sub}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
+              {/* Danh sách giáo viên toàn trường để chọn nhanh và tự điền */}
+              {availableTeachers.length > 0 && (
+                <div className="p-3 bg-slate-50 dark:bg-slate-800/60 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1.5">
+                  <div className="flex items-center justify-between">
+                    <span className="text-xs font-bold text-slate-700 dark:text-slate-300 flex items-center gap-1.5">
+                      <Users className="h-3.5 w-3.5 text-blue-500" />
+                      <span>Chọn nhanh giáo viên trong trường (Đổi {classType === 'subject' ? 'GVBM' : 'GVCN'}):</span>
+                    </span>
+                    <span className="text-[11px] text-slate-400">Tự động điền Họ tên, SĐT, Email</span>
+                  </div>
+                  <select
+                    value=""
+                    onChange={(e) => {
+                      const selectedUid = e.target.value;
+                      const targetTeacher = availableTeachers.find((t) => t.uid === selectedUid);
+                      if (targetTeacher) {
+                        setHomeroomTeacher(targetTeacher.displayName);
+                        if (targetTeacher.email) setTeacherEmail(targetTeacher.email);
+                        if (targetTeacher.phone) setTeacherPhone(targetTeacher.phone);
+                        if (targetTeacher.department) {
+                          setTeachingSubject(targetTeacher.department);
+                          if (classType === 'subject' && (!subjectName || subjectName === 'Toán')) {
+                            setSubjectName(targetTeacher.department);
+                          }
+                        }
+                      }
+                    }}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-900 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold text-slate-800 dark:text-slate-200 cursor-pointer"
+                  >
+                    <option value="">-- Bấm để chọn giáo viên chuyển giao / thay thế --</option>
+                    {availableTeachers.map((t) => (
+                      <option key={t.uid} value={t.uid}>
+                        {t.displayName} ({t.email || t.username}) {t.department ? `· ${t.department}` : ''}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              )}
+
+              {/* Thông tin chi tiết giáo viên */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Họ và tên Giáo viên chủ nhiệm <span className="text-rose-500">*</span>
+                    Họ và tên {classType === 'subject' ? 'Giáo viên bộ môn (GVBM)' : 'Giáo viên chủ nhiệm (GVCN)'} <span className="text-rose-500">*</span>
                   </label>
                   <div className="relative">
                     <User className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -305,7 +476,7 @@ export const EditClassTeacherModal: React.FC<EditClassTeacherModalProps> = ({
 
                 <div>
                   <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Môn giảng dạy chính
+                    {classType === 'subject' ? 'Khoa / Tổ chuyên môn' : 'Môn giảng dạy chính'}
                   </label>
                   <div className="relative">
                     <BookOpen className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -313,7 +484,7 @@ export const EditClassTeacherModal: React.FC<EditClassTeacherModalProps> = ({
                       type="text"
                       value={teachingSubject}
                       onChange={(e) => setTeachingSubject(e.target.value)}
-                      placeholder="Ví dụ: Toán học, Ngữ văn, Tiếng Anh..."
+                      placeholder={classType === 'subject' ? 'Ví dụ: Khoa Cơ bản, Tổ Toán...' : 'Ví dụ: Toán học, Ngữ văn...'}
                       className="w-full pl-9 pr-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-medium focus:ring-2 focus:ring-blue-500"
                     />
                   </div>
@@ -321,7 +492,7 @@ export const EditClassTeacherModal: React.FC<EditClassTeacherModalProps> = ({
 
                 <div>
                   <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Số điện thoại liên hệ (GVCN)
+                    Số điện thoại liên hệ ({classType === 'subject' ? 'GVBM' : 'GVCN'})
                   </label>
                   <div className="relative">
                     <Phone className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -340,7 +511,7 @@ export const EditClassTeacherModal: React.FC<EditClassTeacherModalProps> = ({
 
                 <div>
                   <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                    Email liên hệ của GVCN
+                    Email liên hệ của {classType === 'subject' ? 'GVBM' : 'GVCN'}
                   </label>
                   <div className="relative">
                     <Mail className="absolute left-3 top-2.5 h-4 w-4 text-slate-400" />
@@ -357,14 +528,16 @@ export const EditClassTeacherModal: React.FC<EditClassTeacherModalProps> = ({
 
               <div>
                 <label className="block font-bold text-slate-700 dark:text-slate-300 mb-1">
-                  Lời dặn dò / Lời nhắn mặc định gửi Phụ huynh
+                  Lời dặn dò / Lời nhắn mặc định của {classType === 'subject' ? 'GVBM' : 'GVCN'} gửi Phụ huynh & Học sinh
                 </label>
                 <div className="relative">
                   <textarea
                     rows={3}
                     value={defaultTeacherNote}
                     onChange={(e) => setDefaultTeacherNote(e.target.value)}
-                    placeholder="Ví dụ: Kính mong Quý Phụ huynh tiếp tục đồng hành, nhắc nhở và phối hợp cùng GVCN để động viên các con rèn luyện nề nếp thật tốt!"
+                    placeholder={classType === 'subject'
+                      ? 'Ví dụ: Kính mong Quý Phụ huynh đôn đốc các em hoàn thành bài tập về nhà và ôn tập chuẩn bị cho bài kiểm tra sắp tới!'
+                      : 'Ví dụ: Kính mong Quý Phụ huynh tiếp tục đồng hành, nhắc nhở và phối hợp cùng GVCN để động viên các con rèn luyện nề nếp thật tốt!'}
                     className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-800 border border-slate-200 dark:border-slate-700 rounded-xl font-normal focus:ring-2 focus:ring-blue-500 text-xs sm:text-sm"
                   />
                 </div>

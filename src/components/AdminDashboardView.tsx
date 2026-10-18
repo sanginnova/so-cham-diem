@@ -22,9 +22,11 @@ import {
   Check,
   UserCheck,
   UserX,
-  FileSpreadsheet,
   X,
   PlusCircle,
+  Home,
+  BookOpen,
+  Edit3,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { UserAccount, SchoolClass, UserRole } from '../types';
@@ -53,6 +55,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
     deleteSchoolClass,
     purgeOrphanedClasses,
     createWorkspaceClass,
+    updateSchoolClass,
   } = useApp();
 
   const [activeAdminSubTab, setActiveAdminSubTab] = useState<'ranking' | 'teachers' | 'locking' | 'system'>('ranking');
@@ -62,13 +65,24 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
   const [confirmDeleteClassId, setConfirmDeleteClassId] = useState<string | null>(null);
   const [classFeedback, setClassFeedback] = useState<string | null>(null);
 
+  // Edit / Reassign class modal state
+  const [editingClass, setEditingClass] = useState<SchoolClass | null>(null);
+  const [editClassForm, setEditClassForm] = useState({
+    className: '',
+    department: '',
+    schoolYear: '',
+    teacherId: '',
+  });
+
   // Add class modal state
   const [isAddClassModalOpen, setIsAddClassModalOpen] = useState(false);
   const [newClassForm, setNewClassForm] = useState({
     className: '',
-    department: 'Khoa Điện - Điện tử',
+    department: 'Khoa Cơ bản',
     schoolYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
     teacherId: '',
+    classType: 'homeroom' as 'homeroom' | 'subject',
+    subjectName: 'Toán',
   });
 
   // Password reset modal state
@@ -151,15 +165,26 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
 
     const assignedTeacher = userAccounts.find(user => user.uid === newClassForm.teacherId);
     try {
-      await createWorkspaceClass(newClassForm.className, newClassForm.schoolYear, defaultWeekOneStart(newClassForm.schoolYear), assignedTeacher?.uid);
+      await createWorkspaceClass(
+        newClassForm.className,
+        newClassForm.schoolYear,
+        defaultWeekOneStart(newClassForm.schoolYear),
+        assignedTeacher?.uid,
+        {
+          classType: newClassForm.classType,
+          subjectName: newClassForm.classType === 'subject' ? newClassForm.subjectName : undefined,
+        }
+      );
     } catch (error) { setClassFeedback('Không tạo được lớp: ' + String(error)); return; }
     const createdName = newClassForm.className;
     setIsAddClassModalOpen(false);
     setNewClassForm({
       className: '',
-      department: 'Khoa Điện - Điện tử',
+      department: 'Khoa Cơ bản',
       schoolYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
       teacherId: '',
+      classType: 'homeroom',
+      subjectName: 'Toán',
     });
     setClassFeedback(
       `Đã tạo thành công lớp "${createdName}"${
@@ -167,6 +192,27 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
       }!`
     );
     setTimeout(() => setClassFeedback(null), 4000);
+  };
+
+  const handleSaveEditClass = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingClass) return;
+    const assignedTeacher = userAccounts.find(u => u.uid === editClassForm.teacherId);
+    try {
+      await updateSchoolClass(editingClass.id, {
+        className: editClassForm.className.trim(),
+        department: editClassForm.department.trim(),
+        schoolYear: editClassForm.schoolYear.trim(),
+        teacherId: editClassForm.teacherId || editingClass.teacherId,
+        teacherName: assignedTeacher?.displayName || editingClass.teacherName,
+        teacherEmail: assignedTeacher?.email || editingClass.teacherEmail,
+      });
+      setClassFeedback(`Đã cập nhật thành công lớp "${editClassForm.className}"${assignedTeacher ? ` (GV phụ trách: ${assignedTeacher.displayName})` : ''}!`);
+      setTimeout(() => setClassFeedback(null), 4000);
+      setEditingClass(null);
+    } catch (err) {
+      setClassFeedback('Không cập nhật được lớp: ' + String(err));
+    }
   };
 
   const handleInspectClass = (cls: SchoolClass) => {
@@ -466,6 +512,24 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
                             </div>
                           ) : (
                             <div className="flex items-center justify-end gap-1.5">
+                              <button
+                                type="button"
+                                onClick={() => {
+                                  setEditingClass(cls);
+                                  setEditClassForm({
+                                    className: cls.className,
+                                    department: cls.department,
+                                    schoolYear: cls.schoolYear,
+                                    teacherId: cls.teacherId,
+                                  });
+                                }}
+                                className="px-2.5 py-1 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 font-semibold rounded-lg border border-blue-200 dark:border-blue-800 transition flex items-center gap-1 cursor-pointer shadow-2xs text-[11px]"
+                                title="Phân công lại GVCN / GVBM hoặc chỉnh sửa thông tin lớp này"
+                              >
+                                <UserCheck className="h-3.5 w-3.5" />
+                                <span>Đổi GV</span>
+                              </button>
+
                               <button
                                 type="button"
                                 onClick={() => handleInspectClass(cls)}
@@ -1020,9 +1084,58 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
                 </div>
               </div>
 
+              {/* Vai trò: GVCN vs GVBM */}
               <div>
                 <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
-                  Phân công GVCN phụ trách:
+                  Loại lớp & Vai trò:
+                </label>
+                <div className="grid grid-cols-2 gap-2 p-1 bg-slate-100 dark:bg-slate-900 rounded-xl border border-slate-200 dark:border-slate-700">
+                  <button
+                    type="button"
+                    onClick={() => setNewClassForm({ ...newClassForm, classType: 'homeroom' })}
+                    className={`py-1.5 px-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      newClassForm.classType === 'homeroom'
+                        ? 'bg-blue-600 text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <Home className="h-3.5 w-3.5" />
+                    <span>Lớp Chủ nhiệm (GVCN)</span>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setNewClassForm({ ...newClassForm, classType: 'subject' })}
+                    className={`py-1.5 px-2 rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition cursor-pointer ${
+                      newClassForm.classType === 'subject'
+                        ? 'bg-purple-600 text-white shadow-2xs'
+                        : 'text-slate-600 dark:text-slate-400 hover:text-slate-900 dark:hover:text-white'
+                    }`}
+                  >
+                    <BookOpen className="h-3.5 w-3.5" />
+                    <span>Lớp Bộ môn (GVBM)</span>
+                  </button>
+                </div>
+              </div>
+
+              {newClassForm.classType === 'subject' && (
+                <div>
+                  <label className="block font-semibold text-purple-700 dark:text-purple-300 mb-1">
+                    Tên môn học giảng dạy (GVBM):
+                  </label>
+                  <input
+                    type="text"
+                    value={newClassForm.subjectName}
+                    onChange={(e) => setNewClassForm({ ...newClassForm, subjectName: e.target.value })}
+                    placeholder="vd: Toán, Ngữ văn, Tiếng Anh..."
+                    className="w-full px-3.5 py-2 bg-purple-50 dark:bg-purple-950/40 border border-purple-200 dark:border-purple-800 rounded-xl font-bold text-purple-700 dark:text-purple-300"
+                    required={newClassForm.classType === 'subject'}
+                  />
+                </div>
+              )}
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Phân công {newClassForm.classType === 'subject' ? 'GVBM' : 'GVCN'} phụ trách:
                 </label>
                 <select
                   value={newClassForm.teacherId}
@@ -1030,14 +1143,14 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
                   className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
                 >
                   <option value="">-- Chọn giáo viên từ danh sách tài khoản --</option>
-                  {userAccounts.map((u) => (
+                  {userAccounts.filter(u => u.role !== 'monitor').map((u) => (
                     <option key={u.uid} value={u.uid}>
-                      {u.displayName} ({u.email || u.username})
+                      {u.displayName} ({u.email || u.username}) {u.department ? `· ${u.department}` : ''}
                     </option>
                   ))}
                 </select>
                 <p className="text-[11px] text-slate-400 mt-1">
-                  Lớp sẽ được gắn liền với tài khoản của GVCN này. Khi GVCN đăng nhập, hệ thống tự động mở lớp.
+                  Lớp sẽ được gắn liền với tài khoản của giáo viên này. Khi giáo viên đăng nhập, hệ thống tự động mở lớp.
                 </p>
               </div>
 
@@ -1054,6 +1167,106 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
                   className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-xs cursor-pointer"
                 >
                   Tạo Lớp & Phân Công
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: EDIT / REASSIGN CLASS TEACHER */}
+      {editingClass && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/50 backdrop-blur-xs p-4 animate-fadeIn">
+          <div className="bg-white dark:bg-slate-800 rounded-3xl max-w-md w-full p-6 border border-slate-200 dark:border-slate-700 shadow-2xl space-y-4 animate-scaleUp">
+            <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-700">
+              <h4 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+                <UserCheck className="h-5 w-5 text-blue-600" />
+                <span>Đổi Giáo Viên & Sửa Thông Tin Lớp</span>
+              </h4>
+              <button
+                type="button"
+                onClick={() => setEditingClass(null)}
+                className="p-1.5 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-xl text-slate-400 cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            <form onSubmit={handleSaveEditClass} className="space-y-3.5 text-xs">
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Tên lớp học:
+                </label>
+                <input
+                  type="text"
+                  value={editClassForm.className}
+                  onChange={(e) => setEditClassForm({ ...editClassForm, className: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
+                  required
+                />
+              </div>
+
+              <div className="grid grid-cols-2 gap-2">
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Khoa / Bộ môn:
+                  </label>
+                  <input
+                    type="text"
+                    value={editClassForm.department}
+                    onChange={(e) => setEditClassForm({ ...editClassForm, department: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                    required
+                  />
+                </div>
+                <div>
+                  <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                    Niên khóa:
+                  </label>
+                  <input
+                    type="text"
+                    value={editClassForm.schoolYear}
+                    onChange={(e) => setEditClassForm({ ...editClassForm, schoolYear: e.target.value })}
+                    className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl"
+                    required
+                  />
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold text-slate-700 dark:text-slate-300 mb-1">
+                  Phân công giáo viên phụ trách mới (GVCN / GVBM):
+                </label>
+                <select
+                  value={editClassForm.teacherId}
+                  onChange={(e) => setEditClassForm({ ...editClassForm, teacherId: e.target.value })}
+                  className="w-full px-3.5 py-2.5 bg-slate-50 dark:bg-slate-900 border border-slate-200 dark:border-slate-700 rounded-xl font-bold cursor-pointer"
+                >
+                  <option value="">-- Giữ nguyên hoặc chọn giáo viên từ danh sách --</option>
+                  {userAccounts.filter((u) => u.role !== 'monitor').map((u) => (
+                    <option key={u.uid} value={u.uid}>
+                      {u.displayName} ({u.email || u.username}) {u.department ? `· ${u.department}` : ''}
+                    </option>
+                  ))}
+                </select>
+                <p className="text-[11px] text-slate-400 mt-1">
+                  Đổi giáo viên phụ trách để chuyển quyền quản lý và mở lớp khi giáo viên đăng nhập.
+                </p>
+              </div>
+
+              <div className="flex items-center justify-end gap-2 pt-3 border-t border-slate-100 dark:border-slate-700">
+                <button
+                  type="button"
+                  onClick={() => setEditingClass(null)}
+                  className="px-4 py-2 rounded-xl text-slate-500 hover:bg-slate-100 dark:hover:bg-slate-700 font-semibold cursor-pointer"
+                >
+                  Hủy
+                </button>
+                <button
+                  type="submit"
+                  className="px-5 py-2 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition shadow-xs cursor-pointer"
+                >
+                  Lưu Thay Đổi
                 </button>
               </div>
             </form>

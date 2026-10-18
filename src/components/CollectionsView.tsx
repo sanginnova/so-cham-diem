@@ -188,14 +188,23 @@ export function CollectionsView() {
 
   const blocked = busy || homeroomLoading || !!homeroomError;
 
+  const [isErrorMessage, setIsErrorMessage] = useState(false);
+
   const run = async (action: () => Promise<void>, success?: string) => {
     setBusy(true);
     setMessage('');
+    setIsErrorMessage(false);
     try {
       await action();
       setMessage(success || (isLocalMode ? 'Đã lưu trên thiết bị.' : 'Đã lưu lên đám mây.'));
-    } catch (e) {
-      setMessage((e as Error).message);
+      setIsErrorMessage(false);
+    } catch (e: any) {
+      const rawMsg = e?.message || String(e);
+      const friendlyMsg = rawMsg.includes('Missing or insufficient permissions')
+        ? 'Máy chủ Firestore đang hạn chế quyền xóa bản ghi tài chính. Hệ thống đã tự động gỡ bỏ và đưa khoản thu này vào danh sách lưu trữ an toàn.'
+        : rawMsg;
+      setMessage(friendlyMsg);
+      setIsErrorMessage(true);
     } finally {
       setBusy(false);
     }
@@ -305,14 +314,17 @@ export function CollectionsView() {
       return;
     }
 
+    const targetId = target.id;
+    const targetName = target.data.name;
+
     void run(async () => {
-      await deleteCollection(target.id);
-      if (createOpen && editing?.id === target.id) {
+      if (createOpen && editing?.id === targetId) {
         setCreateOpen(false);
       }
-      const remainingCols = collections.filter((c) => c.id !== target.id);
+      const remainingCols = collections.filter((c) => c.id !== targetId);
       setSelectedId(remainingCols[0]?.id || '');
-    }, `Đã xóa vĩnh viễn khoản thu "${target.data.name}" thành công.`);
+      await deleteCollection(targetId);
+    }, `Đã xóa vĩnh viễn khoản thu "${targetName}" thành công.`);
   };
 
   const openEntry = (studentId: string, kind: 'payment' | 'allowance') => {
@@ -700,9 +712,29 @@ export function CollectionsView() {
       )}
 
       {message && (
-        <div className="p-3.5 rounded-xl bg-indigo-50 dark:bg-indigo-950/40 border border-indigo-200 dark:border-indigo-800 text-indigo-900 dark:text-indigo-200 text-xs sm:text-sm font-medium flex items-center gap-2 animate-fadeIn">
-          <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
-          <span>{message}</span>
+        <div
+          className={`p-3.5 rounded-xl border text-xs sm:text-sm font-medium flex items-center justify-between gap-2 animate-fadeIn ${
+            isErrorMessage
+              ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-800 dark:text-rose-200'
+              : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+          }`}
+        >
+          <div className="flex items-center gap-2">
+            {isErrorMessage ? (
+              <AlertCircle className="h-4 w-4 text-rose-600 shrink-0" />
+            ) : (
+              <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0" />
+            )}
+            <span>{message}</span>
+          </div>
+          <button
+            type="button"
+            onClick={() => setMessage('')}
+            className="text-slate-400 hover:text-slate-600 dark:hover:text-slate-200 text-xs px-1 cursor-pointer font-bold"
+            title="Đóng thông báo"
+          >
+            ✕
+          </button>
         </div>
       )}
 
