@@ -1248,9 +1248,28 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
                 rows={7}
                 value={pasteRawText}
                 onChange={(e) => setPasteRawText(e.target.value)}
-                placeholder="Dán dữ liệu copy từ Excel hoặc bảng vào đây... (Ctrl + V)"
-                className="w-full p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono text-slate-900 dark:text-white focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
+                placeholder={`Dán dữ liệu copy từ Excel hoặc bảng vào đây... (Ctrl + V)
+
+Ví dụ các cột từ Excel:
+Buổi\tTiết\tThứ 2\tThứ 3\tThứ 4\tThứ 5\tThứ 6
+Sáng\tTiết 1\t10A8 - Toán\t\t10A11 - Toán\t\t10A8 - Toán
+Sáng\tTiết 2\t10A8 - Toán\t10A15 - Toán\t\t10A17 - Toán`}
+                className="w-full p-3 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-xs font-mono text-slate-900 dark:text-white placeholder:text-slate-400/80 dark:placeholder:text-slate-500/80 focus:outline-hidden focus:ring-2 focus:ring-indigo-500"
               />
+
+              {!pasteRawText && (
+                <div className="p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-dashed border-slate-200 dark:border-slate-700 text-xs text-slate-600 dark:text-slate-300 space-y-1">
+                  <div className="flex items-center gap-1 font-semibold text-indigo-600 dark:text-indigo-400 flex-wrap">
+                    <span>💡 Thứ tự các cột chuẩn:</span>
+                    <span className="font-normal text-slate-700 dark:text-slate-300">
+                      Buổi | Tiết | <b className="text-slate-900 dark:text-white">Thứ 2</b> | <b className="text-slate-900 dark:text-white">Thứ 3</b> | <b className="text-slate-900 dark:text-white">Thứ 4</b> | <b className="text-slate-900 dark:text-white">Thứ 5</b> | <b className="text-slate-900 dark:text-white">Thứ 6</b> <i>(hoặc Thứ 7)</i>
+                    </span>
+                  </div>
+                  <p className="text-[11px] text-slate-500 dark:text-slate-400">
+                    • Nội dung ô ghi: <span className="font-semibold text-purple-600 dark:text-purple-400">10A8 - Toán</span> hoặc chỉ cần <span className="font-semibold text-purple-600 dark:text-purple-400">10A8</span>. Tiết trống để ô trắng.
+                  </p>
+                </div>
+              )}
 
               {pasteRawText && (() => {
                 const detected = detectTimetableModeFromText(pasteRawText);
