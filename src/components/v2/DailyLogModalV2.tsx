@@ -6,6 +6,7 @@ import {
   Users,
   User,
   AlertTriangle,
+  AlertCircle,
   Lock,
   PlusCircle,
   Clock,
@@ -15,6 +16,8 @@ import {
   Calendar,
   Layers,
   ChevronRight,
+  ClipboardPaste,
+  FileSpreadsheet,
 } from 'lucide-react';
 import { useApp } from '../../context/AppContext';
 import { BehaviorCategory, Student, BehaviorType } from '../../types';
@@ -22,6 +25,7 @@ import { formatVietnameseDate, removeVietnameseAccents } from '../../lib/utils';
 import { localDateString } from '../../lib/logValidation';
 import { getBehaviorSuggestions } from '../../lib/behaviorSuggestions';
 import { sameLogEntry } from '../../lib/scoreBreakdown';
+import { matchStudentsFromBulkText } from '../../lib/bulkStudentMatcher';
 import {
   MORNING_PERIODS,
   AFTERNOON_PERIODS,
@@ -94,6 +98,15 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
   const [studentSearch, setStudentSearch] = useState<string>('');
   const [selectedSingleStudent, setSelectedSingleStudent] = useState<Student | null>(() => students.find(student => student.id === initialStudentId) || null);
   const [selectedBulkStudentIds, setSelectedBulkStudentIds] = useState<string[]>([]);
+
+  // Bulk paste from Excel / Clipboard states
+  const [showPastePanel, setShowPastePanel] = useState<boolean>(false);
+  const [pasteBoxText, setPasteBoxText] = useState<string>('');
+  const [bulkPasteNotice, setBulkPasteNotice] = useState<{
+    type: 'success' | 'partial' | 'warning';
+    message: string;
+    unmatched: string[];
+  } | null>(null);
 
   // Category selection
   const [categoryType, setCategoryType] = useState<BehaviorType>(() => {
@@ -198,6 +211,103 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
   // Clear bulk selection
   const handleClearBulkSelection = () => {
     setSelectedBulkStudentIds([]);
+    setBulkPasteNotice(null);
+  };
+
+  // Live preview matching for paste panel
+  const pastePreviewResult = useMemo(() => {
+    if (!pasteBoxText.trim()) return null;
+    return matchStudentsFromBulkText(pasteBoxText, students);
+  }, [pasteBoxText, students]);
+
+  // Apply students parsed from the paste textarea
+  const handleApplyPasteFromBox = (mode: 'merge' | 'replace' = 'merge') => {
+    if (!pastePreviewResult || pastePreviewResult.matchedIds.length === 0) return;
+    setSelectedBulkStudentIds((prev) => {
+      if (mode === 'replace') return pastePreviewResult.matchedIds;
+      return Array.from(new Set([...prev, ...pastePreviewResult.matchedIds]));
+    });
+
+    const matchedCount = pastePreviewResult.matchedIds.length;
+    const unmatchedCount = pastePreviewResult.unmatchedLines.length;
+
+    if (unmatchedCount > 0) {
+      setBulkPasteNotice({
+        type: 'partial',
+        message: `Đã chọn ${matchedCount} học sinh. Có ${unmatchedCount} dòng không khớp trong danh sách lớp.`,
+        unmatched: pastePreviewResult.unmatchedLines,
+      });
+    } else {
+      setBulkPasteNotice({
+        type: 'success',
+        message: `Đã chọn thành công toàn bộ ${matchedCount} học sinh từ dữ liệu Excel vừa dán!`,
+        unmatched: [],
+      });
+    }
+
+    setShowPastePanel(false);
+    setPasteBoxText('');
+    setStudentSearch('');
+  };
+
+  // Intercept direct Ctrl+V on the student search input
+  const handleSearchPaste = (e: React.ClipboardEvent<HTMLInputElement>) => {
+    if (logMode !== 'bulk') return;
+    const pastedText = e.clipboardData.getData('text');
+    if (!pastedText) return;
+
+    // Detect bulk/multi-line patterns (newlines, tabs, commas, etc.)
+    if (
+      pastedText.includes('\n') ||
+      pastedText.includes('\r') ||
+      (pastedText.includes('\t') && pastedText.length > 4) ||
+      (pastedText.includes(',') && pastedText.split(',').length > 1) ||
+      (pastedText.includes(';') && pastedText.split(';').length > 1)
+    ) {
+      e.preventDefault();
+      const res = matchStudentsFromBulkText(pastedText, students);
+      if (res.matchedIds.length === 0) {
+        setBulkPasteNotice({
+          type: 'warning',
+          message: `Không tìm thấy học sinh nào phù hợp trong số ${res.totalParsedLines} dòng đã dán. Vui lòng kiểm tra lại họ tên hoặc mã HS.`,
+          unmatched: res.unmatchedLines,
+        });
+        return;
+      }
+
+      setSelectedBulkStudentIds((prev) => Array.from(new Set([...prev, ...res.matchedIds])));
+      setStudentSearch('');
+
+      if (res.unmatchedLines.length > 0) {
+        setBulkPasteNotice({
+          type: 'partial',
+          message: `Đã tự động chọn ${res.matchedIds.length} học sinh. Có ${res.unmatchedLines.length} dòng không khớp trong lớp.`,
+          unmatched: res.unmatchedLines,
+        });
+      } else {
+        setBulkPasteNotice({
+          type: 'success',
+          message: `Đã tự động chọn thành công toàn bộ ${res.matchedIds.length} học sinh từ danh sách Excel vừa dán!`,
+          unmatched: [],
+        });
+      }
+    }
+  };
+
+  // Read clipboard directly into paste box
+  const handleReadClipboardToBox = async () => {
+    try {
+      if (typeof navigator !== 'undefined' && navigator.clipboard && navigator.clipboard.readText) {
+        const text = await navigator.clipboard.readText();
+        if (text && text.trim()) {
+          setPasteBoxText(text);
+          return;
+        }
+      }
+      setErrorMessage('Không thể đọc tự động từ Clipboard. Hãy nhấp chuột vào ô và bấm Ctrl + V.');
+    } catch {
+      setErrorMessage('Không thể đọc tự động từ Clipboard. Hãy nhấp chuột vào ô và bấm Ctrl + V.');
+    }
   };
 
   // Select category
@@ -597,19 +707,35 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
                   : `Bước 1: Chọn Các Học Sinh (${selectedBulkStudentIds.length} đã chọn)`}
               </span>
               {logMode === 'bulk' && (
-                <div className="flex gap-2">
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    onClick={() => setShowPastePanel((prev) => !prev)}
+                    className={`text-[11px] font-bold px-2.5 py-1 rounded-lg border transition flex items-center gap-1.5 cursor-pointer shadow-xs ${
+                      showPastePanel
+                        ? 'bg-emerald-600 border-emerald-600 text-white'
+                        : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-700 text-emerald-700 dark:text-emerald-300 hover:bg-emerald-100 dark:hover:bg-emerald-900/40'
+                    }`}
+                    title="Dán danh sách học sinh từ Excel (mỗi em một dòng)"
+                  >
+                    <ClipboardPaste className="h-3.5 w-3.5" />
+                    <span>Dán từ Excel</span>
+                  </button>
+
+                  <span className="text-slate-300 dark:text-slate-700">|</span>
+
                   <button
                     type="button"
                     onClick={handleSelectAllFiltered}
-                    className="text-[11px] text-blue-600 hover:underline font-semibold"
+                    className="text-[11px] text-blue-600 hover:underline font-semibold cursor-pointer"
                   >
                     Chọn tất cả
                   </button>
-                  <span className="text-slate-300">|</span>
+                  <span className="text-slate-300 dark:text-slate-700">|</span>
                   <button
                     type="button"
                     onClick={handleClearBulkSelection}
-                    className="text-[11px] text-rose-600 hover:underline font-semibold"
+                    className="text-[11px] text-rose-600 hover:underline font-semibold cursor-pointer"
                   >
                     Bỏ chọn hết
                   </button>
@@ -617,13 +743,151 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
               )}
             </div>
 
+            {/* Expandable Excel Paste Box Panel */}
+            {logMode === 'bulk' && showPastePanel && (
+              <div className="p-3 rounded-2xl border-2 border-emerald-400/80 dark:border-emerald-600/60 bg-emerald-50/70 dark:bg-slate-850 shadow-md space-y-2.5 animate-in fade-in slide-in-from-top-1 duration-150">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <div className="w-6 h-6 rounded-lg bg-emerald-600 text-white flex items-center justify-center shadow-xs">
+                      <FileSpreadsheet className="h-3.5 w-3.5" />
+                    </div>
+                    <div>
+                      <h4 className="text-xs font-bold text-slate-900 dark:text-slate-100">
+                        Dán danh sách học sinh từ Excel (Mỗi em 1 dòng)
+                      </h4>
+                      <p className="text-[10px] text-slate-500 dark:text-slate-400">
+                        Bôi đen cột họ tên hoặc mã HS trong Excel &gt; <b>Ctrl + C</b> &gt; Bấm vào ô bên dưới và ấn <b>Ctrl + V</b>
+                      </p>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => setShowPastePanel(false)}
+                    className="p-1 rounded-lg text-slate-400 hover:text-slate-700 dark:hover:text-slate-200 cursor-pointer"
+                  >
+                    <X className="h-4 w-4" />
+                  </button>
+                </div>
+
+                <textarea
+                  rows={4}
+                  value={pasteBoxText}
+                  onChange={(e) => setPasteBoxText(e.target.value)}
+                  placeholder={`Ví dụ sao chép từ cột Excel:\nTrần Duy Anh\nPhạm Quốc Bảo\nĐặng Việt Dũng\nLê Trung Dũng\n...`}
+                  className="w-full p-2.5 rounded-xl border border-emerald-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-mono placeholder:text-slate-400 focus:ring-2 focus:ring-emerald-500 outline-none resize-none leading-relaxed"
+                />
+
+                {/* Preview Matching Badge Bar */}
+                {pastePreviewResult && (
+                  <div className="flex flex-wrap items-center justify-between gap-1.5 text-xs pt-1 border-t border-emerald-200/60 dark:border-slate-700/60">
+                    <div className="flex items-center gap-2 flex-wrap">
+                      <span className="font-semibold text-emerald-800 dark:text-emerald-300 text-[11px] flex items-center gap-1">
+                        <CheckCircle2 className="h-3.5 w-3.5 text-emerald-600" />
+                        Đã khớp: <b>{pastePreviewResult.matchedIds.length}</b> học sinh
+                      </span>
+                      {pastePreviewResult.unmatchedLines.length > 0 && (
+                        <span
+                          className="font-semibold text-rose-600 dark:text-rose-400 text-[11px] flex items-center gap-1"
+                          title={pastePreviewResult.unmatchedLines.join(', ')}
+                        >
+                          <AlertTriangle className="h-3.5 w-3.5 text-rose-500" />
+                          Không tìm thấy: <b>{pastePreviewResult.unmatchedLines.length}</b> dòng
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="flex items-center gap-1.5">
+                      <button
+                        type="button"
+                        onClick={() => handleApplyPasteFromBox('merge')}
+                        disabled={pastePreviewResult.matchedIds.length === 0}
+                        className="px-3 py-1.5 rounded-xl bg-emerald-600 hover:bg-emerald-700 disabled:opacity-40 text-white font-bold text-xs flex items-center gap-1 shadow-sm cursor-pointer"
+                      >
+                        <Check className="h-3.5 w-3.5" />
+                        Áp dụng chọn ({pastePreviewResult.matchedIds.length} HS)
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setPasteBoxText('')}
+                        className="px-2 py-1.5 rounded-xl text-slate-500 hover:bg-slate-200 dark:hover:bg-slate-700 text-xs cursor-pointer"
+                      >
+                        Xóa trắng
+                      </button>
+                    </div>
+                  </div>
+                )}
+
+                {!pastePreviewResult && (
+                  <div className="flex items-center justify-between text-xs pt-1">
+                    <button
+                      type="button"
+                      onClick={handleReadClipboardToBox}
+                      className="px-2.5 py-1 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 hover:bg-slate-50 text-slate-700 dark:text-slate-300 font-semibold text-[11px] flex items-center gap-1 cursor-pointer"
+                    >
+                      <ClipboardPaste className="h-3.5 w-3.5 text-blue-600" />
+                      Dán từ Clipboard máy tính
+                    </button>
+                    <span className="text-[11px] text-slate-400">
+                      Mẹo: Có thể ấn phím Ctrl + V trực tiếp vào ô tìm kiếm bên dưới
+                    </span>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Paste Notice Banner */}
+            {logMode === 'bulk' && bulkPasteNotice && (
+              <div
+                className={`p-2.5 rounded-xl border flex items-start justify-between gap-2 text-xs animate-in fade-in ${
+                  bulkPasteNotice.type === 'success'
+                    ? 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-300 dark:border-emerald-800 text-emerald-900 dark:text-emerald-200'
+                    : bulkPasteNotice.type === 'partial'
+                    ? 'bg-amber-50 dark:bg-amber-950/40 border-amber-300 dark:border-amber-800 text-amber-900 dark:text-amber-200'
+                    : 'bg-rose-50 dark:bg-rose-950/40 border-rose-300 dark:border-rose-800 text-rose-900 dark:text-rose-200'
+                }`}
+              >
+                <div className="flex items-start gap-2">
+                  {bulkPasteNotice.type === 'success' ? (
+                    <CheckCircle2 className="h-4 w-4 text-emerald-600 shrink-0 mt-0.5" />
+                  ) : bulkPasteNotice.type === 'partial' ? (
+                    <AlertTriangle className="h-4 w-4 text-amber-600 shrink-0 mt-0.5" />
+                  ) : (
+                    <AlertCircle className="h-4 w-4 text-rose-600 shrink-0 mt-0.5" />
+                  )}
+                  <div>
+                    <div className="font-semibold">{bulkPasteNotice.message}</div>
+                    {bulkPasteNotice.unmatched.length > 0 && (
+                      <div className="text-[11px] mt-1 opacity-90">
+                        Chi tiết không tìm thấy:{' '}
+                        <span className="font-mono font-medium">
+                          {bulkPasteNotice.unmatched.join(', ')}
+                        </span>
+                      </div>
+                    )}
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setBulkPasteNotice(null)}
+                  className="p-1 rounded-md hover:bg-black/5 dark:hover:bg-white/10 shrink-0 cursor-pointer"
+                >
+                  <X className="h-3.5 w-3.5" />
+                </button>
+              </div>
+            )}
+
             <div className="relative">
               <Search className="h-4 w-4 absolute left-3 top-2.5 text-slate-400" />
               <input
                 type="text"
                 value={studentSearch}
                 onChange={(e) => setStudentSearch(e.target.value)}
-                placeholder="Tìm tên hoặc mã HS (vd: 419, Lan, Sang...)"
+                onPaste={handleSearchPaste}
+                placeholder={
+                  logMode === 'bulk'
+                    ? 'Tìm tên, mã HS hoặc dán danh sách Excel (Ctrl + V)...'
+                    : 'Tìm tên hoặc mã HS (vd: 419, Lan, Sang...)'
+                }
                 className="w-full pl-9 pr-4 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs font-medium focus:ring-2 focus:ring-blue-500 outline-none"
               />
             </div>
