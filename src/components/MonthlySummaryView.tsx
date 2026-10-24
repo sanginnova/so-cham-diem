@@ -1407,7 +1407,7 @@ export const MonthlySummaryView: React.FC<MonthlySummaryViewProps> = ({
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
                 >
                   <option value="">-- Chọn học sinh trong danh sách lớp --</option>
-                  {students.map((s) => (
+                  {students.filter((s) => s.status === 'active').map((s) => (
                     <option key={s.id} value={s.id}>
                       {s.studentCode} - {s.fullName}
                     </option>

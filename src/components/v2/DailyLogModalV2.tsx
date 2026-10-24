@@ -138,11 +138,12 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
   // Check period lock
   const isLocked = isPeriodLocked('week', selectedWeek);
 
-  // Filter students based on search
+  // Filter students based on search (chỉ áp dụng học sinh đang học)
   const filteredStudents = useMemo(() => {
-    if (!studentSearch.trim()) return students;
+    const active = students.filter((s) => s.status === 'active');
+    if (!studentSearch.trim()) return active;
     const q = removeVietnameseAccents(studentSearch.toLowerCase());
-    return students.filter((s) => {
+    return active.filter((s) => {
       const name = removeVietnameseAccents(s.fullName.toLowerCase());
       const code = s.studentCode.toLowerCase();
       return name.includes(q) || code.includes(q);

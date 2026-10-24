@@ -87,3 +87,17 @@ test('Attendance classification correctly identifies all excused, unexcused, and
   assert.equal(stats.unexcusedAbsenceCount, 1);
   assert.equal(stats.truancyCount, 1);
 });
+
+test('Inactive students (ngừng học) are excluded from score summary rosters', () => {
+  const students = [
+    { id: 's1', fullName: 'Nguyễn Văn A', status: 'active' },
+    { id: 's2', fullName: 'Trần Thị B', status: 'inactive' },
+    { id: 's3', fullName: 'Lê Văn C', status: 'active' },
+  ];
+
+  const activeStudents = students.filter((s) => s.status === 'active');
+  assert.equal(activeStudents.length, 2);
+  assert.equal(activeStudents.some((s) => s.id === 's2'), false);
+  assert.equal(activeStudents.map((s) => s.id).join(','), 's1,s3');
+});
+

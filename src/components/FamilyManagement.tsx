@@ -30,12 +30,29 @@ export function FamilyManagement() {
     const selectedId = old?.studentId || studentId;
     const student = students.find(s => s.id === selectedId);
     if (!student) throw new Error('Chọn học sinh.');
+    if (student.status !== 'active') throw new Error('Học sinh đã ngừng theo học, không tổng kết hoặc công bố điểm.');
     const targetEmail = old?.viewerEmail || email.trim().toLowerCase();
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) throw new Error('Nhập email Google hợp lệ.');
     const ref = old ? doc(db, 'familyReports', old.id) : doc(collection(db, 'familyReports'));
     const logs = disciplineLogs.filter(l => l.studentId === student.id);
-    const weeks = classConfig.weeks.filter(w => w.startDate <= localDateString()).map(w => { const s = getWeeklySummary(w.weekNumber).find(s => s.studentId === student.id)!; return { weekNumber: w.weekNumber, finalScore: s.finalScore, rank: s.rank, explanation: `${classConfig.baseScore} − ${s.totalDeduct} + ${s.totalBonus} = ${s.finalScore}đ (không giới hạn điểm trên/dưới). ${s.notes}` }; });
-    const months = classConfig.months.filter(m => classConfig.weeks.some(w => w.month === m && w.startDate <= localDateString())).map(month => { const s = getMonthlySummary(month).find(s => s.studentId === student.id)!; return { month, finalScore: s.finalScore, rank: s.rank, explanation: s.notes }; });
+    const weeks = classConfig.weeks.filter(w => w.startDate <= localDateString()).map(w => {
+      const s = getWeeklySummary(w.weekNumber).find(s => s.studentId === student.id);
+      return {
+        weekNumber: w.weekNumber,
+        finalScore: s?.finalScore ?? classConfig.baseScore,
+        rank: s?.rank ?? 'Chưa xếp loại',
+        explanation: s ? `${classConfig.baseScore} − ${s.totalDeduct} + ${s.totalBonus} = ${s.finalScore}đ (không giới hạn điểm trên/dưới). ${s.notes}` : 'Không tổng kết điểm do đã ngừng học.',
+      };
+    });
+    const months = classConfig.months.filter(m => classConfig.weeks.some(w => w.month === m && w.startDate <= localDateString())).map(month => {
+      const s = getMonthlySummary(month).find(s => s.studentId === student.id);
+      return {
+        month,
+        finalScore: s?.finalScore ?? classConfig.baseScore,
+        rank: s?.rank ?? 'Chưa xếp loại',
+        explanation: s?.notes ?? 'Không tổng kết điểm do đã ngừng học.',
+      };
+    });
     await setDoc(ref, { teacherId: classConfig.teacherId, classId: classConfig.id, studentId: student.id, studentName: student.fullName, className: classConfig.className, viewerEmail: targetEmail,
       expiresAt: Timestamp.fromMillis(Date.now() + days * 86400000), revoked: false, publishedAt: new Date().toISOString(),
       logIds: logs.map(l => l.id), logs: logs.map(l => ({ id: l.id, date: l.date, behaviorDescription: l.behaviorDescription, type: l.type, totalScore: l.totalScore })), weeks, months });
@@ -55,7 +72,7 @@ export function FamilyManagement() {
   return <details className="bg-white dark:bg-slate-800 border rounded-2xl p-4 space-y-3"><summary className="font-bold cursor-pointer">Tra cứu phụ huynh • Đề nghị điều chỉnh • Thùng rác</summary>
     {error && <p role="alert" className="text-rose-600">{error}</p>}{notice && <p role="status" className="text-emerald-600 break-words">{notice}</p>}
     <form className="space-y-2 border rounded-xl p-3" onSubmit={e => { e.preventDefault(); void act(() => publish()); }}><h3 className="font-bold">Cấp liên kết báo cáo cá nhân</h3>
-      <label className="block">Học sinh<select required value={studentId} onChange={e => setStudentId(e.target.value)} className="block w-full border rounded p-2 bg-transparent"><option value="">Chọn học sinh</option>{students.map(s => <option key={s.id} value={s.id}>{s.fullName} • {s.studentCode}</option>)}</select></label>
+      <label className="block">Học sinh<select required value={studentId} onChange={e => setStudentId(e.target.value)} className="block w-full border rounded p-2 bg-transparent"><option value="">Chọn học sinh</option>{students.filter(s => s.status === 'active').map(s => <option key={s.id} value={s.id}>{s.fullName} • {s.studentCode}</option>)}</select></label>
       <label className="block">Email Google của người được xem<input required type="email" value={email} onChange={e => setEmail(e.target.value)} className="block w-full border rounded p-2 bg-transparent" /></label><label className="block">Thời hạn<select value={days} onChange={e => setDays(Number(e.target.value))} className="border rounded p-2 bg-transparent">{[1, 7, 14, 30].map(d => <option key={d} value={d}>{d} ngày</option>)}</select></label><button disabled={busy} className="bg-blue-600 text-white rounded px-3 py-2">Công bố báo cáo và tạo link</button>
       <p className="text-xs">Báo cáo là bản công bố tại thời điểm tạo. Sau khi sửa điểm, bấm Cập nhật báo cáo để người nhận xem kết quả mới.</p>
     </form>

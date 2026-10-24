@@ -178,11 +178,12 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
     );
   }, [classConfig.achievementBonusRules]);
 
-  // Filtered students for batch award modal
+  // Filtered students for batch award modal (only active students)
   const filteredModalStudents = useMemo(() => {
-    if (!modalStudentSearch.trim()) return students;
+    const activeStudents = students.filter((s) => s.status === 'active');
+    if (!modalStudentSearch.trim()) return activeStudents;
     const q = modalStudentSearch.toLowerCase().trim();
-    return students.filter(
+    return activeStudents.filter(
       (s) => s.fullName.toLowerCase().includes(q) || s.studentCode.toLowerCase().includes(q)
     );
   }, [students, modalStudentSearch]);
@@ -1949,17 +1950,17 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
                     <Users className="h-4 w-4 text-blue-600" />
                     <span>Danh sách học sinh nhận điểm thưởng:</span>
                     <span className="px-2 py-0.5 rounded-full bg-blue-100 dark:bg-blue-950 text-blue-700 dark:text-blue-300 font-extrabold text-[11px]">
-                      Đã chọn {selectedStudentIds.length} / {students.length} HS
+                      Đã chọn {selectedStudentIds.length} / {students.filter((s) => s.status === 'active').length} HS
                     </span>
                   </label>
 
                   <div className="flex items-center gap-1.5">
                     <button
                       type="button"
-                      onClick={() => setSelectedStudentIds(students.map((s) => s.id))}
+                      onClick={() => setSelectedStudentIds(students.filter((s) => s.status === 'active').map((s) => s.id))}
                       className="px-2.5 py-1 bg-white dark:bg-slate-700 hover:bg-blue-50 dark:hover:bg-blue-950 text-blue-700 dark:text-blue-300 font-semibold rounded-lg border border-slate-200 dark:border-slate-600 transition cursor-pointer text-[11px]"
                     >
-                      + Chọn cả lớp ({students.length})
+                      + Chọn cả lớp ({students.filter((s) => s.status === 'active').length})
                     </button>
                     {selectedStudentIds.length > 0 && (
                       <button

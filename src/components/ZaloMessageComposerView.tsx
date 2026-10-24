@@ -211,16 +211,19 @@ export const ZaloMessageComposerView: React.FC<ZaloMessageComposerViewProps> = (
     }
   };
 
+  // Active students only (học sinh ngừng học không tính vào thông báo gửi điểm)
+  const activeStudents = useMemo(() => students.filter((s) => s.status === 'active'), [students]);
+
   // Student selection for 1-on-1 mode
   const [selectedStudentId, setSelectedStudentId] = useState<string>(
-    initialStudentId || (students[0]?.id ?? '')
+    initialStudentId || (activeStudents[0]?.id ?? '')
   );
   const [studentSearch, setStudentSearch] = useState<string>('');
   const [studentFilter, setStudentFilter] = useState<'all' | 'deducted' | 'bonus' | 'under8'>('all');
 
   const selectedStudent = useMemo(() => {
-    return students.find((s) => s.id === selectedStudentId) || students[0] || null;
-  }, [students, selectedStudentId]);
+    return activeStudents.find((s) => s.id === selectedStudentId) || activeStudents[0] || null;
+  }, [activeStudents, selectedStudentId]);
 
   // Summaries strictly reactive to disciplineLogs
   const weeklySummaries = useMemo(() => {
@@ -235,7 +238,7 @@ export const ZaloMessageComposerView: React.FC<ZaloMessageComposerViewProps> = (
   const currentSummaries = periodMode === 'week' ? weeklySummaries : monthlySummaries;
 
   const filteredStudentList = useMemo(() => {
-    return students.filter((s) => {
+    return activeStudents.filter((s) => {
       // Search
       const q = studentSearch.toLowerCase().trim();
       const matchSearch =
@@ -258,22 +261,22 @@ export const ZaloMessageComposerView: React.FC<ZaloMessageComposerViewProps> = (
       }
       return true;
     });
-  }, [students, studentSearch, studentFilter, currentSummaries]);
+  }, [activeStudents, studentSearch, studentFilter, currentSummaries]);
 
   // Student Index Navigation
   const studentIndex = useMemo(() => {
-    return students.findIndex((s) => s.id === selectedStudent?.id);
-  }, [students, selectedStudent]);
+    return activeStudents.findIndex((s) => s.id === selectedStudent?.id);
+  }, [activeStudents, selectedStudent]);
 
   const handlePrevStudent = () => {
     if (studentIndex > 0) {
-      setSelectedStudentId(students[studentIndex - 1].id);
+      setSelectedStudentId(activeStudents[studentIndex - 1].id);
     }
   };
 
   const handleNextStudent = () => {
-    if (studentIndex < students.length - 1) {
-      setSelectedStudentId(students[studentIndex + 1].id);
+    if (studentIndex < activeStudents.length - 1) {
+      setSelectedStudentId(activeStudents[studentIndex + 1].id);
     }
   };
 
@@ -283,7 +286,7 @@ export const ZaloMessageComposerView: React.FC<ZaloMessageComposerViewProps> = (
       templateText: rawContent,
       options,
       classConfig,
-      students,
+      students: activeStudents,
       disciplineLogs,
       weeklySummaries,
       monthlySummaries,
@@ -296,7 +299,7 @@ export const ZaloMessageComposerView: React.FC<ZaloMessageComposerViewProps> = (
     rawContent,
     options,
     classConfig,
-    students,
+    activeStudents,
     disciplineLogs,
     weeklySummaries,
     monthlySummaries,
@@ -676,7 +679,7 @@ export const ZaloMessageComposerView: React.FC<ZaloMessageComposerViewProps> = (
               <div className="flex items-center justify-between">
                 <span className="text-xs font-bold uppercase tracking-wider text-slate-500 flex items-center gap-1.5">
                   <User className="h-3.5 w-3.5 text-blue-600" />
-                  <span>Chọn Học Sinh Để Gửi Riêng ({filteredStudentList.length}/{students.length})</span>
+                  <span>Chọn Học Sinh Để Gửi Riêng ({filteredStudentList.length}/{activeStudents.length})</span>
                 </span>
 
                 {/* Quick Prev / Next Navigator */}
@@ -691,12 +694,12 @@ export const ZaloMessageComposerView: React.FC<ZaloMessageComposerViewProps> = (
                     <ChevronLeft className="h-3.5 w-3.5" />
                   </button>
                   <span className="text-xs font-bold px-2 py-0.5 bg-slate-100 dark:bg-slate-700 rounded-md font-mono">
-                    {studentIndex + 1}/{students.length}
+                    {studentIndex + 1}/{activeStudents.length}
                   </span>
                   <button
                     type="button"
                     onClick={handleNextStudent}
-                    disabled={studentIndex >= students.length - 1}
+                    disabled={studentIndex >= activeStudents.length - 1}
                     className="p-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-700 disabled:opacity-30 rounded-lg text-slate-700 dark:text-slate-300"
                     title="Học sinh kế tiếp"
                   >

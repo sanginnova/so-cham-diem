@@ -47,6 +47,9 @@ export function SubjectAttendanceView() {
     ownStudents
   );
 
+  // Chỉ áp dụng điểm danh cho học sinh đang học
+  const activeStudents = useMemo(() => students.filter((s) => s.status === 'active'), [students]);
+
   const [viewTab, setViewTab] = useState<'session' | 'overview'>('session');
   const [selectedDate, setSelectedDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [selectedPeriod, setSelectedPeriod] = useState<number>(1);
@@ -185,7 +188,7 @@ export function SubjectAttendanceView() {
         ...existingSession.records,
       };
 
-      students.forEach(s => {
+      activeStudents.forEach(s => {
         updatedRecords[s.id] = {
           status: 'present',
           note: updatedRecords[s.id]?.note || '',
@@ -221,7 +224,7 @@ export function SubjectAttendanceView() {
     try {
       exportSubjectAttendanceToExcel({
         book,
-        students,
+        students: activeStudents,
         className: classConfig.className,
         teacherName,
       });
@@ -234,11 +237,11 @@ export function SubjectAttendanceView() {
   // Filter students by query
   const filteredStudents = useMemo(() => {
     const q = searchQuery.toLowerCase().trim();
-    if (!q) return students;
-    return students.filter(
+    if (!q) return activeStudents;
+    return activeStudents.filter(
       s => s.fullName.toLowerCase().includes(q) || s.studentCode.toLowerCase().includes(q)
     );
-  }, [students, searchQuery]);
+  }, [activeStudents, searchQuery]);
 
   // Current session statistics
   const sessionStats = useMemo(() => {
@@ -248,7 +251,7 @@ export function SubjectAttendanceView() {
     let late = 0;
     let truant = 0;
 
-    students.forEach(s => {
+    activeStudents.forEach(s => {
       const rec = currentSession?.records[s.id];
       const status: AttendanceStatus = rec?.status || 'present';
       if (status === 'present') present++;
@@ -259,7 +262,7 @@ export function SubjectAttendanceView() {
     });
 
     return {
-      total: students.length,
+      total: activeStudents.length,
       present,
       excused,
       unexcused,
@@ -267,7 +270,7 @@ export function SubjectAttendanceView() {
       truant,
       absentTotal: excused + unexcused + truant,
     };
-  }, [students, currentSession]);
+  }, [activeStudents, currentSession]);
 
   if (rosterError) {
     return <div role="alert" className="p-6 text-rose-700 bg-rose-50 rounded-xl">{rosterError}</div>;
@@ -571,7 +574,7 @@ export function SubjectAttendanceView() {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 dark:divide-slate-800">
-                {students.map((student, idx) => {
+                {activeStudents.map((student, idx) => {
                   const stats = calculateStudentAttendanceStats(book, student.id);
 
                   return (

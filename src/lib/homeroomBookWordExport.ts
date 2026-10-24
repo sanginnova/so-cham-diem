@@ -83,6 +83,7 @@ export async function generateHomeroomBookBlob(o: HomeroomBookExportOptions): Pr
   const c = o.classConfig;
   const notes = o.notes || {};
   const roster = o.students.filter(s => s.teacherId === c.teacherId && (s.classId === c.id || (!s.classId && c.scopeVersion !== 2)));
+  const activeRoster = roster.filter(s => s.status === 'active');
   const studentIds = new Set(roster.map(s => s.id));
   const logs = o.logs.filter(l => studentIds.has(l.studentId) && l.teacherId === c.teacherId && (l.classId === c.id || (!l.classId && c.scopeVersion !== 2)));
   const months = o.scope === 'month' ? (o.selectedMonth ? [o.selectedMonth] : [])
@@ -204,7 +205,7 @@ export async function generateHomeroomBookBlob(o: HomeroomBookExportOptions): Pr
       body.push(heading('SƠ KẾT HÀNG TUẦN'));
       const summaries = new Map(weeks.map(w => [w.weekNumber, new Map(o.getWeeklySummary(w.weekNumber).map(s => [s.studentId, s]))]));
       const monthly = new Map((o.getMonthlySummary?.(month) || []).map(s => [s.studentId, s]));
-      body.push(table(['TT', 'Họ tên', ...weeks.map(w => `Tuần ${w.weekNumber}`), 'Điểm tháng', 'Xếp loại thi đua'], roster.length ? roster.map((s, i) => [String(i + 1), s.fullName,
+      body.push(table(['TT', 'Họ tên', ...weeks.map(w => `Tuần ${w.weekNumber}`), 'Điểm tháng', 'Xếp loại thi đua'], activeRoster.length ? activeRoster.map((s, i) => [String(i + 1), s.fullName,
         ...weeks.map(w => { const v = summaries.get(w.weekNumber)?.get(s.id); return v ? formatVietnameseNumber(v.finalScore) : ''; }),
         monthly.has(s.id) ? formatVietnameseNumber(monthly.get(s.id)!.finalScore) : '', monthly.get(s.id)?.rank || '']) : [Array(weeks.length + 4).fill('')]));
       body.push(p('Điểm và xếp loại thi đua được lấy từ bảng tổng kết của ứng dụng; không thay thế kết quả học tập hoặc đánh giá rèn luyện chính thức.'));
@@ -216,7 +217,7 @@ export async function generateHomeroomBookBlob(o: HomeroomBookExportOptions): Pr
     for (const sem of semesters) {
       pageBreak(); body.push(heading(`SƠ KẾT HỌC KÌ ${sem === 1 ? 'I' : 'II'}`));
       const scores = new Map((o.getSemesterSummary?.(sem) || []).map(s => [s.studentId, s]));
-      body.push(table(['TT', 'Họ tên', 'Điểm thi đua', 'Xếp loại thi đua', 'Học tập chính thức', 'Rèn luyện chính thức'], roster.length ? roster.map((s, i) => [String(i + 1), s.fullName,
+      body.push(table(['TT', 'Họ tên', 'Điểm thi đua', 'Xếp loại thi đua', 'Học tập chính thức', 'Rèn luyện chính thức'], activeRoster.length ? activeRoster.map((s, i) => [String(i + 1), s.fullName,
         scores.has(s.id) ? formatVietnameseNumber(scores.get(s.id)!.averageScore) : '', scores.get(s.id)?.finalRank || '', '', '']) : [['', '', '', '', '', '']]));
       body.push(p('Kết quả học tập và rèn luyện chính thức do giáo viên bổ sung sau khi được duyệt.'));
       body.push(heading('NHẬN XÉT VÀ PHƯƠNG HƯỚNG')); text(notes.semesterReview);

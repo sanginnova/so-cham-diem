@@ -141,9 +141,9 @@ export const AttendanceReportView: React.FC<AttendanceReportViewProps> = ({
     });
   }, [disciplineLogs, periodMode, selectedWeek, selectedMonth, selectedSemester, classConfig]);
 
-  // Build attendance summary per student
+  // Build attendance summary per student (chỉ tính học sinh đang học)
   const attendanceList = useMemo<StudentAttendanceDetail[]>(() => {
-    return students.map((std) => {
+    return students.filter((std) => std.status === 'active').map((std) => {
       const stdLogs = periodLogs.filter((l) => l.studentId === std.id);
       let excusedCount = 0;
       let unexcusedCount = 0;
@@ -192,7 +192,7 @@ export const AttendanceReportView: React.FC<AttendanceReportViewProps> = ({
 
   // Overall attendance statistics
   const stats = useMemo(() => {
-    const totalStudents = students.length;
+    const totalStudents = students.filter((s) => s.status === 'active').length;
     const absentStudentsCount = attendanceList.filter((s) => s.hasAbsence).length;
     const perfectAttendanceCount = totalStudents - absentStudentsCount;
 
@@ -627,7 +627,7 @@ ${absentListText || 'Toàn lớp đi học đầy đủ 100%, không có học s
                   : 'bg-slate-100 dark:bg-slate-700 text-slate-700 dark:text-slate-300 hover:bg-slate-200'
               }`}
             >
-              Toàn bộ lớp ({students.length})
+              Toàn bộ lớp ({attendanceList.length})
             </button>
           </div>
 

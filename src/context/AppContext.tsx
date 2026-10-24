@@ -1402,6 +1402,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   }): Promise<{ log: DisciplineLog; alreadyAwarded?: boolean }> => {
     const student = students.find((s) => s.id === params.studentId);
     if (!student) throw new Error('Không tìm thấy thông tin học sinh');
+    if (student.status !== 'active') throw new Error('Học sinh đã ngừng theo học, không tính tổng kết điểm.');
 
     const effectiveScore = params.customScore !== undefined ? params.customScore : (params.rule?.bonusScore ?? 2.0);
     const targetWeek = params.weekNumber || classConfig.weeks.find(w => w.month === params.month && !isPeriodLocked('week', w.weekNumber))?.weekNumber || classConfig.weeks.find(w => w.month === params.month)?.weekNumber || 1;
@@ -1862,7 +1863,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const oldLocked = !!lock && lock.scoreVersion !== 2;
     const weekLogs = logsForWeek(disciplineLogs, weekNumber).filter(l => oldLocked || !isMonthlyBonus(l));
 
-    return students.map((s) => {
+    // Ngừng học thì không tổng kết điểm (chỉ tổng kết cho học sinh đang theo học 'active')
+    const activeStudents = students.filter((s) => s.status === 'active');
+    return activeStudents.map((s) => {
       const studentLogs = weekLogs.filter((l) => l.studentId === s.id);
       let violationCount = 0;
       let bonusCount = 0;
@@ -1943,7 +1946,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const getMonthlySummary = (month: number): StudentMonthlySummary[] => {
     const monthLogs = disciplineLogs.filter((l) => l.month === month);
 
-    return students.map((s) => {
+    // Ngừng học thì không tổng kết điểm (chỉ tổng kết cho học sinh đang theo học 'active')
+    const activeStudents = students.filter((s) => s.status === 'active');
+    return activeStudents.map((s) => {
       const studentLogs = monthLogs.filter((l) => l.studentId === s.id);
       const weekDeductions: Record<number, number> = {};
       let totalDeduct = 0;
@@ -2037,7 +2042,9 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const getSemesterSummary = (semester: 1 | 2): StudentSemesterSummary[] => {
     const targetMonths = semester === 1 ? classConfig.semester1Months : classConfig.semester2Months;
 
-    return students.map((s) => {
+    // Ngừng học thì không tổng kết điểm (chỉ tổng kết cho học sinh đang theo học 'active')
+    const activeStudents = students.filter((s) => s.status === 'active');
+    return activeStudents.map((s) => {
       const monthlyScores: Record<number, number | null> = {};
       let scoreSum = 0;
       let monthsWithScoreCount = 0;

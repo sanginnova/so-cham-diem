@@ -224,7 +224,7 @@ export function buildPublicScoreboardPayload(
       title: w.title,
     })),
     months: classConfig.months,
-    students: students.map((s) => ({
+    students: students.filter((s) => s.status === 'active').map((s) => ({
       id: s.id,
       studentCode: s.studentCode,
       fullName: s.fullName,
@@ -236,7 +236,7 @@ export function buildPublicScoreboardPayload(
     semesterSummaries,
     recentLogs,
     stats: {
-      studentCount: students.length,
+      studentCount: students.filter((s) => s.status === 'active').length,
       averageWeeklyScore: avgScore,
       topRankCount,
       violationCount,
