@@ -1877,7 +1877,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       const hasAbsence = attStats.excusedAbsenceCount > 0 || attStats.unexcusedAbsenceCount > 0 || attStats.truancyCount > 0;
 
       const rawScore = classConfig.baseScore - totalDeduct + totalBonus;
-      const finalScore = lock?.scores?.[s.id] ?? clampScore(rawScore, classConfig.minScore);
+      const finalScore = lock?.scores?.[s.id] ?? (Math.round(rawScore * 100) / 100);
       const rank = calculateRank(finalScore, classConfig.rankThresholds);
 
       let notes = '';
@@ -2057,7 +2057,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
         }
       });
 
-      const averageScore = scoreLock('semester', semester)?.scores?.[s.id] ?? (monthsWithScoreCount > 0 ? clampScore(scoreSum / monthsWithScoreCount, classConfig.minScore) : classConfig.baseScore);
+      const averageScore = scoreLock('semester', semester)?.scores?.[s.id] ?? (monthsWithScoreCount > 0 ? (Math.round((scoreSum / monthsWithScoreCount) * 100) / 100) : classConfig.baseScore);
       
       const semesterLogs = disciplineLogs.filter((l) => l.studentId === s.id && targetMonths.includes(l.month));
       const attStats = calculateAttendanceStats(semesterLogs);

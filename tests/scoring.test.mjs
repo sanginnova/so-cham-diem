@@ -41,6 +41,18 @@ test('Frozen week scores are used in the monthly average', () => {
   assert.equal(result.score, 9.5);
 });
 
+test('Conduct score is not clamped above 10 or below 0 (allows negative and >10)', () => {
+  // Negative score test (e.g. 10 - 15 = -5)
+  const heavyDeductLogs = [log(1, 'deduct', 15)];
+  const weekResult = weekBreakdown(heavyDeductLogs, config);
+  assert.equal(weekResult.score, -5);
+
+  // Score exceeding 10 test (e.g. 10 + 5 = 15)
+  const highBonusLogs = [log(1, 'bonus', 5, { behaviorCode: 'T01' })];
+  const highWeekResult = weekBreakdown(highBonusLogs, config);
+  assert.equal(highWeekResult.score, 15);
+});
+
 test('Attendance classification correctly identifies all excused, unexcused, and truancy patterns', () => {
   // Excused absences
   assert.equal(classifyAttendance({ type: 'deduct', behaviorCode: 'L15', behaviorDescription: 'Nghỉ học có phép' }), 'excused');

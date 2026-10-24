@@ -427,7 +427,7 @@ export function StudentPointEditor({
           <div className="p-2 rounded-xl bg-blue-50 dark:bg-blue-950/40 border border-blue-200/60 dark:border-blue-900/40">
             <p className="text-[11px] text-blue-600 dark:text-blue-400 font-medium">Điểm hiện tại</p>
             <p className="text-base sm:text-lg font-black font-mono text-blue-700 dark:text-blue-300">
-              {formatVietnameseNumber(Math.max(0, 10 - totalDeduct + totalBonus))}đ
+              {formatVietnameseNumber((classConfig.baseScore || 10) - totalDeduct + totalBonus)}đ
             </p>
           </div>
         </div>

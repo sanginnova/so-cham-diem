@@ -429,7 +429,7 @@ export const DashboardView: React.FC<DashboardViewProps> = ({
 
           <div className="mt-5 pt-4 border-t border-slate-100 dark:border-slate-700 flex justify-between items-center text-xs">
             <span className="text-slate-500">Quy tắc tính điểm:</span>
-            <span className="text-slate-700 dark:text-slate-300 font-medium">10 - Điểm trừ + Điểm cộng (≥ {classConfig.minScore}đ)</span>
+            <span className="text-slate-700 dark:text-slate-300 font-medium">Điểm nền {classConfig.baseScore}đ − Điểm trừ + Điểm cộng (Không chặn trên 10, dưới 0)</span>
           </div>
         </div>
 

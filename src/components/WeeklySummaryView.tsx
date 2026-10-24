@@ -957,9 +957,9 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
             <span className="text-2xl font-black text-blue-600 dark:text-blue-400">
               {formatVietnameseNumber(stats.avgScore)}
             </span>
-            <span className="text-xs text-blue-500 font-medium ml-1">/ 10đ</span>
+            <span className="text-xs text-blue-500 font-medium ml-1">đ</span>
           </div>
-          <span className="text-[10px] text-slate-400 block truncate">Thang 10,0 điểm</span>
+          <span className="text-[10px] text-slate-400 block truncate">Không giới hạn trần/sàn</span>
         </div>
 
         {/* Card 5: Tỷ lệ Tốt / Xuất sắc */}

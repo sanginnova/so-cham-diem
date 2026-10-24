@@ -328,7 +328,7 @@ export const SemesterView: React.FC<SemesterViewProps> = ({
           <span className="text-2xl font-bold text-blue-600">
             {formatVietnameseNumber(stats.avgSemesterScore)}
           </span>
-          <span className="text-[10px] text-slate-400 block mt-0.5">Thang 10,0 điểm</span>
+          <span className="text-[10px] text-slate-400 block mt-0.5">Không giới hạn trần/sàn</span>
         </div>
 
         <div className="bg-white dark:bg-slate-800 p-4 rounded-xl border border-emerald-100 dark:border-emerald-900/40">

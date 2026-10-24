@@ -3,7 +3,7 @@ import { localDateString } from './logValidation';
 
 export const isMonthlyBonus = (log: DisciplineLog) => log.type === 'bonus' && (log.behaviorCode.startsWith('TT_M') || log.behaviorDescription.startsWith('[Thành tích tháng]') || !!log.periodOrTime?.startsWith('Tổng kết Tháng'));
 export const rounded = (n: number) => Math.round(n * 100) / 100;
-export const limitScore = (n: number, config: ClassConfig) => rounded(Math.max(config.minScore ?? 0, n));
+export const limitScore = (n: number, _config?: ClassConfig) => rounded(n);
 export function weekBreakdown(logs: DisciplineLog[], config: ClassConfig, legacy = false) {
   const applicable = logs.filter(log => legacy || !isMonthlyBonus(log));
   const deduct = rounded(applicable.filter(l => l.type === 'deduct').reduce((n, l) => n + l.totalScore, 0));

@@ -34,7 +34,7 @@ export function FamilyManagement() {
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(targetEmail)) throw new Error('Nhập email Google hợp lệ.');
     const ref = old ? doc(db, 'familyReports', old.id) : doc(collection(db, 'familyReports'));
     const logs = disciplineLogs.filter(l => l.studentId === student.id);
-    const weeks = classConfig.weeks.filter(w => w.startDate <= localDateString()).map(w => { const s = getWeeklySummary(w.weekNumber).find(s => s.studentId === student.id)!; return { weekNumber: w.weekNumber, finalScore: s.finalScore, rank: s.rank, explanation: `${classConfig.baseScore} − ${s.totalDeduct} + ${s.totalBonus} = ${s.finalScore}đ (không giới hạn điểm tối đa). ${s.notes}` }; });
+    const weeks = classConfig.weeks.filter(w => w.startDate <= localDateString()).map(w => { const s = getWeeklySummary(w.weekNumber).find(s => s.studentId === student.id)!; return { weekNumber: w.weekNumber, finalScore: s.finalScore, rank: s.rank, explanation: `${classConfig.baseScore} − ${s.totalDeduct} + ${s.totalBonus} = ${s.finalScore}đ (không giới hạn điểm trên/dưới). ${s.notes}` }; });
     const months = classConfig.months.filter(m => classConfig.weeks.some(w => w.month === m && w.startDate <= localDateString())).map(month => { const s = getMonthlySummary(month).find(s => s.studentId === student.id)!; return { month, finalScore: s.finalScore, rank: s.rank, explanation: s.notes }; });
     await setDoc(ref, { teacherId: classConfig.teacherId, classId: classConfig.id, studentId: student.id, studentName: student.fullName, className: classConfig.className, viewerEmail: targetEmail,
       expiresAt: Timestamp.fromMillis(Date.now() + days * 86400000), revoked: false, publishedAt: new Date().toISOString(),

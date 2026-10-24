@@ -123,12 +123,18 @@ export function calculateRank(score: number, thresholds?: RankThresholds): RankL
 }
 
 /**
- * Clamp score to at least min (default 0). No upper limit unless max is explicitly specified.
+ * Clamp score optionally if min or max are explicitly specified. No limits by default.
  */
-export function clampScore(score: number, min: number = 0, max?: number): number {
+export function clampScore(score: number, min?: number, max?: number): number {
   const rounded = Math.round(score * 100) / 100;
-  const lower = Math.max(min, rounded);
-  return max !== undefined ? Math.min(max, lower) : lower;
+  let val = rounded;
+  if (min !== undefined && min !== null) {
+    val = Math.max(min, val);
+  }
+  if (max !== undefined && max !== null) {
+    val = Math.min(max, val);
+  }
+  return val;
 }
 
 /**
