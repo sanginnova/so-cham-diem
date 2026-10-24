@@ -127,9 +127,121 @@ export const SettingsBackupView: React.FC = () => {
   const [restoreJsonString, setRestoreJsonString] = useState<string>('');
   const [isResetConfirmOpen, setIsResetConfirmOpen] = useState(false);
 
-  // Quick edit modal for violation score
+  // Quick edit modal for category & achievement rule
   const [editingCat, setEditingCat] = useState<BehaviorCategory | null>(null);
   const [editingAchieve, setEditingAchieve] = useState<AchievementBonusRule | null>(null);
+
+  // Category management & filtering state (Lỗi vi phạm & Thưởng điểm)
+  const [catFilterType, setCatFilterType] = useState<'all' | 'deduct' | 'bonus'>('all');
+  const [isAddCatModalOpen, setIsAddCatModalOpen] = useState(false);
+  const [newCatCode, setNewCatCode] = useState('');
+  const [newCatName, setNewCatName] = useState('');
+  const [newCatType, setNewCatType] = useState<'deduct' | 'bonus'>('deduct');
+  const [newCatDefaultScore, setNewCatDefaultScore] = useState<number>(1);
+  const [newCatBasis, setNewCatBasis] = useState('');
+  const [newCatKeywords, setNewCatKeywords] = useState('');
+  const [catErrors, setCatErrors] = useState<Record<string, string>>({});
+
+  // Achievement Rule management state
+  const [isAddAchieveModalOpen, setIsAddAchieveModalOpen] = useState(false);
+  const [newAchieveCode, setNewAchieveCode] = useState('');
+  const [newAchieveTitle, setNewAchieveTitle] = useState('');
+  const [newAchievePeriod, setNewAchievePeriod] = useState<'weekly' | 'monthly'>('weekly');
+  const [newAchieveBonusScore, setNewAchieveBonusScore] = useState<number>(2.0);
+  const [newAchieveDescription, setNewAchieveDescription] = useState('');
+  const [newAchieveIsAuto, setNewAchieveIsAuto] = useState(false);
+  const [achieveErrors, setAchieveErrors] = useState<Record<string, string>>({});
+
+  const handleSaveNewCategory = async () => {
+    const errors: Record<string, string> = {};
+    const trimmedCode = newCatCode.trim().toUpperCase();
+    if (!trimmedCode) errors.code = 'Vui lòng nhập mã danh mục (ví dụ: L16, T11)';
+    if (!newCatName.trim()) errors.name = 'Vui lòng nhập tên hành vi / quy định';
+    if (newCatDefaultScore < 0) errors.score = 'Mức điểm không được âm';
+
+    if (behaviorCategories.some((c) => c.code.toUpperCase() === trimmedCode)) {
+      errors.code = `Mã danh mục "${trimmedCode}" đã tồn tại.`;
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setCatErrors(errors);
+      return;
+    }
+
+    setCatErrors({});
+    const keywords = newCatKeywords
+      ? newCatKeywords.split(',').map((k) => k.trim().toLowerCase()).filter(Boolean)
+      : [];
+
+    await addBehaviorCategory({
+      code: trimmedCode,
+      name: newCatName.trim(),
+      type: newCatType,
+      defaultScore: Number(newCatDefaultScore),
+      basisOrRegulation: newCatBasis.trim() || 'Nội quy lớp học & nhà trường',
+      keywords,
+      isActive: true,
+      isCustom: true,
+    });
+
+    setNewCatCode('');
+    setNewCatName('');
+    setNewCatType('deduct');
+    setNewCatDefaultScore(1);
+    setNewCatBasis('');
+    setNewCatKeywords('');
+    setIsAddCatModalOpen(false);
+  };
+
+  const handleDeleteCategory = async (cat: BehaviorCategory) => {
+    if (!confirm(`Bạn có chắc chắn muốn xóa danh mục [${cat.code}] "${cat.name}"?`)) return;
+    const res = await deleteBehaviorCategory(cat.id);
+    if (!res.success) {
+      alert(res.message || 'Không thể xóa danh mục này.');
+    }
+  };
+
+  const handleSaveNewAchievementRule = async () => {
+    const errors: Record<string, string> = {};
+    const trimmedCode = newAchieveCode.trim().toUpperCase();
+    if (!trimmedCode) errors.code = 'Vui lòng nhập mã quy chế (ví dụ: TT_W05, TT_M05)';
+    if (!newAchieveTitle.trim()) errors.title = 'Vui lòng nhập tên quy chế khen thưởng';
+    if (newAchieveBonusScore <= 0) errors.score = 'Mức điểm thưởng phải lớn hơn 0';
+
+    if (achievementRules.some((r) => r.code.toUpperCase() === trimmedCode)) {
+      errors.code = `Mã quy chế "${trimmedCode}" đã tồn tại.`;
+    }
+
+    if (Object.keys(errors).length > 0) {
+      setAchieveErrors(errors);
+      return;
+    }
+
+    setAchieveErrors({});
+    await addAchievementRule({
+      code: trimmedCode,
+      title: newAchieveTitle.trim(),
+      period: newAchievePeriod,
+      bonusScore: Number(newAchieveBonusScore),
+      description: newAchieveDescription.trim(),
+      isAutoEligible: newAchieveIsAuto,
+      isActive: true,
+      isCustom: true,
+    });
+
+    setNewAchieveCode('');
+    setNewAchieveTitle('');
+    setNewAchievePeriod('weekly');
+    setNewAchieveBonusScore(2.0);
+    setNewAchieveDescription('');
+    setNewAchieveIsAuto(false);
+    setIsAddAchieveModalOpen(false);
+  };
+
+  const handleDeleteAchievementRule = async (rule: AchievementBonusRule) => {
+    if (!confirm(`Bạn có chắc muốn xóa quy chế thưởng [${rule.code}] "${rule.title}"?`)) return;
+    await deleteAchievementRule(rule.id);
+  };
 
   const handleSaveConfig = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -240,6 +352,12 @@ export const SettingsBackupView: React.FC = () => {
 
   const achievementRules = classConfig.achievementBonusRules || [];
   const deductCategories = behaviorCategories.filter((c) => c.type === 'deduct');
+  const bonusCategories = behaviorCategories.filter((c) => c.type === 'bonus');
+  const displayedCategories = behaviorCategories.filter((c) => {
+    if (catFilterType === 'deduct') return c.type === 'deduct';
+    if (catFilterType === 'bonus') return c.type === 'bonus';
+    return true;
+  });
 
   return (
     <div className="space-y-6">
@@ -704,84 +822,175 @@ export const SettingsBackupView: React.FC = () => {
         </div>
       )}
 
-      {/* TAB 2: CÀI ĐẶT DANH MỤC LỖI */}
+      {/* TAB 2: CÀI ĐẶT DANH MỤC LỖI & THƯỞNG ĐIỂM */}
       {activeTab === 'violations' && (
         <div className="bg-white dark:bg-slate-800 p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm space-y-4">
           <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3 pb-3 border-b border-slate-100 dark:border-slate-700">
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
                 <Tag className="h-4 w-4 text-rose-600" />
-                <span>Cài Đặt Danh Mục Lỗi Vi Phạm ({deductCategories.length} lỗi)</span>
+                <span>Cài Đặt Danh Mục Lỗi & Thưởng Điểm ({behaviorCategories.length} mục)</span>
               </h3>
               <p className="text-xs text-slate-500">
-                Tùy chỉnh mức điểm trừ cho từng lỗi vi phạm (L01–L09) hoặc thêm lỗi quy định mới của trường
+                Tùy chỉnh mức điểm trừ/thưởng, thêm quy định mới hoặc xóa bớt danh mục không áp dụng
               </p>
             </div>
 
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setNewCatCode('');
+                  setNewCatName('');
+                  setNewCatType(catFilterType === 'bonus' ? 'bonus' : 'deduct');
+                  setNewCatDefaultScore(catFilterType === 'bonus' ? 2 : 1);
+                  setNewCatBasis('');
+                  setNewCatKeywords('');
+                  setCatErrors({});
+                  setIsAddCatModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs font-bold rounded-xl shadow-sm transition active:scale-95 cursor-pointer"
+              >
+                <PlusCircle className="h-4 w-4" />
+                <span>+ Thêm danh mục mới</span>
+              </button>
+
+              <button
+                onClick={async () => {
+                  if (confirm('Khôi phục toàn bộ danh mục lỗi và điểm thưởng về mức chuẩn ban đầu?')) {
+                    await resetBehaviorCategoriesToDefault();
+                    alert('Đã khôi phục danh mục chuẩn thành công!');
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-xs font-semibold rounded-xl border border-amber-200 dark:border-amber-800 transition"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>Khôi phục biểu điểm chuẩn</span>
+              </button>
+            </div>
+          </div>
+
+          {/* Sub-filter tabs */}
+          <div className="flex flex-wrap items-center gap-2 pb-1">
             <button
-              onClick={async () => {
-                if (confirm('Khôi phục toàn bộ danh mục lỗi về mức điểm chuẩn ban đầu của Bộ GD&ĐT?')) {
-                  await resetBehaviorCategoriesToDefault();
-                  alert('Đã khôi phục danh mục lỗi chuẩn thành công!');
-                }
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-xs font-semibold rounded-xl border border-amber-200 dark:border-amber-800 transition"
+              type="button"
+              onClick={() => setCatFilterType('all')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                catFilterType === 'all'
+                  ? 'bg-slate-900 text-white dark:bg-white dark:text-slate-900 shadow-sm'
+                  : 'bg-slate-100 text-slate-600 hover:bg-slate-200 dark:bg-slate-700 dark:text-slate-300'
+              }`}
             >
-              <RotateCcw className="h-3.5 w-3.5" />
-              <span>Khôi phục biểu điểm chuẩn</span>
+              Tất cả ({behaviorCategories.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setCatFilterType('deduct')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                catFilterType === 'deduct'
+                  ? 'bg-rose-600 text-white shadow-sm'
+                  : 'bg-rose-50 text-rose-700 hover:bg-rose-100 dark:bg-rose-950/40 dark:text-rose-300'
+              }`}
+            >
+              Lỗi trừ điểm ({deductCategories.length})
+            </button>
+            <button
+              type="button"
+              onClick={() => setCatFilterType('bonus')}
+              className={`px-3 py-1 rounded-lg text-xs font-bold transition ${
+                catFilterType === 'bonus'
+                  ? 'bg-emerald-600 text-white shadow-sm'
+                  : 'bg-emerald-50 text-emerald-700 hover:bg-emerald-100 dark:bg-emerald-950/40 dark:text-emerald-300'
+              }`}
+            >
+              Điểm thưởng ({bonusCategories.length})
             </button>
           </div>
 
           <div className="divide-y divide-slate-100 dark:divide-slate-700">
-            {deductCategories.map((cat) => (
-              <div
-                key={cat.id}
-                className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
-              >
-                <div className="flex items-start gap-3">
-                  <span className="font-mono font-bold text-xs px-2.5 py-1 rounded-lg bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400 border border-rose-200 dark:border-rose-900/60 shrink-0">
-                    {cat.code}
-                  </span>
-                  <div>
-                    <h4 className="font-bold text-slate-900 dark:text-white leading-snug">
-                      {cat.name}
-                    </h4>
-                    <p className="text-slate-500 text-[11px] mt-0.5">
-                      Căn cứ: {cat.basisOrRegulation || 'Nội quy trường/lớp'}
-                    </p>
-                  </div>
-                </div>
-
-                <div className="flex items-center gap-3 shrink-0 self-end sm:self-center">
-                  <div className="text-right">
-                    <span className="text-[11px] text-slate-400 block">Mức phạt:</span>
-                    <span className="font-mono font-bold text-rose-600 dark:text-rose-400 text-sm">
-                      -{formatVietnameseNumber(cat.defaultScore)}đ
+            {displayedCategories.map((cat) => {
+              const isDeduct = cat.type === 'deduct';
+              return (
+                <div
+                  key={cat.id}
+                  className="py-3 flex flex-col sm:flex-row sm:items-center justify-between gap-3 text-xs"
+                >
+                  <div className="flex items-start gap-3">
+                    <span
+                      className={`font-mono font-bold text-xs px-2.5 py-1 rounded-lg shrink-0 border ${
+                        isDeduct
+                          ? 'bg-rose-50 dark:bg-rose-950/50 text-rose-700 dark:text-rose-400 border-rose-200 dark:border-rose-900/60'
+                          : 'bg-emerald-50 dark:bg-emerald-950/50 text-emerald-700 dark:text-emerald-400 border-emerald-200 dark:border-emerald-900/60'
+                      }`}
+                    >
+                      {cat.code}
                     </span>
+                    <div>
+                      <div className="flex items-center gap-2">
+                        <h4 className="font-bold text-slate-900 dark:text-white leading-snug">
+                          {cat.name}
+                        </h4>
+                        <span
+                          className={`px-2 py-0.5 rounded text-[10px] font-semibold ${
+                            isDeduct
+                              ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                              : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                          }`}
+                        >
+                          {isDeduct ? 'Trừ điểm' : 'Điểm cộng'}
+                        </span>
+                      </div>
+                      <p className="text-slate-500 text-[11px] mt-0.5">
+                        Căn cứ: {cat.basisOrRegulation || 'Nội quy trường/lớp'}
+                      </p>
+                    </div>
                   </div>
 
-                  <button
-                    onClick={() => toggleBehaviorCategoryActive(cat.id)}
-                    className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
-                      cat.isActive
-                        ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
-                        : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400'
-                    }`}
-                    title="Bật / Tắt áp dụng lỗi này"
-                  >
-                    {cat.isActive ? 'Đang dùng' : 'Tắt'}
-                  </button>
+                  <div className="flex items-center gap-2.5 shrink-0 self-end sm:self-center">
+                    <div className="text-right">
+                      <span className="text-[11px] text-slate-400 block">{isDeduct ? 'Mức phạt:' : 'Thưởng:'}</span>
+                      <span
+                        className={`font-mono font-bold text-sm ${
+                          isDeduct
+                            ? 'text-rose-600 dark:text-rose-400'
+                            : 'text-emerald-600 dark:text-emerald-400'
+                        }`}
+                      >
+                        {isDeduct ? '-' : '+'}{formatVietnameseNumber(cat.defaultScore)}đ
+                      </span>
+                    </div>
 
-                  <button
-                    onClick={() => setEditingCat(cat)}
-                    className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-lg transition"
-                    title="Chỉnh sửa mức điểm hoặc nội dung lỗi"
-                  >
-                    <Edit2 className="h-4 w-4" />
-                  </button>
+                    <button
+                      onClick={() => toggleBehaviorCategoryActive(cat.id)}
+                      className={`px-2.5 py-1 rounded-lg text-xs font-semibold transition ${
+                        cat.isActive
+                          ? 'bg-emerald-50 text-emerald-700 dark:bg-emerald-950/40 dark:text-emerald-400'
+                          : 'bg-slate-200 text-slate-600 dark:bg-slate-700 dark:text-slate-400'
+                      }`}
+                      title="Bật / Tắt áp dụng mục này"
+                    >
+                      {cat.isActive ? 'Đang dùng' : 'Tắt'}
+                    </button>
+
+                    <button
+                      onClick={() => setEditingCat(cat)}
+                      className="p-1.5 text-blue-600 hover:bg-blue-50 dark:hover:bg-slate-700 rounded-lg transition"
+                      title="Chỉnh sửa mức điểm hoặc nội dung"
+                    >
+                      <Edit2 className="h-4 w-4" />
+                    </button>
+
+                    <button
+                      onClick={() => handleDeleteCategory(cat)}
+                      className="p-1.5 text-rose-500 hover:bg-rose-50 dark:hover:bg-slate-700 rounded-lg transition"
+                      title="Xóa danh mục này"
+                    >
+                      <Trash2 className="h-4 w-4" />
+                    </button>
+                  </div>
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         </div>
       )}
@@ -793,25 +1002,45 @@ export const SettingsBackupView: React.FC = () => {
             <div>
               <h3 className="text-sm font-bold text-slate-900 dark:text-white uppercase tracking-wider flex items-center gap-2">
                 <Award className="h-4 w-4 text-amber-600" />
-                <span>Cài Đặt Điểm Thưởng Tuần / Tháng Khi Có Thành Tích</span>
+                <span>Cài Đặt Điểm Thưởng Tuần / Tháng Khi Có Thành Tích ({achievementRules.length} quy chế)</span>
               </h3>
               <p className="text-xs text-slate-500">
-                Quy định mức điểm thưởng cộng khi học sinh nề nếp gương mẫu (0 vi phạm), học sinh tiêu biểu, hoa điểm 10, thi đua HSG...
+                Quy định mức điểm thưởng cộng khi học sinh đi học đầy đủ, nề nếp gương mẫu (0 vi phạm), học sinh tiêu biểu, hoa điểm 10...
               </p>
             </div>
 
-            <button
-              onClick={async () => {
-                if (confirm('Khôi phục quy chế điểm thưởng thành tích về mức mặc định chuẩn?')) {
-                  await resetAchievementRulesToDefault();
-                  alert('Đã khôi phục quy chế thành tích thành công!');
-                }
-              }}
-              className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-xs font-semibold rounded-xl border border-amber-200 dark:border-amber-800 transition"
-            >
-              <RotateCcw className="h-3.5 w-3.5" />
-              <span>Khôi phục quy chế chuẩn</span>
-            </button>
+            <div className="flex flex-wrap items-center gap-2">
+              <button
+                type="button"
+                onClick={() => {
+                  setNewAchieveCode('');
+                  setNewAchieveTitle('');
+                  setNewAchievePeriod('weekly');
+                  setNewAchieveBonusScore(2.0);
+                  setNewAchieveDescription('');
+                  setNewAchieveIsAuto(false);
+                  setAchieveErrors({});
+                  setIsAddAchieveModalOpen(true);
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl shadow-sm transition active:scale-95 cursor-pointer"
+              >
+                <PlusCircle className="h-4 w-4" />
+                <span>+ Thêm quy chế thưởng mới</span>
+              </button>
+
+              <button
+                onClick={async () => {
+                  if (confirm('Khôi phục quy chế điểm thưởng thành tích về mức mặc định chuẩn?')) {
+                    await resetAchievementRulesToDefault();
+                    alert('Đã khôi phục quy chế thành tích thành công!');
+                  }
+                }}
+                className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-50 hover:bg-amber-100 dark:bg-amber-950/40 text-amber-700 dark:text-amber-400 text-xs font-semibold rounded-xl border border-amber-200 dark:border-amber-800 transition"
+              >
+                <RotateCcw className="h-3.5 w-3.5" />
+                <span>Khôi phục quy chế chuẩn</span>
+              </button>
+            </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -877,6 +1106,14 @@ export const SettingsBackupView: React.FC = () => {
                         title="Sửa quy chế"
                       >
                         <Edit2 className="h-3.5 w-3.5" />
+                      </button>
+
+                      <button
+                        onClick={() => handleDeleteAchievementRule(rule)}
+                        className="p-1 text-rose-500 hover:bg-rose-50 dark:hover:bg-slate-700 rounded transition"
+                        title="Xóa quy chế thưởng này"
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
                       </button>
                     </div>
                   </div>
@@ -1032,18 +1269,20 @@ export const SettingsBackupView: React.FC = () => {
         </div>
       )}
 
-      {/* MODAL: SỬA MỨC ĐIỂM LỖI */}
+      {/* MODAL: SỬA MỨC ĐIỂM LỖI HOẶC THƯỞNG */}
       {editingCat && (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
           <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
             <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
               <Edit2 className="h-5 w-5 text-blue-600" />
-              <span>Sửa Mức Phạt Lỗi: [{editingCat.code}]</span>
+              <span>
+                {editingCat.type === 'deduct' ? `Sửa Mức Phạt Lỗi: [${editingCat.code}]` : `Sửa Mức Điểm Thưởng: [${editingCat.code}]`}
+              </span>
             </h3>
 
             <div className="space-y-3 text-xs">
               <div>
-                <label className="block font-semibold mb-1">Nội dung hành vi</label>
+                <label className="block font-semibold mb-1">Nội dung hành vi / quy định</label>
                 <textarea
                   rows={2}
                   value={editingCat.name}
@@ -1053,14 +1292,29 @@ export const SettingsBackupView: React.FC = () => {
               </div>
 
               <div>
-                <label className="block font-semibold mb-1">Mức điểm trừ mỗi lần *</label>
+                <label className="block font-semibold mb-1">
+                  {editingCat.type === 'deduct' ? 'Mức điểm trừ mỗi lần *' : 'Mức điểm thưởng cộng mỗi lần *'}
+                </label>
                 <input
                   type="number"
                   step="0.5"
                   min="0"
                   value={editingCat.defaultScore}
                   onChange={(e) => setEditingCat({ ...editingCat, defaultScore: Number(e.target.value) })}
-                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl font-bold font-mono text-rose-600 text-base"
+                  className={`w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl font-bold font-mono text-base ${
+                    editingCat.type === 'deduct' ? 'text-rose-600' : 'text-emerald-600'
+                  }`}
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Căn cứ quy định / Nội quy</label>
+                <input
+                  type="text"
+                  value={editingCat.basisOrRegulation || ''}
+                  onChange={(e) => setEditingCat({ ...editingCat, basisOrRegulation: e.target.value })}
+                  placeholder="Ví dụ: Nội quy lớp học, Quy định chuyên cần..."
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl"
                 />
               </div>
             </div>
@@ -1077,6 +1331,7 @@ export const SettingsBackupView: React.FC = () => {
                   await updateBehaviorCategory(editingCat.id, {
                     name: editingCat.name,
                     defaultScore: editingCat.defaultScore,
+                    basisOrRegulation: editingCat.basisOrRegulation,
                   });
                   setEditingCat(null);
                 }}
@@ -1120,6 +1375,16 @@ export const SettingsBackupView: React.FC = () => {
                   className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl font-bold font-mono text-emerald-600 text-base"
                 />
               </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Mô tả tiêu chí</label>
+                <textarea
+                  rows={2}
+                  value={editingAchieve.description || ''}
+                  onChange={(e) => setEditingAchieve({ ...editingAchieve, description: e.target.value })}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl"
+                />
+              </div>
             </div>
 
             <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2">
@@ -1134,12 +1399,290 @@ export const SettingsBackupView: React.FC = () => {
                   await updateAchievementRule(editingAchieve.id, {
                     title: editingAchieve.title,
                     bonusScore: editingAchieve.bonusScore,
+                    description: editingAchieve.description,
                   });
                   setEditingAchieve(null);
                 }}
                 className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold"
               >
                 Lưu thay đổi
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: THÊM DANH MỤC LỖI / THƯỞNG MỚI */}
+      {isAddCatModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <PlusCircle className="h-5 w-5 text-emerald-600" />
+              <span>Thêm Danh Mục {newCatType === 'deduct' ? 'Lỗi Trừ Điểm' : 'Điểm Thưởng'} Mới</span>
+            </h3>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold mb-1">Loại danh mục *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewCatType('deduct');
+                      if (!newCatCode || newCatCode.startsWith('T')) {
+                        const maxDeduct = behaviorCategories
+                          .filter((c) => c.code.startsWith('L'))
+                          .map((c) => parseInt(c.code.slice(1), 10))
+                          .filter((n) => !isNaN(n));
+                        const nextNum = maxDeduct.length > 0 ? Math.max(...maxDeduct) + 1 : 16;
+                        setNewCatCode(`L${nextNum < 10 ? '0' + nextNum : nextNum}`);
+                      }
+                    }}
+                    className={`py-2 px-3 rounded-xl font-bold border text-center transition ${
+                      newCatType === 'deduct'
+                        ? 'bg-rose-50 border-rose-400 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-750 dark:border-slate-700'
+                    }`}
+                  >
+                    🔴 Lỗi trừ điểm
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewCatType('bonus');
+                      if (!newCatCode || newCatCode.startsWith('L')) {
+                        const maxBonus = behaviorCategories
+                          .filter((c) => c.code.startsWith('T'))
+                          .map((c) => parseInt(c.code.slice(1), 10))
+                          .filter((n) => !isNaN(n));
+                        const nextNum = maxBonus.length > 0 ? Math.max(...maxBonus) + 1 : 11;
+                        setNewCatCode(`T${nextNum < 10 ? '0' + nextNum : nextNum}`);
+                      }
+                    }}
+                    className={`py-2 px-3 rounded-xl font-bold border text-center transition ${
+                      newCatType === 'bonus'
+                        ? 'bg-emerald-50 border-emerald-400 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-750 dark:border-slate-700'
+                    }`}
+                  >
+                    🟢 Điểm thưởng / Việc tốt
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Mã danh mục * (ví dụ: L16, T11)</label>
+                <input
+                  type="text"
+                  value={newCatCode}
+                  onChange={(e) => setNewCatCode(e.target.value.toUpperCase())}
+                  placeholder="Ví dụ: L16, T11"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl font-mono font-bold"
+                />
+                {catErrors.code && <p className="text-rose-500 text-[11px] mt-0.5">{catErrors.code}</p>}
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Tên hành vi / Quy định *</label>
+                <textarea
+                  rows={2}
+                  value={newCatName}
+                  onChange={(e) => setNewCatName(e.target.value)}
+                  placeholder="Ví dụ: Không tham gia sinh hoạt dưới cờ, Giúp đỡ bạn vượt khó..."
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl"
+                />
+                {catErrors.name && <p className="text-rose-500 text-[11px] mt-0.5">{catErrors.name}</p>}
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">
+                  {newCatType === 'deduct' ? 'Mức điểm trừ mỗi lần *' : 'Mức điểm thưởng mỗi lần *'}
+                </label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0"
+                  value={newCatDefaultScore}
+                  onChange={(e) => setNewCatDefaultScore(Number(e.target.value))}
+                  className={`w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl font-bold font-mono text-base ${
+                    newCatType === 'deduct' ? 'text-rose-600' : 'text-emerald-600'
+                  }`}
+                />
+                {catErrors.score && <p className="text-rose-500 text-[11px] mt-0.5">{catErrors.score}</p>}
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Căn cứ quy định / Nội quy</label>
+                <input
+                  type="text"
+                  value={newCatBasis}
+                  onChange={(e) => setNewCatBasis(e.target.value)}
+                  placeholder="Ví dụ: Nội quy lớp học 10A8, Quy chế Đoàn trường..."
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl"
+                />
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Từ khóa tìm kiếm nhanh (phân tách dấu phẩy)</label>
+                <input
+                  type="text"
+                  value={newCatKeywords}
+                  onChange={(e) => setNewCatKeywords(e.target.value)}
+                  placeholder="Ví dụ: sinh hoat, khong tap trung, giup do..."
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl text-slate-600"
+                />
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsAddCatModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveNewCategory}
+                className="px-4 py-2 bg-emerald-600 hover:bg-emerald-500 text-white rounded-xl text-xs font-bold shadow-sm"
+              >
+                + Tạo danh mục
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* MODAL: THÊM QUY CHẾ THƯỞNG THÀNH TÍCH MỚI */}
+      {isAddAchieveModalOpen && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-slate-950/60 p-4 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-800 rounded-2xl max-w-md w-full p-5 shadow-2xl border border-slate-200 dark:border-slate-700 space-y-4">
+            <h3 className="text-base font-bold text-slate-900 dark:text-white flex items-center gap-2">
+              <Award className="h-5 w-5 text-amber-600" />
+              <span>Thêm Quy Chế Khen Thưởng Thành Tích Mới</span>
+            </h3>
+
+            <div className="space-y-3 text-xs">
+              <div>
+                <label className="block font-semibold mb-1">Kỳ khen thưởng *</label>
+                <div className="grid grid-cols-2 gap-2">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewAchievePeriod('weekly');
+                      if (!newAchieveCode || newAchieveCode.includes('M')) {
+                        const count = achievementRules.filter((r) => r.period === 'weekly').length + 1;
+                        setNewAchieveCode(`TT_W0${count}`);
+                      }
+                    }}
+                    className={`py-2 px-3 rounded-xl font-bold border text-center transition ${
+                      newAchievePeriod === 'weekly'
+                        ? 'bg-blue-50 border-blue-400 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-750 dark:border-slate-700'
+                    }`}
+                  >
+                    Thành tích tuần
+                  </button>
+
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setNewAchievePeriod('monthly');
+                      if (!newAchieveCode || newAchieveCode.includes('W')) {
+                        const count = achievementRules.filter((r) => r.period === 'monthly').length + 1;
+                        setNewAchieveCode(`TT_M0${count}`);
+                      }
+                    }}
+                    className={`py-2 px-3 rounded-xl font-bold border text-center transition ${
+                      newAchievePeriod === 'monthly'
+                        ? 'bg-purple-50 border-purple-400 text-purple-700 dark:bg-purple-950/60 dark:text-purple-300'
+                        : 'bg-slate-50 border-slate-200 text-slate-600 dark:bg-slate-750 dark:border-slate-700'
+                    }`}
+                  >
+                    Thành tích tháng
+                  </button>
+                </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Mã quy chế * (ví dụ: TT_W05, TT_M05)</label>
+                <input
+                  type="text"
+                  value={newAchieveCode}
+                  onChange={(e) => setNewAchieveCode(e.target.value.toUpperCase())}
+                  placeholder="Ví dụ: TT_W05"
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl font-mono font-bold"
+                />
+                {achieveErrors.code && <p className="text-rose-500 text-[11px] mt-0.5">{achieveErrors.code}</p>}
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Tên quy chế khen thưởng *</label>
+                <input
+                  type="text"
+                  value={newAchieveTitle}
+                  onChange={(e) => setNewAchieveTitle(e.target.value)}
+                  placeholder="Ví dụ: Học sinh tiến bộ vượt bậc tuần, Đoạt giải năng khiếu..."
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl font-bold"
+                />
+                {achieveErrors.title && <p className="text-rose-500 text-[11px] mt-0.5">{achieveErrors.title}</p>}
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Mức điểm thưởng cộng (mặc định: 2đ) *</label>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0.5"
+                  value={newAchieveBonusScore}
+                  onChange={(e) => setNewAchieveBonusScore(Number(e.target.value))}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl font-bold font-mono text-emerald-600 text-base"
+                />
+                {achieveErrors.score && <p className="text-rose-500 text-[11px] mt-0.5">{achieveErrors.score}</p>}
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Mô tả tiêu chí</label>
+                <textarea
+                  rows={2}
+                  value={newAchieveDescription}
+                  onChange={(e) => setNewAchieveDescription(e.target.value)}
+                  placeholder="Tiêu chí để học sinh được nhận mức thưởng này..."
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl"
+                />
+              </div>
+
+              <div className="pt-1">
+                <label className="flex items-center gap-2 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={newAchieveIsAuto}
+                    onChange={(e) => setNewAchieveIsAuto(e.target.checked)}
+                    className="rounded text-amber-600 focus:ring-amber-500 h-4 w-4"
+                  />
+                  <span className="font-semibold text-slate-700 dark:text-slate-300">
+                    ⚡ Tự động xét thưởng khi học sinh đủ điều kiện
+                  </span>
+                </label>
+              </div>
+            </div>
+
+            <div className="pt-3 border-t border-slate-100 dark:border-slate-700 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setIsAddAchieveModalOpen(false)}
+                className="px-4 py-2 bg-slate-100 text-slate-700 rounded-xl text-xs font-semibold"
+              >
+                Hủy
+              </button>
+              <button
+                type="button"
+                onClick={handleSaveNewAchievementRule}
+                className="px-4 py-2 bg-amber-600 hover:bg-amber-500 text-white rounded-xl text-xs font-bold shadow-sm"
+              >
+                + Tạo quy chế thưởng
               </button>
             </div>
           </div>

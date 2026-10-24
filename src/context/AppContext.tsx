@@ -236,10 +236,26 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
   const [isCloudSyncing, setIsCloudSyncing] = useState<boolean>(false);
   const [cloudSyncError, setCloudSyncError] = useState<string | null>(null);
 
-  const normalizeConfig = (config: ClassConfig): ClassConfig => ({
-    ...config,
-    maxScore: config.maxScore && config.maxScore > 10 ? config.maxScore : 100,
-  });
+  const normalizeConfig = (config: ClassConfig): ClassConfig => {
+    const rawRules = config.achievementBonusRules || DEFAULT_ACHIEVEMENT_RULES;
+    const rules = rawRules.map((r) => {
+      if (r.id === 'tt_w01' && r.bonusScore === 1.0) {
+        return {
+          ...r,
+          bonusScore: 2.0,
+          title: r.title.includes('nề nếp') ? 'Đi học đầy đủ, nề nếp gương mẫu (Không nghỉ học, không vi phạm)' : r.title,
+          description: r.description || 'Tuyên dương học sinh đi học chuyên cần 100%, không nghỉ học, chấp hành nề nếp kỷ luật trọn vẹn tuần',
+        };
+      }
+      return r;
+    });
+
+    return {
+      ...config,
+      achievementBonusRules: rules,
+      maxScore: config.maxScore && config.maxScore > 10 ? config.maxScore : 100,
+    };
+  };
 
   // Core collections in memory
   const [classConfig, applyClassConfig] = useState<ClassConfig>(() => normalizeConfig({ ...INITIAL_CLASS_CONFIG, id: '', teacherId: '', className: '', homeroomTeacher: '', teacherEmail: '', teacherPhone: '' }));

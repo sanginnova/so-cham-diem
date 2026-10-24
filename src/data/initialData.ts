@@ -12,10 +12,10 @@ export const DEFAULT_ACHIEVEMENT_RULES: AchievementBonusRule[] = [
   {
     id: 'tt_w01',
     code: 'TT_W01',
-    title: 'Tuần nề nếp gương mẫu (Không có lỗi vi phạm nào trong tuần)',
+    title: 'Đi học đầy đủ, nề nếp gương mẫu (Không nghỉ học, không vi phạm)',
     period: 'weekly',
-    bonusScore: 1.0,
-    description: 'Tuyên dương học sinh chấp hành nề nếp kỷ luật trọn vẹn tuần học',
+    bonusScore: 2.0,
+    description: 'Tuyên dương học sinh đi học chuyên cần 100%, không nghỉ học, chấp hành nề nếp kỷ luật trọn vẹn tuần',
     isAutoEligible: true,
     isActive: true,
     isCustom: false,

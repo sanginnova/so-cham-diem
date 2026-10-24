@@ -344,16 +344,18 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
     });
   };
 
-  // Eligible students for Zero-violation Clean Week (Rule TT_W01 or first auto weekly rule)
+  // Eligible students for Full Attendance & Zero-violation Clean Week (Rule TT_W01 or first auto weekly rule)
   const zeroViolationRule = useMemo(() => {
     return weeklyRules.find((r) => r.isAutoEligible) || weeklyRules[0];
   }, [weeklyRules]);
 
-  // Students eligible for zero-violation award who haven't received it yet
+  // Students eligible for full attendance & zero-violation award who haven't received it yet
   const eligibleZeroViolationStudents = useMemo(() => {
     if (!zeroViolationRule) return [];
     return weeklyData.filter((s) => {
       if (s.violationCount > 0) return false;
+      const totalAbsences = (s.unexcusedAbsenceCount || 0) + (s.excusedAbsenceCount || 0) + (s.truancyCount || 0);
+      if (totalAbsences > 0) return false;
       // Check if student already received this achievement bonus in this week
       const hasReceived = disciplineLogs.some(
         (l) =>
@@ -414,11 +416,11 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
       rule: zeroViolationRule,
       weekNumber: selectedWeek,
       month: selectedMonth,
-      customNote: `Tuần ${selectedWeek} nề nếp gương mẫu (0 lỗi vi phạm)`,
+      customNote: `Tuần ${selectedWeek} đi học đầy đủ, nề nếp gương mẫu`,
     });
 
     setIsAutoAwardModalOpen(false);
-    setAwardingResult(`Đã trao thưởng thành tích cho ${res.awardedCount} học sinh gương mẫu (+${zeroViolationRule.bonusScore}đ)!`);
+    setAwardingResult(`Đã cộng điểm thưởng cho ${res.awardedCount} học sinh đi học đầy đủ, nề nếp gương mẫu (+${zeroViolationRule.bonusScore}đ)!`);
     setTimeout(() => setAwardingResult(null), 4000);
   };
 
@@ -1180,7 +1182,7 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
                     className="flex items-center gap-1.5 px-3.5 py-2 bg-amber-600 hover:bg-amber-500 text-white text-xs font-bold rounded-xl shadow-sm transition active:scale-95 cursor-pointer"
                   >
                     <Zap className="h-4 w-4" />
-                    <span>Xét thưởng 0 vi phạm ({eligibleZeroViolationStudents.length} HS)</span>
+                    <span>Thưởng đi học đầy đủ (+{zeroViolationRule.bonusScore}đ) ({eligibleZeroViolationStudents.length} HS)</span>
                   </button>
                 )}
 
@@ -1864,7 +1866,7 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
 
             <div className="space-y-3 text-xs">
               <p className="text-slate-600 dark:text-slate-300">
-                Tìm thấy <strong>{eligibleZeroViolationStudents.length} học sinh</strong> trong tuần {selectedWeek} chấp hành nề nếp gương mẫu (không có bất kỳ vi phạm nào).
+                Tìm thấy <strong>{eligibleZeroViolationStudents.length} học sinh</strong> trong tuần {selectedWeek} đi học chuyên cần đầy đủ và chấp hành nề nếp gương mẫu (không nghỉ học, không có vi phạm).
               </p>
 
               <div className="p-3 bg-amber-50 dark:bg-amber-950/40 border border-amber-200 dark:border-amber-800 rounded-xl space-y-1">
