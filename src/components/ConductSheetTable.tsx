@@ -10,9 +10,12 @@ import {
   Check,
   Eye,
   Camera,
+  Upload,
+  ClipboardPaste,
 } from 'lucide-react';
 import { formatVietnameseNumber } from '../lib/utils';
 import { ConductSheetPrintModal } from './ConductSheetPrintModal';
+import { ImportConductSheetModal } from './ImportConductSheetModal';
 import {
   exportConductSheetToExcel,
   exportConductSheetToWord,
@@ -67,7 +70,31 @@ export const ConductSheetTable: React.FC<ConductSheetTableProps> = ({
   onExportExcel,
 }) => {
   const [isPrintModalOpen, setIsPrintModalOpen] = useState<boolean>(false);
+  const [isImportModalOpen, setIsImportModalOpen] = useState<boolean>(false);
+  const [importInitialMode, setImportInitialMode] = useState<'paste' | 'file' | 'sample'>('paste');
   const [copied, setCopied] = useState<boolean>(false);
+
+  // Parse default week number from periodLabel (e.g. "Tuần 5")
+  const defaultWeekNumber = React.useMemo(() => {
+    const match = periodLabel.match(/Tuần\s*(\d+)/i);
+    return match ? parseInt(match[1], 10) : undefined;
+  }, [periodLabel]);
+
+  // Phím tắt Ctrl+V mở nhanh modal dán từ Excel
+  React.useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if ((e.ctrlKey || e.metaKey) && e.key.toLowerCase() === 'v') {
+        const target = e.target as HTMLElement;
+        const isEditing = target && (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable);
+        if (!isEditing && !isImportModalOpen && !isPrintModalOpen) {
+          setImportInitialMode('paste');
+          setIsImportModalOpen(true);
+        }
+      }
+    };
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [isImportModalOpen, isPrintModalOpen]);
 
   const exportOptions = {
     className,
@@ -117,15 +144,39 @@ export const ConductSheetTable: React.FC<ConductSheetTableProps> = ({
               </span>
             </div>
             <p className="text-xs text-slate-500 mt-1">
-              Điểm rèn luyện nổi bật, chi tiết các lỗi vi phạm và cộng điểm theo chuẩn mẫu sổ lớp 12B6.
+              Điểm rèn luyện nổi bật, chi tiết các lỗi vi phạm và cộng điểm theo chuẩn mẫu sổ rèn luyện lớp (mẫu 12B4 tháng 10).
             </p>
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
             <button
+              onClick={() => {
+                setImportInitialMode('paste');
+                setIsImportModalOpen(true);
+              }}
+              className="px-3 py-1.5 rounded-lg border border-emerald-400 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs flex items-center gap-1.5 cursor-pointer transition shadow-2xs active:scale-95"
+              title="Dán nhanh bảng điểm rèn luyện & vi phạm trực tiếp từ Excel (Ctrl + V)"
+            >
+              <ClipboardPaste className="h-3.5 w-3.5" />
+              <span>📋 Dán từ Excel</span>
+            </button>
+
+            <button
+              onClick={() => {
+                setImportInitialMode('file');
+                setIsImportModalOpen(true);
+              }}
+              className="px-3 py-1.5 rounded-lg border border-slate-300 bg-slate-50 hover:bg-slate-100 dark:bg-slate-800 dark:border-slate-700 text-slate-700 dark:text-slate-300 font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
+              title="Tải tệp Excel chấm điểm rèn luyện (.xlsx)"
+            >
+              <Upload className="h-3.5 w-3.5" />
+              <span>Nhập file Excel</span>
+            </button>
+
+            <button
               onClick={handleExportExcelClick}
               className="px-3 py-1.5 rounded-lg border border-emerald-300 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:border-emerald-800 text-emerald-700 dark:text-emerald-300 font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition shadow-2xs"
-              title="Xuất file Excel (.xlsx) chuẩn 2 tầng tiêu đề và chữ ký"
+              title="Xuất file Excel (.xlsx) chuẩn mẫu 12B4 tháng 10"
             >
               <FileSpreadsheet className="h-3.5 w-3.5" />
               <span>Xuất Excel (.xlsx)</span>
@@ -334,6 +385,14 @@ export const ConductSheetTable: React.FC<ConductSheetTableProps> = ({
         homeroomTeacher={homeroomTeacher}
         rows={rows}
         stats={stats}
+      />
+
+      {/* IMPORT CONDUCT SHEET MODAL */}
+      <ImportConductSheetModal
+        isOpen={isImportModalOpen}
+        onClose={() => setIsImportModalOpen(false)}
+        defaultWeekNumber={defaultWeekNumber}
+        initialMode={importInitialMode}
       />
     </>
   );

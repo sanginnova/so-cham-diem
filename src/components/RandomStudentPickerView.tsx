@@ -34,7 +34,12 @@ import {
 } from '../lib/randomPicker';
 import { readDeviceSubjectAttendance } from '../lib/subjectAttendance';
 import { loadClassGradebook, saveClassGradebook } from '../services/subjectGradeService';
-import { ClassGradebookData } from '../types/subjectGrade';
+import {
+  ClassGradebookData,
+  calculateTermAverage,
+  calculateYearAverage,
+  calculateSubjectRank,
+} from '../types/subjectGrade';
 
 type PickerDisplayMode = 'wheel' | 'slot' | 'cards';
 
@@ -90,6 +95,11 @@ export function RandomStudentPickerView() {
 
   // 4. Đếm số lượng điểm đã có từ sổ điểm (để phục vụ chế độ ưu tiên)
   const [gradebook, setGradebook] = useState<ClassGradebookData | null>(null);
+  const gradebookRef = useRef<ClassGradebookData | null>(null);
+
+  useEffect(() => {
+    gradebookRef.current = gradebook;
+  }, [gradebook]);
 
   useEffect(() => {
     if (!rosterReady || students.length === 0) return;
@@ -102,8 +112,14 @@ export function RandomStudentPickerView() {
       isLocalMode,
       classConfig.teacherId
     )
-      .then((gb) => setGradebook(gb))
-      .catch(() => setGradebook(null));
+      .then((gb) => {
+        gradebookRef.current = gb;
+        setGradebook(gb);
+      })
+      .catch(() => {
+        gradebookRef.current = null;
+        setGradebook(null);
+      });
   }, [classConfig.id, classConfig.teacherId, subjectName, classConfig.schoolYear, teacherName, students, isLocalMode, rosterReady]);
 
   const scoreCounts = useMemo(() => {
@@ -139,7 +155,27 @@ export function RandomStudentPickerView() {
   const [customGradeInput, setCustomGradeInput] = useState<string>('9');
   const [individualScores, setIndividualScores] = useState<Record<string, string>>({});
   const [studentActions, setStudentActions] = useState<Record<string, string>>({});
+  const [studentTargetTx, setStudentTargetTx] = useState<Record<string, number>>({});
   const [slotDisplayNames, setSlotDisplayNames] = useState<string[]>(['SẴN SÀNG QUAY']);
+
+  // Tải bản sổ điểm mới nhất, hỗ trợ tải lại từ máy chủ khi cần xử lý xung đột
+  const getLatestGradebook = async (forceReload = false): Promise<ClassGradebookData> => {
+    if (!forceReload && gradebookRef.current) {
+      return gradebookRef.current;
+    }
+    const loaded = await loadClassGradebook(
+      classConfig.id,
+      subjectName,
+      classConfig.schoolYear,
+      teacherName,
+      students,
+      isLocalMode,
+      classConfig.teacherId
+    );
+    gradebookRef.current = loaded;
+    setGradebook(loaded);
+    return loaded;
+  };
 
   // Canvas Vòng quay may mắn
   const canvasRef = useRef<HTMLCanvasElement | null>(null);
@@ -350,6 +386,7 @@ export function RandomStudentPickerView() {
     });
     setIndividualScores(initialScores);
     setStudentActions({});
+    setStudentTargetTx({});
 
     // Lưu vào lịch sử phiên
     const newEntries: PickerHistoryEntry[] = picked.map((s) => ({
@@ -418,28 +455,29 @@ export function RandomStudentPickerView() {
       return;
     }
 
-    try {
-      const gb =
-        gradebook ||
-        (await loadClassGradebook(
-          classConfig.id,
-          subjectName,
-          classConfig.schoolYear,
-          teacherName,
-          students,
-          isLocalMode,
-          classConfig.teacherId
-        ));
+    const saveWithRetry = async (retryOnConflict = true): Promise<void> => {
+      let gb = await getLatestGradebook();
+      let studentGrade = gb.grades[student.id];
 
-      const studentGrade = gb.grades[student.id];
+      // Nếu không tìm thấy học sinh trong cache hiện tại, thử tải lại sổ điểm
+      if (!studentGrade) {
+        gb = await getLatestGradebook(true);
+        studentGrade = gb.grades[student.id];
+      }
+
       if (!studentGrade) {
         alert(`Không tìm thấy ${student.fullName} trong sổ điểm!`);
         return;
       }
 
-      // Tìm cột TX đầu tiên còn trống của HK1
+      // Xác định cột TX cần ghi:
+      // Nếu học sinh này đã được chấm trong lượt hiện tại, ghi đè lên đúng cột đó;
+      // Nếu chưa, tìm cột TX đầu tiên còn trống của HK1.
       const emptyTxIdx = studentGrade.semester1.tx.findIndex((val) => val === null || val === undefined);
-      const targetIdx = emptyTxIdx !== -1 ? emptyTxIdx : 0;
+      const targetIdx =
+        studentTargetTx[student.id] !== undefined
+          ? studentTargetTx[student.id]
+          : (emptyTxIdx !== -1 ? emptyTxIdx : 0);
 
       const updatedStudentGrade = {
         ...studentGrade,
@@ -450,7 +488,17 @@ export function RandomStudentPickerView() {
       };
       updatedStudentGrade.semester1.tx[targetIdx] = score;
 
-      const updatedGb = {
+      // Tự động tính lại điểm trung bình môn
+      if (!gb.termLocks?.semester1?.locked) {
+        updatedStudentGrade.semester1.average = calculateTermAverage(updatedStudentGrade.semester1);
+      }
+      updatedStudentGrade.yearAverage = calculateYearAverage(
+        updatedStudentGrade.semester1.average,
+        updatedStudentGrade.semester2.average
+      );
+      updatedStudentGrade.rank = calculateSubjectRank(updatedStudentGrade.yearAverage);
+
+      const updatedGb: ClassGradebookData = {
         ...gb,
         grades: {
           ...gb.grades,
@@ -459,25 +507,44 @@ export function RandomStudentPickerView() {
         updatedAt: new Date().toISOString(),
       };
 
-      setGradebook(updatedGb);
-      await saveClassGradebook(updatedGb, isLocalMode);
+      try {
+        const saved = await saveClassGradebook(updatedGb, isLocalMode);
+        gradebookRef.current = saved;
+        setGradebook(saved);
 
-      setHistory((prev) => {
-        const updated = prev.map((item) =>
-          item.studentId === student.id
-            ? { ...item, actionTaken: 'grade_entered' as const, detail: `Điểm TX${targetIdx + 1}: ${score}` }
-            : item
-        );
-        saveSessionPickerHistory(classConfig.id, todayStr, updated);
-        return updated;
-      });
+        setStudentTargetTx((prev) => ({
+          ...prev,
+          [student.id]: targetIdx,
+        }));
 
-      setStudentActions((prev) => ({
-        ...prev,
-        [student.id]: `Đã lưu TX${targetIdx + 1}: ${score}đ`,
-      }));
+        setHistory((prev) => {
+          const updated = prev.map((item) =>
+            item.studentId === student.id
+              ? { ...item, actionTaken: 'grade_entered' as const, detail: `Điểm TX${targetIdx + 1}: ${score}` }
+              : item
+          );
+          saveSessionPickerHistory(classConfig.id, todayStr, updated);
+          return updated;
+        });
 
-      setActionMessage(`Đã ghi điểm ${score} vào cột TX${targetIdx + 1} môn ${subjectName} cho ${student.fullName}!`);
+        setStudentActions((prev) => ({
+          ...prev,
+          [student.id]: `Đã lưu TX${targetIdx + 1}: ${score}đ`,
+        }));
+
+        setActionMessage(`Đã ghi điểm ${score} vào cột TX${targetIdx + 1} môn ${subjectName} cho ${student.fullName}!`);
+      } catch (err) {
+        // Tự động giải quyết xung đột revision bằng cách lấy bản mới nhất từ Firestore rồi lưu lại 1 lần
+        if (retryOnConflict && String(err).includes('Sổ điểm đã thay đổi')) {
+          await getLatestGradebook(true);
+          return await saveWithRetry(false);
+        }
+        throw err;
+      }
+    };
+
+    try {
+      await saveWithRetry(true);
     } catch (err) {
       alert(`Lỗi ghi sổ điểm: ${String(err)}`);
     }
@@ -491,11 +558,116 @@ export function RandomStudentPickerView() {
     setActionMessage(`Đã cộng +${points} điểm phát biểu cho cả ${winners.length} em!`);
   };
 
+  // Lưu điểm TX đồng loạt cho cả nhóm (thực hiện trong 1 giao dịch an toàn duy nhất)
   const handleBatchSaveGrades = async (scoreVal: string) => {
-    for (const w of winners) {
-      await handleSaveToSubjectGradebook(w, scoreVal);
+    const score = parseFloat(scoreVal.replace(',', '.'));
+    if (isNaN(score) || score < 0 || score > 10) {
+      alert('Vui lòng nhập điểm từ 0 đến 10.');
+      return;
     }
-    setActionMessage(`Đã ghi điểm TX ${scoreVal} vào sổ điểm cho cả ${winners.length} em!`);
+
+    const saveBatchWithRetry = async (retryOnConflict = true): Promise<void> => {
+      let gb = await getLatestGradebook();
+      const updatedGrades = { ...gb.grades };
+      const actionsMap: Record<string, string> = {};
+      const targetTxMap: Record<string, number> = {};
+      const historyUpdates: Record<string, string> = {};
+
+      for (const w of winners) {
+        let studentGrade = updatedGrades[w.id];
+        if (!studentGrade) {
+          if (retryOnConflict) {
+            gb = await getLatestGradebook(true);
+            return await saveBatchWithRetry(false);
+          }
+          continue;
+        }
+
+        const emptyTxIdx = studentGrade.semester1.tx.findIndex((val) => val === null || val === undefined);
+        const targetIdx =
+          studentTargetTx[w.id] !== undefined
+            ? studentTargetTx[w.id]
+            : (emptyTxIdx !== -1 ? emptyTxIdx : 0);
+
+        const updatedStudentGrade = {
+          ...studentGrade,
+          semester1: {
+            ...studentGrade.semester1,
+            tx: [...studentGrade.semester1.tx],
+          },
+        };
+        updatedStudentGrade.semester1.tx[targetIdx] = score;
+
+        if (!gb.termLocks?.semester1?.locked) {
+          updatedStudentGrade.semester1.average = calculateTermAverage(updatedStudentGrade.semester1);
+        }
+        updatedStudentGrade.yearAverage = calculateYearAverage(
+          updatedStudentGrade.semester1.average,
+          updatedStudentGrade.semester2.average
+        );
+        updatedStudentGrade.rank = calculateSubjectRank(updatedStudentGrade.yearAverage);
+
+        updatedGrades[w.id] = updatedStudentGrade;
+        targetTxMap[w.id] = targetIdx;
+        actionsMap[w.id] = `Đã lưu TX${targetIdx + 1}: ${score}đ`;
+        historyUpdates[w.id] = `Điểm TX${targetIdx + 1}: ${score}`;
+      }
+
+      const updatedGb: ClassGradebookData = {
+        ...gb,
+        grades: updatedGrades,
+        updatedAt: new Date().toISOString(),
+      };
+
+      try {
+        const saved = await saveClassGradebook(updatedGb, isLocalMode);
+        gradebookRef.current = saved;
+        setGradebook(saved);
+
+        setStudentTargetTx((prev) => ({
+          ...prev,
+          ...targetTxMap,
+        }));
+
+        setStudentActions((prev) => ({
+          ...prev,
+          ...actionsMap,
+        }));
+
+        setHistory((prev) => {
+          const updated = prev.map((item) =>
+            historyUpdates[item.studentId]
+              ? { ...item, actionTaken: 'grade_entered' as const, detail: historyUpdates[item.studentId] }
+              : item
+          );
+          saveSessionPickerHistory(classConfig.id, todayStr, updated);
+          return updated;
+        });
+
+        // Cập nhật lại điểm hiển thị trong ô nhập của từng em thành số điểm vừa chấm chung
+        setIndividualScores((prev) => {
+          const nextScores = { ...prev };
+          winners.forEach((w) => {
+            nextScores[w.id] = String(score);
+          });
+          return nextScores;
+        });
+
+        setActionMessage(`Đã ghi điểm TX ${score} vào sổ điểm cho cả ${winners.length} em!`);
+      } catch (err) {
+        if (retryOnConflict && String(err).includes('Sổ điểm đã thay đổi')) {
+          await getLatestGradebook(true);
+          return await saveBatchWithRetry(false);
+        }
+        throw err;
+      }
+    };
+
+    try {
+      await saveBatchWithRetry(true);
+    } catch (err) {
+      alert(`Lỗi ghi sổ điểm cả nhóm: ${String(err)}`);
+    }
   };
 
   // Đặt lại lịch sử gọi trong buổi

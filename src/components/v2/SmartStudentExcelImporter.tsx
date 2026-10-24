@@ -26,6 +26,7 @@ interface ParsedStudentRow {
   dateOfBirth?: string;
   gender?: 'Nam' | 'Nữ';
   ethnicity?: string;
+  phone?: string;
   parentName?: string;
   parentPhone?: string;
   status: 'new' | 'duplicate' | 'error';
@@ -178,10 +179,18 @@ export const SmartStudentExcelImporter: React.FC<SmartStudentExcelImporterProps>
             } else if (rawHeader.includes('dan toc')) {
               tempMap.ethnicity = colIdx;
             } else if (
-              rawHeader.includes('sdt') || rawHeader.includes('dien thoai') ||
-              rawHeader.includes('so dt') || rawHeader.includes('phone')
+              rawHeader.includes('sdt hs') ||
+              rawHeader.includes('sdt hoc sinh') ||
+              rawHeader.includes('dien thoai hs') ||
+              rawHeader.includes('dien thoai hoc sinh') ||
+              rawHeader.includes('so dt hs') ||
+              rawHeader.includes('so dt hoc sinh') ||
+              rawHeader.includes('so dien thoai hs') ||
+              rawHeader.includes('so dien thoai hoc sinh') ||
+              rawHeader.includes('phone hs') ||
+              rawHeader.includes('student phone')
             ) {
-              tempMap.parentPhone = colIdx;
+              tempMap.phone = colIdx;
             } else if (
               rawHeader.includes('phu huynh') ||
               rawHeader.includes('ten cha me') ||
@@ -194,7 +203,18 @@ export const SmartStudentExcelImporter: React.FC<SmartStudentExcelImporterProps>
               rawHeader.includes('so dt') ||
               rawHeader.includes('phone')
             ) {
-              tempMap.parentPhone = colIdx;
+              if (
+                rawHeader.includes('ph') ||
+                rawHeader.includes('bo') ||
+                rawHeader.includes('me') ||
+                rawHeader.includes('cha')
+              ) {
+                tempMap.parentPhone = colIdx;
+              } else if (tempMap.phone === undefined) {
+                tempMap.phone = colIdx;
+              } else {
+                tempMap.parentPhone = colIdx;
+              }
             }
           });
 
@@ -209,11 +229,14 @@ export const SmartStudentExcelImporter: React.FC<SmartStudentExcelImporterProps>
         if (Object.keys(colMap).length === 0) {
           colMap = {
             code: 1,
-            fullName: 2,
-            dob: 3,
+            lastName: 2,
+            firstName: 3,
             gender: 4,
-            parentName: 5,
-            parentPhone: 6,
+            ethnicity: 5,
+            dob: 6,
+            phone: 7,
+            parentPhone: 8,
+            parentName: 9,
           };
         }
 
@@ -232,6 +255,7 @@ export const SmartStudentExcelImporter: React.FC<SmartStudentExcelImporterProps>
           const rawFirst = colMap.firstName !== undefined ? String(rowData[colMap.firstName]).trim() : '';
           const rawDob = colMap.dob !== undefined ? parseExcelDate(rowData[colMap.dob]) : '';
           const rawGender = colMap.gender !== undefined ? String(rowData[colMap.gender]).trim() : '';
+          const rawPhone = colMap.phone !== undefined ? String(rowData[colMap.phone]).trim() : '';
           const rawParentName = colMap.parentName !== undefined ? String(rowData[colMap.parentName]).trim() : '';
           const rawParentPhone = colMap.parentPhone !== undefined ? String(rowData[colMap.parentPhone]).trim() : '';
 
@@ -285,6 +309,7 @@ export const SmartStudentExcelImporter: React.FC<SmartStudentExcelImporterProps>
             dateOfBirth: rawDob,
             gender: normalizedGender,
             ethnicity: colMap.ethnicity !== undefined ? String(rowData[colMap.ethnicity]).trim() : '',
+            phone: rawPhone,
             parentName: rawParentName,
             parentPhone: rawParentPhone,
             status,
@@ -344,6 +369,7 @@ export const SmartStudentExcelImporter: React.FC<SmartStudentExcelImporterProps>
         dateOfBirth: r.dateOfBirth,
         gender: r.gender,
         ethnicity: r.ethnicity,
+        phone: r.phone,
         status: 'active' as const,
         parentName: r.parentName,
         parentPhone: r.parentPhone,
@@ -386,7 +412,7 @@ export const SmartStudentExcelImporter: React.FC<SmartStudentExcelImporterProps>
                 </span>
               </div>
               <p className="text-xs text-slate-500">
-                Mẫu 8 cột: Mã học sinh, Họ đệm, Tên, Giới tính, Dân tộc, Ngày sinh, Điện thoại phụ huynh, Tên phụ huynh. Để mã và điện thoại ở dạng Văn bản để giữ số 0 đầu.
+                Mẫu 9 cột: Mã học sinh, Họ đệm, Tên, Giới tính, Dân tộc, Ngày sinh, Số điện thoại HS, Điện thoại phụ huynh, Tên phụ huynh. Để mã và điện thoại ở dạng Văn bản để giữ số 0 đầu.
               </p>
             </div>
           </div>
@@ -440,7 +466,7 @@ export const SmartStudentExcelImporter: React.FC<SmartStudentExcelImporterProps>
                   Kéo và thả tệp Excel (.xlsx, .xls) hoặc CSV vào đây
                 </p>
                 <p className="text-xs text-slate-500 mt-1">
-                  Hệ thống tự động nhận diện các cột: Mã HS, Họ và tên, Ngày sinh, Giới tính, SĐT phụ huynh
+                  Hệ thống tự động nhận diện các cột: Mã HS, Họ và tên, Ngày sinh, Giới tính, SĐT HS, SĐT phụ huynh
                 </p>
               </div>
               <button
@@ -564,6 +590,7 @@ export const SmartStudentExcelImporter: React.FC<SmartStudentExcelImporterProps>
                         <th className="py-2.5 px-3">Họ và Tên</th>
                         <th className="py-2.5 px-3">Ngày sinh</th>
                         <th className="py-2.5 px-3">Giới tính</th>
+                        <th className="py-2.5 px-3">SĐT HS</th>
                         <th className="py-2.5 px-3">SĐT Phụ huynh</th>
                         <th className="py-2.5 px-3 text-right">Trạng thái</th>
                       </tr>
@@ -599,6 +626,7 @@ export const SmartStudentExcelImporter: React.FC<SmartStudentExcelImporterProps>
                               {r.gender}
                             </span>
                           </td>
+                          <td className="py-2 px-3 text-slate-500 font-mono">{r.phone || '-'}</td>
                           <td className="py-2 px-3 text-slate-500 font-mono">{r.parentPhone || '-'}</td>
                           <td className="py-2 px-3 text-right">
                             {r.status === 'new' && (

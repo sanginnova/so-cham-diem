@@ -13,9 +13,11 @@ import {
   Calendar,
   User,
   ShieldAlert,
+  Sparkles,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { Student, BehaviorCategory, BehaviorType, DisciplineLog } from '../types';
+import { ImportConductSheetModal } from './ImportConductSheetModal';
 import {
   removeVietnameseAccents,
   formatVietnameseDate,
@@ -72,6 +74,7 @@ export const ImportDisciplineLogsModal: React.FC<ImportDisciplineLogsModalProps>
   const [isProcessing, setIsProcessing] = useState<boolean>(false);
   const [parseError, setParseError] = useState<string>('');
   const [importSuccessCount, setImportSuccessCount] = useState<number | null>(null);
+  const [isConductSheetModalOpen, setIsConductSheetModalOpen] = useState<boolean>(false);
 
   if (!isOpen) return null;
 
@@ -512,6 +515,30 @@ export const ImportDisciplineLogsModal: React.FC<ImportDisciplineLogsModalProps>
           {/* File Upload Zone */}
           {parsedRows.length === 0 ? (
             <div className="space-y-4">
+              {/* Conduct Sheet Banner */}
+              <div className="p-4 bg-gradient-to-r from-emerald-500/10 via-emerald-500/5 to-transparent border border-emerald-300 dark:border-emerald-700/60 rounded-2xl flex flex-col sm:flex-row sm:items-center justify-between gap-3 shadow-2xs">
+                <div className="flex items-start gap-3">
+                  <div className="p-2 rounded-xl bg-emerald-600 text-white shrink-0 shadow-xs">
+                    <Sparkles className="h-5 w-5" />
+                  </div>
+                  <div>
+                    <h4 className="text-xs font-bold text-emerald-900 dark:text-emerald-200">
+                      Bạn có tệp Excel Sổ Chấm Điểm Rèn Luyện (Mẫu 12B4 tháng 10)?
+                    </h4>
+                    <p className="text-2xs text-slate-500 dark:text-slate-400 mt-0.5 leading-relaxed">
+                      Hỗ trợ đọc tự động các sheet tuần <strong>T1-T10, T2-T10, T3-T10</strong>, điểm rèn luyện, vi phạm và cộng điểm 40 học sinh lớp 12B4.
+                    </p>
+                  </div>
+                </div>
+                <button
+                  type="button"
+                  onClick={() => setIsConductSheetModalOpen(true)}
+                  className="px-3.5 py-2 bg-emerald-600 hover:bg-emerald-700 text-white rounded-xl text-xs font-bold shrink-0 transition shadow-xs cursor-pointer"
+                >
+                  Mở chế độ mẫu 12B4
+                </button>
+              </div>
+
               <div
                 onDragOver={(e) => {
                   e.preventDefault();
@@ -872,6 +899,11 @@ export const ImportDisciplineLogsModal: React.FC<ImportDisciplineLogsModalProps>
           )}
         </div>
       </div>
+
+      <ImportConductSheetModal
+        isOpen={isConductSheetModalOpen}
+        onClose={() => setIsConductSheetModalOpen(false)}
+      />
     </div>
   );
 };

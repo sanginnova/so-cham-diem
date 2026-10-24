@@ -34,6 +34,7 @@ export type TabType =
   | 'portal'
   | 'dashboard'
   | 'homeroom'
+  | 'class-schedule'
   | 'collections'
   | 'seating-chart'
   | 'daily-log'

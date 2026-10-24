@@ -28,6 +28,7 @@ import {
   UserX,
   TableProperties,
   FileSpreadsheet,
+  Upload,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { DisciplineLog } from '../types';
@@ -41,7 +42,11 @@ import {
 } from '../lib/utils';
 import { ConductSheetTable, ConductSheetRow } from './ConductSheetTable';
 import { getStudentConductDetail } from '../lib/conductReportHelper';
-import { exportConductSheetToExcel } from '../lib/conductReportExport';
+import {
+  exportConductSheetToExcel,
+  exportMultiWeekConductToExcel,
+} from '../lib/conductReportExport';
+import { ImportConductSheetModal } from './ImportConductSheetModal';
 import { TabType } from './Navbar';
 import { SummaryZaloExportModal } from './SummaryZaloExportModal';
 import { PeriodLockBannerV2 } from './v2/PeriodLockBannerV2';
@@ -72,6 +77,7 @@ export const MonthlySummaryView: React.FC<MonthlySummaryViewProps> = ({
     students,
     disciplineLogs,
     isPeriodLocked,
+    getWeeklySummary,
     getMonthlySummary,
     awardAchievementBonus,
     batchAwardAchievementBonus,
@@ -228,6 +234,43 @@ export const MonthlySummaryView: React.FC<MonthlySummaryViewProps> = ({
       };
     });
   }, [filteredData, monthLogs]);
+
+  const [isImportConductModalOpen, setIsImportConductModalOpen] = useState<boolean>(false);
+
+  // Xuất file Excel các tuần của tháng (mỗi tuần 1 sheet T1-T10, T2-T10, T3-T10...) chuẩn mẫu 12B4
+  const handleExportAllWeeksExcel = () => {
+    const weeksData = monthWeeks.map((w) => {
+      const wLogs = disciplineLogs.filter(
+        (l) => l.weekNumber === w.weekNumber && l.month === selectedMonth
+      );
+      const wWeeklyData = getWeeklySummary(w.weekNumber, selectedMonth);
+
+      const rows: ConductSheetRow[] = wWeeklyData.map((s, idx) => {
+        const detail = getStudentConductDetail(s.studentId, wLogs);
+        return {
+          stt: idx + 1,
+          studentId: s.studentId,
+          studentCode: s.studentCode,
+          fullName: s.fullName,
+          finalScore: s.finalScore,
+          violationsLines: detail.violationsLines,
+          bonusesList: detail.bonusesList,
+        };
+      });
+
+      return {
+        weekNumber: w.weekNumber,
+        rows,
+      };
+    });
+
+    exportMultiWeekConductToExcel({
+      className: classConfig.className,
+      homeroomTeacher: classConfig.homeroomTeacher || 'Nguyễn Văn Sang',
+      month: selectedMonth,
+      weeksData,
+    });
+  };
 
   // Export Excel in traditional conduct sheet format with full 2-tier header and signatures
   const handleExportConductSheetExcel = () => {
@@ -598,6 +641,24 @@ export const MonthlySummaryView: React.FC<MonthlySummaryViewProps> = ({
           >
             <Share2 className="h-3.5 w-3.5" />
             <span>Gửi ảnh Zalo</span>
+          </button>
+
+          <button
+            onClick={() => setIsImportConductModalOpen(true)}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-bold rounded-xl border border-indigo-200 dark:border-indigo-800 transition active:scale-95 shadow-xs cursor-pointer"
+            title="Cập nhật điểm rèn luyện & vi phạm theo mẫu file Excel 12B4 tháng 10"
+          >
+            <Upload className="h-3.5 w-3.5" />
+            <span>Cập nhật theo mẫu Excel</span>
+          </button>
+
+          <button
+            onClick={handleExportAllWeeksExcel}
+            className="flex items-center gap-1.5 px-3 py-1.5 bg-emerald-50 hover:bg-emerald-100 dark:bg-emerald-950/60 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 text-xs font-bold rounded-xl border border-emerald-200 dark:border-emerald-800 transition active:scale-95 shadow-xs cursor-pointer"
+            title="Xuất file Excel gồm nhiều sheet các tuần (T1-T10, T2-T10, T3-T10...) chuẩn mẫu 12B4"
+          >
+            <FileSpreadsheet className="h-3.5 w-3.5 text-emerald-600" />
+            <span>Xuất Excel các tuần (T1-T10...)</span>
           </button>
 
           <button
@@ -1815,6 +1876,11 @@ export const MonthlySummaryView: React.FC<MonthlySummaryViewProps> = ({
             rank: d.rank,
             notes: d.notes,
           }))}
+      />
+
+      <ImportConductSheetModal
+        isOpen={isImportConductModalOpen}
+        onClose={() => setIsImportConductModalOpen(false)}
       />
     </div>
   );

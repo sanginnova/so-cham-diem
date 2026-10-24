@@ -6,6 +6,9 @@ import { TeachingClassesView } from './components/TeachingClassesView';
 import { SubjectStatisticsView } from './components/SubjectStatisticsView';
 import { SubjectAttendanceView } from './components/SubjectAttendanceView';
 import { TeacherTimetableView } from './components/TeacherTimetableView';
+const HomeroomClassTimetableView = React.lazy(() =>
+  import('./components/HomeroomClassTimetableView').then((m) => ({ default: m.HomeroomClassTimetableView }))
+);
 import React, { useState, useEffect } from 'react';
 import { currentSchoolYear } from './lib/classScope';
 import { AppProvider, useApp } from './context/AppContext';
@@ -342,6 +345,11 @@ function MainApp() {
 
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'collections' && <CollectionsView key={classConfig.id} />}
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'homeroom' && <HomeroomAssistantView key={classConfig.id} />}
+          {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'class-schedule' && (
+            <React.Suspense fallback={<div className="p-8 text-center text-slate-500 font-semibold">Đang tải Thời khóa biểu lớp...</div>}>
+              <HomeroomClassTimetableView key={classConfig.id} onNavigateTab={setActiveTab} />
+            </React.Suspense>
+          )}
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'seating-chart' && <SeatingChartView key={classConfig.id} />}
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'teaching-classes' && <TeachingClassesView onOpenGradebook={() => setActiveTab('gradebook')} onNavigateTab={setActiveTab} />}
           {['teacher', 'admin', 'owner'].includes(userRole) && activeTab === 'subject-statistics' && <SubjectStatisticsView onOpenGradebook={() => setActiveTab('gradebook')} />}

@@ -35,6 +35,11 @@ import {
   FileSpreadsheet,
   TableProperties,
   UserX,
+  Upload,
+  ClipboardPaste,
+  ChevronDown,
+  ShieldAlert,
+  Clock,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { AchievementBonusRule, StudentWeeklySummary, DisciplineLog, Student } from '../types';
@@ -50,6 +55,7 @@ import {
 import { ConductSheetTable, ConductSheetRow } from './ConductSheetTable';
 import { getStudentConductDetail } from '../lib/conductReportHelper';
 import { exportConductSheetToExcel } from '../lib/conductReportExport';
+import { ImportConductSheetModal } from './ImportConductSheetModal';
 import { TabType } from './Navbar';
 import { SummaryZaloExportModal } from './SummaryZaloExportModal';
 import { PeriodLockBannerV2 } from './v2/PeriodLockBannerV2';
@@ -104,6 +110,8 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
   const [attendanceFilter, setAttendanceFilter] = useState<'all' | 'unexcused' | 'excused' | 'any'>('all');
   const [isZaloModalOpen, setIsZaloModalOpen] = useState<boolean>(false);
   const [viewMode, setViewMode] = useState<'management' | 'conduct-sheet'>('management');
+  const [isImportConductModalOpen, setIsImportConductModalOpen] = useState<boolean>(false);
+  const [importConductInitialMode, setImportConductInitialMode] = useState<'paste' | 'file' | 'sample'>('paste');
 
   // Modals for achievement awards
   const [isAutoAwardModalOpen, setIsAutoAwardModalOpen] = useState(false);
@@ -208,6 +216,41 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
       truancyCount,
     };
   }, [weeklyData]);
+
+  // Priority tasks: Học sinh cần theo dõi đặc biệt trong tuần
+  const needsAttentionStudents = useMemo(() => {
+    return weeklyData
+      .filter((s) => {
+        const u = s.unexcusedAbsenceCount || 0;
+        const v = s.violationCount || 0;
+        const t = s.truancyCount || 0;
+        const lowScore = s.finalScore < 8.0;
+        return u > 0 || v >= 2 || t > 0 || lowScore;
+      })
+      .sort((a, b) => a.finalScore - b.finalScore);
+  }, [weeklyData]);
+
+  // Current school week context and future week detection
+  const curSchoolWeek = useMemo(() => currentSchoolWeek(classConfig.weeks), [classConfig.weeks]);
+  const isCurrentWeek = curSchoolWeek?.weekNumber === selectedWeek;
+  const isFutureWeek = useMemo(() => {
+    if (!curSchoolWeek) return false;
+    return selectedWeek > curSchoolWeek.weekNumber;
+  }, [curSchoolWeek, selectedWeek]);
+
+  // Export & Share menu state
+  const [isExportMenuOpen, setIsExportMenuOpen] = useState(false);
+  const exportMenuRef = React.useRef<HTMLDivElement>(null);
+
+  React.useEffect(() => {
+    const handleClickOutside = (e: MouseEvent) => {
+      if (exportMenuRef.current && !exportMenuRef.current.contains(e.target as Node)) {
+        setIsExportMenuOpen(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
 
   // Sorting state for weekly table
   const [sortField, setSortField] = useState<'score' | 'name' | 'code'>('score');
@@ -636,36 +679,47 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
     <div className="space-y-5">
       <PeriodReview weekNumber={selectedWeek} />
       {explainStudentId && <ScoreExplanation studentId={explainStudentId} weekNumber={selectedWeek} onClose={() => setExplainStudentId(null)} />}
-      {/* Header and Filter Row */}
-      <div className="bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col md:flex-row md:items-center justify-between gap-4 print:hidden">
-        <div>
-          <div className="flex items-center gap-2">
-            <span className="p-2 bg-blue-50 dark:bg-blue-900/40 text-blue-600 rounded-xl">
+      {/* ── SECTION A: PAGE HEADER ── */}
+      <div className="bg-white dark:bg-slate-800 p-4 sm:p-5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-sm flex flex-col lg:flex-row lg:items-center justify-between gap-4 print:hidden">
+        <div className="space-y-1">
+          <div className="flex items-center gap-2.5 flex-wrap">
+            <span className="p-2 bg-blue-50 dark:bg-blue-900/40 text-blue-600 dark:text-blue-400 rounded-xl">
               <CalendarCheck className="h-5 w-5" />
             </span>
-            <div>
-              <h2 className="text-lg font-bold text-slate-900 dark:text-white">
-                Bảng Tổng Kết Điểm Rèn Luyện Tuần {selectedWeek}
+            <div className="flex items-center gap-2 flex-wrap">
+              <h2 className="text-lg sm:text-xl font-black text-slate-900 dark:text-white tracking-tight">
+                Tổng kết tuần {selectedWeek}
               </h2>
-              <p className="text-xs text-slate-500">
-                Tháng {selectedMonth} •{' '}
-                {currentWeekInfo
-                  ? `Từ ${formatVietnameseDate(currentWeekInfo.startDate)} đến ${formatVietnameseDate(currentWeekInfo.endDate)}`
-                  : ''}{' '}
-                • Lớp {classConfig.className}
-              </p>
+              {isFutureWeek && (
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-indigo-50 text-indigo-700 dark:bg-indigo-950/60 dark:text-indigo-300 border border-indigo-200 dark:border-indigo-800 flex items-center gap-1">
+                  <Clock className="h-3 w-3" />
+                  <span>Tuần sắp tới</span>
+                </span>
+              )}
+              {isCurrentWeek && (
+                <span className="px-2.5 py-0.5 rounded-full text-[11px] font-bold bg-emerald-50 text-emerald-700 dark:bg-emerald-950/60 dark:text-emerald-300 border border-emerald-200 dark:border-emerald-800">
+                  Tuần hiện tại
+                </span>
+              )}
             </div>
           </div>
+          <p className="text-xs text-slate-500 dark:text-slate-400 pl-11">
+            Lớp <strong>{classConfig.className}</strong> • Năm học <strong>{classConfig.schoolYear || currentSchoolYear()}</strong> • Tháng {selectedMonth}{' '}
+            {currentWeekInfo
+              ? `(Từ ${formatVietnameseDate(currentWeekInfo.startDate)} đến ${formatVietnameseDate(currentWeekInfo.endDate)})`
+              : ''}
+          </p>
         </div>
 
-        {/* Filter Month, Week & Actions */}
-        <div className="flex items-center gap-2.5 flex-wrap">
+        {/* Section A Controls */}
+        <div className="flex items-center gap-2 flex-wrap">
+          {/* Select Month */}
           <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-750 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
             <span className="text-slate-500 font-medium">Tháng:</span>
             <select
               value={selectedMonth}
               onChange={(e) => setSelectedMonth(Number(e.target.value))}
-              className="bg-transparent font-bold text-slate-800 dark:text-slate-200 focus:outline-none"
+              className="bg-transparent font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
             >
               {classConfig.months.map((m) => (
                 <option key={m} value={m} className="dark:bg-slate-800">
@@ -675,12 +729,13 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
             </select>
           </div>
 
+          {/* Select Week */}
           <div className="flex items-center gap-1.5 bg-slate-50 dark:bg-slate-750 px-3 py-1.5 rounded-xl border border-slate-200 dark:border-slate-700 text-xs">
             <span className="text-slate-500 font-medium">Tuần:</span>
             <select
               value={selectedWeek}
               onChange={(e) => setSelectedWeek(Number(e.target.value))}
-              className="bg-transparent font-bold text-slate-800 dark:text-slate-200 focus:outline-none"
+              className="bg-transparent font-bold text-slate-800 dark:text-slate-200 focus:outline-none cursor-pointer"
             >
               {availableWeeks.map((w) => (
                 <option key={w.weekNumber} value={w.weekNumber} className="dark:bg-slate-800">
@@ -690,92 +745,152 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
             </select>
           </div>
 
-          <button
-            onClick={() => onNavigateTab('zalo-composer')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-indigo-50 hover:bg-indigo-100 dark:bg-indigo-950/60 dark:hover:bg-indigo-900/60 text-indigo-700 dark:text-indigo-300 text-xs font-semibold rounded-xl border border-indigo-200 dark:border-indigo-800 transition active:scale-95 shadow-xs"
-            title="Soạn thảo tin nhắn Zalo tuần kèm số liệu điểm số và danh sách khen thưởng/nhắc nhở"
-          >
-            <MessageSquareText className="h-3.5 w-3.5" />
-            <span>Soạn tin Zalo</span>
-          </button>
+          {/* Return to Current Week */}
+          {!isCurrentWeek && curSchoolWeek && (
+            <button
+              type="button"
+              onClick={() => {
+                setSelectedWeek(curSchoolWeek.weekNumber);
+                setSelectedMonth(curSchoolWeek.month);
+              }}
+              className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:hover:bg-blue-900/60 text-blue-700 dark:text-blue-300 text-xs font-bold rounded-xl border border-blue-200 dark:border-blue-800 transition active:scale-95 cursor-pointer shadow-xs"
+              title="Quay lại tuần học hiện tại"
+            >
+              <RotateCcw className="h-3.5 w-3.5" />
+              <span>Tuần hiện tại</span>
+            </button>
+          )}
 
-          <button
-            onClick={() => handleOpenManageBonuses('all')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-amber-500 hover:bg-amber-600 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
-            title="Quản lý và chuyển điểm thưởng tuần này sang tuần khác"
-          >
-            <ArrowRightLeft className="h-3.5 w-3.5" />
-            <span>Chuyển điểm thưởng ({weeklyBonusLogs.length})</span>
-          </button>
+          {/* Export & Share Dropdown */}
+          <div className="relative" ref={exportMenuRef}>
+            <button
+              type="button"
+              onClick={() => setIsExportMenuOpen((prev) => !prev)}
+              className="flex items-center gap-1.5 px-3.5 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
+            >
+              <Share2 className="h-3.5 w-3.5" />
+              <span>Xuất & Chia sẻ</span>
+              <ChevronDown className={`h-3.5 w-3.5 transition-transform duration-200 ${isExportMenuOpen ? 'rotate-180' : ''}`} />
+            </button>
 
-          <button
-            onClick={() => {
-              if (onNavigateToZalo) {
-                onNavigateToZalo({
-                  week: selectedWeek,
-                  month: selectedMonth,
-                  mode: 'week',
-                  templateId: 'weekly_class_group',
-                });
-              } else {
-                onNavigateTab('zalo-composer');
-              }
-            }}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-700 hover:bg-blue-800 text-white text-xs font-semibold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
-            title="Soạn thảo tin nhắn Zalo kèm số liệu điểm nề nếp tuần này"
-          >
-            <MessageSquare className="h-3.5 w-3.5" />
-            <span>Soạn tin Zalo</span>
-          </button>
+            {isExportMenuOpen && (
+              <div className="absolute right-0 mt-2 w-64 bg-white dark:bg-slate-900 border border-slate-200 dark:border-slate-750 rounded-2xl shadow-xl py-2 z-50 animate-in fade-in slide-in-from-top-2 duration-150">
+                <div className="px-3 py-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-b border-slate-100 dark:border-slate-800">
+                  Zalo & Liên hệ phụ huynh
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsExportMenuOpen(false);
+                    if (onNavigateToZalo) {
+                      onNavigateToZalo({
+                        week: selectedWeek,
+                        month: selectedMonth,
+                        mode: 'week',
+                        templateId: 'weekly_class_group',
+                      });
+                    } else {
+                      onNavigateTab('zalo-composer');
+                    }
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left cursor-pointer"
+                >
+                  <MessageSquareText className="h-4 w-4 text-indigo-600" />
+                  <span>Soạn tin Zalo tuần</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsExportMenuOpen(false);
+                    setIsZaloModalOpen(true);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left cursor-pointer"
+                >
+                  <Share2 className="h-4 w-4 text-blue-600" />
+                  <span>Gửi ảnh Zalo</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsExportMenuOpen(false);
+                    window.dispatchEvent(new CustomEvent('open-public-scoreboard-modal'));
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left cursor-pointer"
+                >
+                  <span className="relative flex h-2 w-2">
+                    <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-400 opacity-75" />
+                    <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-500" />
+                  </span>
+                  <span>Link xem điểm trực tiếp</span>
+                </button>
 
-          <button
-            onClick={() => onNavigateTab('attendance-report')}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 text-xs font-bold rounded-xl border border-rose-200 dark:border-rose-850 shadow-xs transition active:scale-95 cursor-pointer"
-            title="Mở Báo cáo danh sách học sinh nghỉ học chi tiết số buổi và lý do"
-          >
-            <UserX className="h-3.5 w-3.5 text-rose-600 dark:text-rose-400" />
-            <span>Báo cáo nghỉ học</span>
-          </button>
+                <div className="px-3 py-1 mt-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-t border-b border-slate-100 dark:border-slate-800">
+                  Xuất file & In ấn
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsExportMenuOpen(false);
+                    handleExportExcel();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left cursor-pointer"
+                >
+                  <Download className="h-4 w-4 text-emerald-600" />
+                  <span>Xuất file Excel (.xlsx)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsExportMenuOpen(false);
+                    handleExportConductSheetExcel();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left cursor-pointer"
+                >
+                  <FileSpreadsheet className="h-4 w-4 text-teal-600" />
+                  <span>Sổ điểm rèn luyện (Mẫu 5 cột)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsExportMenuOpen(false);
+                    handlePrint();
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left cursor-pointer"
+                >
+                  <Printer className="h-4 w-4 text-slate-500" />
+                  <span>In bảng tổng kết tuần</span>
+                </button>
 
-          <button
-            onClick={() => window.dispatchEvent(new CustomEvent('open-public-scoreboard-modal'))}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-gradient-to-r from-emerald-600 to-teal-600 hover:from-emerald-500 hover:to-teal-500 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
-            title="Xuất link xem điểm số công khai, luôn cập nhật thời gian thực"
-          >
-            <span className="relative flex h-2 w-2">
-              <span className="animate-ping absolute inline-flex h-full w-full rounded-full bg-emerald-200 opacity-75" />
-              <span className="relative inline-flex rounded-full h-2 w-2 bg-emerald-300" />
-            </span>
-            <Share2 className="h-3.5 w-3.5" />
-            <span>Link xem điểm trực tiếp</span>
-          </button>
-
-          <button
-            onClick={() => setIsZaloModalOpen(true)}
-            className="flex items-center gap-1.5 px-3 py-1.5 bg-blue-600 hover:bg-blue-700 text-white text-xs font-semibold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
-            title="Sao chép hình ảnh Tổng kết Tuần để dán gửi nhóm Zalo phụ huynh"
-          >
-            <Share2 className="h-3.5 w-3.5" />
-            <span>Gửi ảnh Zalo</span>
-          </button>
-
-          <button
-            onClick={handleExportExcel}
-            className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl transition"
-            title="Xuất bảng tổng kết ra Excel"
-          >
-            <Download className="h-3.5 w-3.5" />
-            <span>Xuất Excel</span>
-          </button>
-
-          <button
-            onClick={handlePrint}
-            className="flex items-center gap-1 px-3 py-1.5 bg-slate-100 hover:bg-slate-200 dark:bg-slate-750 dark:hover:bg-slate-700 text-slate-700 dark:text-slate-200 text-xs font-semibold rounded-xl transition"
-            title="In bảng tổng kết tuần"
-          >
-            <Printer className="h-3.5 w-3.5" />
-            <span>In</span>
-          </button>
+                <div className="px-3 py-1 mt-1 text-[11px] font-bold text-slate-400 uppercase tracking-wider border-t border-b border-slate-100 dark:border-slate-800">
+                  Nhập dữ liệu
+                </div>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsExportMenuOpen(false);
+                    setImportConductInitialMode('paste');
+                    setIsImportConductModalOpen(true);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left cursor-pointer"
+                >
+                  <ClipboardPaste className="h-4 w-4 text-emerald-600" />
+                  <span>Dán nhanh từ Excel (Ctrl+V)</span>
+                </button>
+                <button
+                  type="button"
+                  onClick={() => {
+                    setIsExportMenuOpen(false);
+                    setImportConductInitialMode('file');
+                    setIsImportConductModalOpen(true);
+                  }}
+                  className="w-full flex items-center gap-2.5 px-3 py-2 text-xs font-medium text-slate-700 dark:text-slate-200 hover:bg-slate-50 dark:hover:bg-slate-800 transition text-left cursor-pointer"
+                >
+                  <Upload className="h-4 w-4 text-indigo-600" />
+                  <span>Nhập từ file Excel</span>
+                </button>
+              </div>
+            )}
+          </div>
         </div>
       </div>
 
@@ -799,7 +914,218 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
         </div>
       )}
 
-      {/* FEATURE CARD: KHEN THƯỞNG THÀNH TÍCH TUẦN */}
+      {/* ── SECTION B: KPI OVERVIEW (6 CARDS) ── */}
+      <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-3">
+        {/* Card 1: Sĩ số theo dõi */}
+        <div className="bg-white dark:bg-slate-800 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs flex flex-col justify-between">
+          <span className="text-[11px] text-slate-500 font-semibold block">Sĩ số theo dõi</span>
+          <div className="my-1">
+            <span className="text-2xl font-black text-slate-900 dark:text-white">{weeklyData.length}</span>
+            <span className="text-xs text-slate-400 font-medium ml-1">HS</span>
+          </div>
+          <span className="text-[10px] text-slate-400 block truncate">Lớp {classConfig.className}</span>
+        </div>
+
+        {/* Card 2: Lượt vi phạm */}
+        <div className="bg-white dark:bg-slate-800 p-3.5 rounded-2xl border border-rose-200 dark:border-rose-900/40 shadow-xs flex flex-col justify-between">
+          <span className="text-[11px] text-rose-600 dark:text-rose-400 font-semibold block">Lượt vi phạm</span>
+          <div className="my-1">
+            <span className="text-2xl font-black text-rose-600 dark:text-rose-400">{stats.totalViolations}</span>
+            <span className="text-xs text-rose-500 font-medium ml-1">lượt</span>
+          </div>
+          <span className="text-[10px] text-rose-500/80 font-medium block truncate">
+            Tổng trừ: -{formatVietnameseNumber(stats.totalDeduct)}đ
+          </span>
+        </div>
+
+        {/* Card 3: Lượt nghỉ học */}
+        <div className="bg-white dark:bg-slate-800 p-3.5 rounded-2xl border border-amber-200 dark:border-amber-900/40 shadow-xs flex flex-col justify-between">
+          <span className="text-[11px] text-amber-600 dark:text-amber-400 font-semibold block">Lượt nghỉ học</span>
+          <div className="my-1">
+            <span className="text-2xl font-black text-amber-600 dark:text-amber-400">{attendanceStats.anyAbsenceCount}</span>
+            <span className="text-xs text-amber-500 font-medium ml-1">lượt</span>
+          </div>
+          <span className="text-[10px] text-amber-600/90 font-medium block truncate">
+            {attendanceStats.unexcusedCount} K.phép • {attendanceStats.excusedCount} C.phép
+          </span>
+        </div>
+
+        {/* Card 4: Điểm rèn luyện trung bình */}
+        <div className="bg-white dark:bg-slate-800 p-3.5 rounded-2xl border border-blue-200 dark:border-blue-900/40 shadow-xs flex flex-col justify-between">
+          <span className="text-[11px] text-blue-600 dark:text-blue-400 font-semibold block">Điểm rèn luyện TB</span>
+          <div className="my-1">
+            <span className="text-2xl font-black text-blue-600 dark:text-blue-400">
+              {formatVietnameseNumber(stats.avgScore)}
+            </span>
+            <span className="text-xs text-blue-500 font-medium ml-1">/ 10đ</span>
+          </div>
+          <span className="text-[10px] text-slate-400 block truncate">Thang 10,0 điểm</span>
+        </div>
+
+        {/* Card 5: Tỷ lệ Tốt / Xuất sắc */}
+        <div className="bg-white dark:bg-slate-800 p-3.5 rounded-2xl border border-indigo-200 dark:border-indigo-900/40 shadow-xs flex flex-col justify-between">
+          <span className="text-[11px] text-indigo-600 dark:text-indigo-400 font-semibold block">Tỷ lệ Tốt/Xuất sắc</span>
+          <div className="my-1">
+            <span className="text-2xl font-black text-indigo-600 dark:text-indigo-400">{stats.above8Rate}%</span>
+          </div>
+          <span className="text-[10px] text-slate-400 block truncate">
+            {stats.ranks['Xuất sắc'] + stats.ranks['Tốt']} / {weeklyData.length} HS đạt chuẩn
+          </span>
+        </div>
+
+        {/* Card 6: Học sinh cần theo dõi */}
+        <div className="bg-white dark:bg-slate-800 p-3.5 rounded-2xl border border-purple-200 dark:border-purple-900/40 shadow-xs flex flex-col justify-between">
+          <span className="text-[11px] text-purple-600 dark:text-purple-400 font-semibold block">Cần theo dõi</span>
+          <div className="my-1">
+            <span className="text-2xl font-black text-purple-600 dark:text-purple-400">{needsAttentionStudents.length}</span>
+            <span className="text-xs text-purple-500 font-medium ml-1">HS</span>
+          </div>
+          <span className="text-[10px] text-purple-600/80 font-medium block truncate">
+            Vi phạm ≥2 hoặc vắng / &lt;8.0đ
+          </span>
+        </div>
+      </div>
+
+      {/* ── SECTION C: PRIORITY TASKS — DANH SÁCH CẦN THEO DÕI ── */}
+      <div className="bg-white dark:bg-slate-800 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs p-4 sm:p-5 print:hidden">
+        <div className="flex items-center justify-between pb-3 mb-3 border-b border-slate-100 dark:border-slate-700/60">
+          <div className="flex items-center gap-2">
+            <span className="p-1.5 bg-rose-50 dark:bg-rose-950/60 text-rose-600 rounded-lg">
+              <ShieldAlert className="h-4 w-4" />
+            </span>
+            <div>
+              <h3 className="font-bold text-sm text-slate-900 dark:text-white flex items-center gap-2">
+                <span>Danh sách cần theo dõi</span>
+                <span className={`px-2 py-0.5 rounded-full text-[11px] font-bold ${
+                  needsAttentionStudents.length > 0
+                    ? 'bg-rose-100 text-rose-700 dark:bg-rose-950/80 dark:text-rose-300'
+                    : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-950/80 dark:text-emerald-300'
+                }`}>
+                  {needsAttentionStudents.length} học sinh
+                </span>
+              </h3>
+              <p className="text-xs text-slate-500">
+                Học sinh có vi phạm lặp lại (≥2 lỗi), vắng nghỉ không phép, trốn tiết hoặc điểm rèn luyện dưới 8.0đ
+              </p>
+            </div>
+          </div>
+        </div>
+
+        {needsAttentionStudents.length === 0 ? (
+          <div className="p-4 bg-emerald-50/60 dark:bg-emerald-950/20 border border-emerald-200 dark:border-emerald-800/60 rounded-xl flex items-center gap-3">
+            <CheckCircle2 className="h-5 w-5 text-emerald-600 dark:text-emerald-400 shrink-0" />
+            <div className="text-xs">
+              <p className="font-bold text-emerald-800 dark:text-emerald-300">
+                🎉 Tuyệt vời! Tuần này không có học sinh nào cần theo dõi đặc biệt.
+              </p>
+              <p className="text-emerald-700/80 dark:text-emerald-400/80">
+                Tất cả học sinh đều duy trì nề nếp tốt, không có lỗi vi phạm nghiêm trọng hoặc vắng nghỉ không phép.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-3">
+            {needsAttentionStudents.map((s) => {
+              const u = s.unexcusedAbsenceCount || 0;
+              const v = s.violationCount || 0;
+              const t = s.truancyCount || 0;
+              const isLowScore = s.finalScore < 8.0;
+
+              return (
+                <div
+                  key={s.studentId}
+                  className="p-3 bg-slate-50 dark:bg-slate-750/50 rounded-xl border border-slate-200 dark:border-slate-700 hover:border-slate-300 transition flex flex-col justify-between gap-2.5"
+                >
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="flex items-center gap-2.5 min-w-0">
+                      <div className="h-8 w-8 rounded-full bg-rose-100 dark:bg-rose-950/80 text-rose-700 dark:text-rose-300 font-bold text-xs flex items-center justify-center shrink-0">
+                        {s.fullName.charAt(0).toUpperCase()}
+                      </div>
+                      <div className="min-w-0">
+                        <p className="text-xs font-bold text-slate-900 dark:text-white truncate">
+                          {s.fullName}
+                        </p>
+                        <p className="text-[10px] text-slate-400 font-mono truncate">
+                          {s.studentCode}
+                        </p>
+                      </div>
+                    </div>
+                    <span className="font-mono font-bold text-xs px-2 py-0.5 rounded-lg bg-white dark:bg-slate-800 border border-slate-200 dark:border-slate-700 text-rose-600 dark:text-rose-400 shrink-0">
+                      {formatVietnameseNumber(s.finalScore)}đ
+                    </span>
+                  </div>
+
+                  {/* Reasons Badges */}
+                  <div className="flex flex-wrap gap-1">
+                    {u > 0 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                        ⚠️ Nghỉ K.phép: {u} buổi
+                      </span>
+                    )}
+                    {t > 0 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300 border border-rose-200 dark:border-rose-800">
+                        ⛔ Trốn tiết: {t} lần
+                      </span>
+                    )}
+                    {v >= 2 && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300 border border-amber-200 dark:border-amber-800">
+                        ⚡ {v} lỗi vi phạm (-{formatVietnameseNumber(s.totalDeduct)}đ)
+                      </span>
+                    )}
+                    {isLowScore && (
+                      <span className="text-[10px] font-bold px-1.5 py-0.5 rounded bg-purple-100 text-purple-800 dark:bg-purple-950/80 dark:text-purple-300 border border-purple-200 dark:border-purple-800">
+                        📉 {s.rank}
+                      </span>
+                    )}
+                  </div>
+
+                  {/* Quick Actions */}
+                  <div className="flex items-center gap-1.5 pt-1.5 border-t border-slate-200/60 dark:border-slate-700/60 text-xs">
+                    <button
+                      type="button"
+                      onClick={() => {
+                        const st = students.find((x) => x.id === s.studentId);
+                        if (st) setViewingStudent(st);
+                      }}
+                      className="flex-1 py-1 px-2 rounded-lg bg-white dark:bg-slate-800 hover:bg-slate-100 text-slate-700 dark:text-slate-200 border border-slate-200 dark:border-slate-700 font-semibold transition text-center text-[11px] cursor-pointer"
+                    >
+                      Hồ sơ
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (onNavigateToZalo) {
+                          onNavigateToZalo({
+                            studentId: s.studentId,
+                            week: selectedWeek,
+                            month: selectedMonth,
+                            mode: 'week',
+                          });
+                        } else {
+                          onNavigateTab('zalo-composer');
+                        }
+                      }}
+                      className="flex-1 py-1 px-2 rounded-lg bg-blue-50 hover:bg-blue-100 text-blue-700 dark:bg-blue-950/60 dark:text-blue-300 font-semibold transition text-center text-[11px] cursor-pointer"
+                    >
+                      Nhắn PH
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => setDeductStudentId(s.studentId)}
+                      className="py-1 px-2 rounded-lg bg-rose-50 hover:bg-rose-100 text-rose-700 dark:bg-rose-950/60 dark:text-rose-300 font-semibold transition text-center text-[11px] cursor-pointer"
+                      title="Ghi nhận vi phạm hoặc trừ điểm"
+                    >
+                      Trừ điểm
+                    </button>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        )}
+      </div>
+
+      {/* ── SECTION D: QUICK ACTIONS & KHEN THƯỞNG THÀNH TÍCH ── */}
       <div className="bg-gradient-to-r from-amber-500/10 via-amber-500/5 to-transparent dark:from-amber-950/30 dark:via-amber-950/10 border border-amber-300/60 dark:border-amber-700/60 rounded-2xl p-4 sm:p-5 shadow-xs print:hidden">
         <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
           <div className="space-y-1">
@@ -828,6 +1154,17 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
           </div>
 
           <div className="flex items-center gap-2 flex-wrap">
+            {/* Primary Quick Action: Ghi nhận vi phạm */}
+            <button
+              type="button"
+              onClick={() => onNavigateTab('daily-log')}
+              className="flex items-center gap-1.5 px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white text-xs font-bold rounded-xl shadow-xs transition active:scale-95 cursor-pointer"
+              title="Mở giao diện Chấm nề nếp hàng ngày"
+            >
+              <PlusCircle className="h-4 w-4" />
+              <span>+ Ghi nhận nề nếp</span>
+            </button>
+
             {isPeriodLocked('week', selectedWeek) && (
               <span className="text-xs font-bold text-amber-800 dark:text-amber-300 bg-amber-100 dark:bg-amber-950/60 border border-amber-300 dark:border-amber-800 px-3 py-1.5 rounded-xl flex items-center gap-1.5">
                 <AlertTriangle className="h-4 w-4" />
@@ -881,57 +1218,19 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
               title="Xem danh sách, sửa mức điểm, di chuyển sang tuần khác hoặc xóa điểm thưởng đã trao"
             >
               <ArrowRightLeft className="h-4 w-4 text-amber-600" />
-              <span>Quản lý & Chuyển điểm thưởng ({weeklyBonusLogs.length})</span>
+              <span>Quản lý & Chuyển điểm ({weeklyBonusLogs.length})</span>
+            </button>
+
+            <button
+              type="button"
+              onClick={() => onNavigateTab('attendance-report')}
+              className="flex items-center gap-1.5 px-3 py-2 bg-rose-50 hover:bg-rose-100 dark:bg-rose-950/50 dark:hover:bg-rose-900/50 text-rose-700 dark:text-rose-300 text-xs font-bold rounded-xl border border-rose-200 dark:border-rose-850 shadow-xs transition active:scale-95 cursor-pointer"
+              title="Xem Báo cáo chuyên cần & học sinh nghỉ học chi tiết"
+            >
+              <UserX className="h-4 w-4 text-rose-600" />
+              <span>Báo cáo nghỉ</span>
             </button>
           </div>
-        </div>
-      </div>
-
-      {/* Summary KPI Cards */}
-      <div className="grid grid-cols-2 lg:grid-cols-6 gap-3">
-        <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700">
-          <span className="text-[11px] text-slate-500 font-medium block">Sĩ số theo dõi</span>
-          <span className="text-xl font-bold text-slate-900 dark:text-white">{weeklyData.length} HS</span>
-        </div>
-
-        <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-rose-200 dark:border-rose-900/40">
-          <span className="text-[11px] text-rose-600 dark:text-rose-400 font-medium block">Tổng điểm trừ</span>
-          <span className="text-xl font-bold text-rose-600 dark:text-rose-400">
-            -{formatVietnameseNumber(stats.totalDeduct)}đ
-          </span>
-          <span className="text-[10px] text-slate-400 block mt-0.5">{stats.totalViolations} lượt vi phạm</span>
-        </div>
-
-        <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-amber-200 dark:border-amber-900/40">
-          <span className="text-[11px] text-amber-600 dark:text-amber-400 font-medium block">Thưởng thành tích 🏆</span>
-          <span className="text-xl font-bold text-amber-600 dark:text-amber-400">
-            +{formatVietnameseNumber(stats.totalAchievementBonus)}đ
-          </span>
-          <span className="text-[10px] text-slate-400 block mt-0.5">{stats.totalAwardedStudents} HS có thành tích</span>
-        </div>
-
-        <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-emerald-200 dark:border-emerald-900/40">
-          <span className="text-[11px] text-emerald-600 dark:text-emerald-400 font-medium block">Tổng điểm cộng</span>
-          <span className="text-xl font-bold text-emerald-600 dark:text-emerald-400">
-            +{formatVietnameseNumber(stats.totalBonus)}đ
-          </span>
-          <span className="text-[10px] text-slate-400 block mt-0.5">{stats.totalBonuses} lượt khen thưởng</span>
-        </div>
-
-        <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-blue-200 dark:border-blue-900/40">
-          <span className="text-[11px] text-blue-600 dark:text-blue-400 font-medium block">Điểm trung bình</span>
-          <span className="text-xl font-bold text-blue-600 dark:text-blue-400">
-            {formatVietnameseNumber(stats.avgScore)}
-          </span>
-          <span className="text-[10px] text-slate-400 block mt-0.5">Thang 10,0 điểm</span>
-        </div>
-
-        <div className="bg-white dark:bg-slate-800 p-3.5 rounded-xl border border-slate-200 dark:border-slate-700">
-          <span className="text-[11px] text-slate-500 font-medium block">Đạt loại Tốt/XS</span>
-          <span className="text-xl font-bold text-indigo-600 dark:text-indigo-400">{stats.above8Rate}%</span>
-          <span className="text-[10px] text-slate-400 block mt-0.5">
-            {stats.ranks['Xuất sắc'] + stats.ranks['Tốt']} học sinh
-          </span>
         </div>
       </div>
 
@@ -2525,6 +2824,13 @@ export const WeeklySummaryView: React.FC<WeeklySummaryViewProps> = ({
           initialMode={viewingMode}
         />
       )}
+
+      <ImportConductSheetModal
+        isOpen={isImportConductModalOpen}
+        onClose={() => setIsImportConductModalOpen(false)}
+        defaultWeekNumber={selectedWeek}
+        initialMode={importConductInitialMode}
+      />
     </div>
   );
 };

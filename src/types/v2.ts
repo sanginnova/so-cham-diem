@@ -84,6 +84,7 @@ export interface StudentV2 {
   lastName: string;
   gender?: 'Nam' | 'Nữ';
   birthDate?: string;
+  phone?: string;
   parentPhone?: string;
   parentLookupToken?: string;
   status: StudentStatusV2;

@@ -149,8 +149,19 @@ export const CommandPalette: React.FC<CommandPaletteProps> = ({
       },
     },
     {
+      id: 'class-schedule',
+      title: 'Thời khóa biểu Lớp Chủ Nhiệm (TKB Lớp)',
+      subtitle: 'Xem lịch học các môn, giáo viên bộ môn dạy lớp, in & xuất Excel',
+      icon: CalendarDays,
+      color: 'text-emerald-600',
+      run: () => {
+        onClose();
+        onNavigateTab('class-schedule');
+      },
+    },
+    {
       id: 'teaching-schedule',
-      title: 'Thời khóa biểu GVBM (TKB)',
+      title: 'Thời khóa biểu GVBM (TKB Giảng Dạy)',
       subtitle: 'Xem lịch dạy, tiết dạy hôm nay, xuất Excel TKB',
       icon: CalendarDays,
       color: 'text-indigo-600',

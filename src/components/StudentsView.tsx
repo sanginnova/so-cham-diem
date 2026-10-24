@@ -122,6 +122,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
   const [firstName, setFirstName] = useState('');
   const [dateOfBirth, setDateOfBirth] = useState('');
   const [gender, setGender] = useState<'Nam' | 'Nữ'>('Nam');
+  const [studentPhone, setStudentPhone] = useState('');
   const [parentName, setParentName] = useState('');
   const [parentPhone, setParentPhone] = useState('');
   const [addErrors, setAddErrors] = useState<Record<string, string>>({});
@@ -222,6 +223,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
       fullName: full,
       dateOfBirth: dateOfBirth || undefined,
       gender,
+      phone: studentPhone.trim() || undefined,
       status: 'active',
       parentName: parentName.trim() || undefined,
       parentPhone: parentPhone.trim() || undefined,
@@ -232,6 +234,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
     setLastName('');
     setFirstName('');
     setDateOfBirth('');
+    setStudentPhone('');
     setParentName('');
     setParentPhone('');
     setIsAddModalOpen(false);
@@ -312,6 +315,7 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
       'Họ và tên': s.fullName,
       'Ngày sinh': formatVietnameseDate(s.dateOfBirth),
       'Giới tính': s.gender || '',
+      'Số điện thoại HS': s.phone || '',
       'Trạng thái': s.status === 'active' ? 'Đang học' : 'Ngừng theo học',
       'Tên phụ huynh': s.parentName || '',
       'Số điện thoại phụ huynh': s.parentPhone || '',
@@ -732,6 +736,12 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
                               Sinh: {formatVietnameseDate(s.dateOfBirth)}
                             </span>
                           )}
+                          {s.phone && (
+                            <span className="inline-flex items-center gap-1 text-[10px] text-blue-600 dark:text-blue-400 font-mono font-medium bg-blue-50 dark:bg-blue-950/60 px-1.5 py-0.5 rounded">
+                              <Phone className="h-2.5 w-2.5" />
+                              <span>SĐT: {s.phone}</span>
+                            </span>
+                          )}
                           {s.parentLookupToken && (
                             <button
                               type="button"
@@ -918,6 +928,17 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
                     <option value="Nữ">Nữ</option>
                   </select>
                 </div>
+              </div>
+
+              <div>
+                <label className="block font-semibold mb-1">Số điện thoại học sinh</label>
+                <input
+                  type="tel"
+                  placeholder="vd: 0381234567"
+                  value={studentPhone}
+                  onChange={(e) => setStudentPhone(e.target.value)}
+                  className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl"
+                />
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

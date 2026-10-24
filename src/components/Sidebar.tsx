@@ -102,38 +102,61 @@ export const Sidebar: React.FC<SidebarProps> = ({
             badge: "15' · 30' · 1 TIẾT · CK",
             badgeClass: 'bg-purple-900/60 text-purple-300 border-purple-700/60',
             groups: [
-              { id: 'academic-students', label: 'Danh sách học sinh', icon: Users, directTab: 'students' as TabType },
-              { id: 'subject-attendance', label: 'Điểm danh bộ môn', icon: CalendarCheck, directTab: 'subject-attendance' as TabType },
-              { id: 'subject-statistics', label: 'Thống kê GVBM', icon: LayoutDashboard, directTab: 'subject-statistics' as TabType },
               {
-                id: 'teaching-classes',
-                label: 'Lớp tôi dạy',
+                id: 'academic-gradebook',
+                label: 'Sổ điểm & Lớp học',
                 icon: BookOpen,
-                directTab: 'teaching-classes' as TabType,
+                subItems: [
+                  {
+                    id: 'gradebook' as TabType,
+                    label: `Sổ điểm môn ${classConfig.subjectName || classConfig.teachingSubject || 'Toán'}`,
+                    shortLabel: 'Sổ điểm',
+                    icon: BookOpen,
+                  },
+                  {
+                    id: 'teaching-classes' as TabType,
+                    label: 'Lớp tôi dạy',
+                    shortLabel: 'Lớp dạy',
+                    icon: Users,
+                  },
+                  {
+                    id: 'students' as TabType,
+                    label: 'Danh sách học sinh',
+                    shortLabel: 'Học sinh',
+                    icon: Users,
+                  },
+                ],
               },
               {
-                id: 'teaching-schedule',
-                label: 'Thời khóa biểu GVBM',
-                icon: Calendar,
-                directTab: 'teaching-schedule' as TabType,
-                badge: 'TKB',
-                badgeClass: 'bg-blue-500/20 text-blue-300 border-blue-500/30',
-              },
-              {
-                id: 'gradebook',
-                label: `Sổ điểm môn ${classConfig.subjectName || classConfig.teachingSubject || 'Toán'}`,
-                icon: BookOpen,
-                directTab: 'gradebook' as TabType,
-                badge: 'TT 22',
-                badgeClass: 'bg-purple-500/20 text-purple-300 border-purple-500/30',
-              },
-              {
-                id: 'random-picker',
-                label: 'Gọi tên ngẫu nhiên',
-                icon: Sparkles,
-                directTab: 'random-picker' as TabType,
-                badge: 'Vòng quay',
-                badgeClass: 'bg-amber-500/20 text-amber-300 border-amber-500/30',
+                id: 'academic-teaching',
+                label: 'Giảng dạy & Theo dõi',
+                icon: CalendarCheck,
+                subItems: [
+                  {
+                    id: 'subject-attendance' as TabType,
+                    label: 'Điểm danh bộ môn',
+                    shortLabel: 'Điểm danh',
+                    icon: CalendarCheck,
+                  },
+                  {
+                    id: 'subject-statistics' as TabType,
+                    label: 'Thống kê GVBM',
+                    shortLabel: 'Thống kê',
+                    icon: LayoutDashboard,
+                  },
+                  {
+                    id: 'teaching-schedule' as TabType,
+                    label: 'Thời khóa biểu GVBM',
+                    shortLabel: 'TKB GVBM',
+                    icon: Calendar,
+                  },
+                  {
+                    id: 'random-picker' as TabType,
+                    label: 'Gọi tên ngẫu nhiên',
+                    shortLabel: 'Gọi tên',
+                    icon: Sparkles,
+                  },
+                ],
               },
             ],
           },
@@ -147,59 +170,56 @@ export const Sidebar: React.FC<SidebarProps> = ({
       badge: 'THI ĐUA · HẠNH KIỂM',
       badgeClass: 'bg-blue-900/60 text-blue-300 border-blue-700/60',
       groups: [
+        // ── Group 1: Tổng quan ──
         {
-          id: 'daily-log',
-          label: 'Chấm nề nếp hàng ngày',
-          icon: FileSpreadsheet,
-          directTab: 'daily-log',
-        },
-        {
-          id: 'dashboard',
-          label: 'Tổng quan nề nếp',
+          id: 'group-overview',
+          label: 'Tổng quan',
           icon: LayoutDashboard,
-          directTab: 'dashboard',
-        },
-        {
-          id: 'reports-group',
-          label: 'Tổng kết & Báo cáo thi đua',
-          icon: CalendarCheck,
           subItems: [
             {
-              id: 'weekly',
+              id: 'dashboard' as TabType,
+              label: 'Tổng quan nề nếp',
+              shortLabel: 'Tổng quan',
+              icon: LayoutDashboard,
+            },
+            {
+              id: 'weekly' as TabType,
               label: 'Tổng kết tuần',
               shortLabel: 'Tuần',
               icon: CalendarCheck,
             },
             {
-              id: 'monthly',
+              id: 'monthly' as TabType,
               label: 'Tổng kết tháng',
               shortLabel: 'Tháng',
               icon: CalendarRange,
             },
             {
-              id: 'semester',
+              id: 'semester' as TabType,
               label: 'Đánh giá rèn luyện học kỳ',
               shortLabel: 'Học kỳ',
               icon: Award,
             },
-            {
-              id: 'attendance-report',
-              label: 'Báo cáo HS nghỉ học',
-              shortLabel: 'Nghỉ học',
-              icon: UserX,
-            },
           ],
         },
+
+        // ── Group 2: Quản lý học sinh ──
         {
-          id: 'students-group',
-          label: 'Học sinh & Phụ huynh',
+          id: 'group-students',
+          label: 'Quản lý học sinh',
           icon: Users,
           subItems: [
             {
-              id: 'students',
+              id: 'students' as TabType,
               label: 'Danh sách học sinh',
               shortLabel: 'Danh sách',
               icon: Users,
+            },
+            {
+              id: 'attendance-report' as TabType,
+              label: 'Chuyên cần & nghỉ học',
+              shortLabel: 'Nghỉ học',
+              icon: UserX,
             },
             ...(userRole !== 'monitor'
               ? [
@@ -219,32 +239,66 @@ export const Sidebar: React.FC<SidebarProps> = ({
               : []),
           ],
         },
-        ...(classConfig.classType !== 'subject' && ['teacher', 'admin', 'owner'].includes(userRole)
-          ? [
-              { id: 'homeroom', label: 'Trợ lý GVCN', icon: GraduationCap, directTab: 'homeroom' as TabType },
-              { id: 'seating-chart', label: 'Xếp tổ & Sơ đồ lớp', icon: LayoutGrid, directTab: 'seating-chart' as TabType },
-              { id: 'collections', label: 'Các khoản thu của lớp', icon: Wallet, directTab: 'collections' as TabType },
-            ]
-          : []),
-      ],
-    },
 
-    // ── PHÂN HỆ 3: QUY CHẾ & CÀI ĐẶT HỆ THỐNG ──
-    {
-      id: 'system',
-      title: 'QUY CHẾ & HỆ THỐNG',
-      groups: [
+        // ── Group 3: Ghi nhận & Khen thưởng ──
         {
-          id: 'system-group',
-          label: 'Hệ thống',
-          icon: Settings,
+          id: 'group-records',
+          label: 'Ghi nhận & Khen thưởng',
+          icon: Award,
           subItems: [
             {
-              id: 'categories',
+              id: 'daily-log' as TabType,
+              label: 'Ghi nhận vi phạm & nề nếp',
+              shortLabel: 'Ghi nhận',
+              icon: FileSpreadsheet,
+            },
+            {
+              id: 'categories' as TabType,
               label: 'Quy chế & Biểu điểm lỗi',
               shortLabel: 'Biểu điểm',
               icon: Tag,
             },
+            ...(classConfig.classType !== 'subject' && ['teacher', 'admin', 'owner'].includes(userRole)
+              ? [
+                  {
+                    id: 'seating-chart' as TabType,
+                    label: 'Xếp tổ & Sơ đồ lớp',
+                    shortLabel: 'Sơ đồ lớp',
+                    icon: LayoutGrid,
+                  },
+                  {
+                    id: 'collections' as TabType,
+                    label: 'Quỹ & Thu chi của lớp',
+                    shortLabel: 'Khoản thu',
+                    icon: Wallet,
+                  },
+                ]
+              : []),
+          ],
+        },
+
+        // ── Group 4: Công cụ & Hệ thống ──
+        {
+          id: 'group-tools',
+          label: 'Công cụ & Hệ thống',
+          icon: Settings,
+          subItems: [
+            ...(classConfig.classType !== 'subject' && ['teacher', 'admin', 'owner'].includes(userRole)
+              ? [
+                  {
+                    id: 'homeroom' as TabType,
+                    label: 'Trợ lý GVCN',
+                    shortLabel: 'Trợ lý GVCN',
+                    icon: GraduationCap,
+                  },
+                  {
+                    id: 'class-schedule' as TabType,
+                    label: `TKB Lớp ${classConfig.className || 'chủ nhiệm'}`,
+                    shortLabel: 'TKB Lớp',
+                    icon: Calendar,
+                  },
+                ]
+              : []),
             ...(userRole !== 'monitor'
               ? [
                   {
@@ -255,43 +309,35 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   },
                 ]
               : []),
-          ],
-        },
-        ...(userRole === 'admin' || userRole === 'owner'
-          ? [
-              {
-                id: 'admin-group',
-                label: 'Quản trị',
-                icon: ShieldCheck,
-                subItems: [
+            ...(userRole === 'admin' || userRole === 'owner'
+              ? [
                   {
                     id: 'admin' as TabType,
-                    label: 'Toàn trường & Phân quyền',
+                    label: 'Quản trị toàn trường',
                     shortLabel: 'Quản trị',
                     icon: ShieldCheck,
                   },
-                ],
-              },
-            ]
-          : []),
+                ]
+              : []),
+          ],
+        },
       ],
     },
   ];
-  const menuSections: MenuSection[] = allMenuSections.filter(section => section.id === 'system' || section.id === (academicMode ? 'academic' : 'conduct'))
-    .map(section => section.id !== 'system' || !academicMode ? section : {
-      ...section,
-      title: 'HỆ THỐNG',
-      groups: section.groups.map(group => ({ ...group, subItems: group.subItems?.filter(item => item.id !== 'categories') })),
-    });
+  const menuSections: MenuSection[] = allMenuSections.filter(
+    (section) => section.id === (academicMode ? 'academic' : 'conduct')
+  );
 
   const menuGroups: MenuGroup[] = menuSections.flatMap((s) => s.groups);
 
   // Keep track of which accordion submenus are open
   const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>({
-    'students-group': true,
-    'reports-group': true,
-    'system-group': false,
-    'admin-group': true,
+    'group-overview': true,
+    'group-students': true,
+    'group-records': true,
+    'group-tools': false,
+    'academic-gradebook': true,
+    'academic-teaching': true,
   });
 
   // Floating popover when collapsed on desktop

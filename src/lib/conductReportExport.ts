@@ -37,25 +37,41 @@ const thinBorder = {
  *   + 100% các ô đều có viền đen mảnh (thin border)
  */
 export function exportConductSheetToExcel(options: ConductReportExportOptions) {
-  const { className, periodLabel, rows } = options;
+  const { className, periodLabel, rows, homeroomTeacher } = options;
 
   const wb = XLSX.utils.book_new();
   const ws: XLSX.WorkSheet = {};
 
+  // Trích xuất số tuần và tháng cho tiêu đề và tên sheet dạng T{tuần}-T{tháng}
+  const weekMatch = periodLabel.match(/Tuần\s*(\d+)/i);
+  const monthMatch = periodLabel.match(/Tháng\s*(\d+)/i);
+  const weekNum = weekMatch ? parseInt(weekMatch[1], 10) : null;
+  const monthNum = monthMatch ? parseInt(monthMatch[1], 10) : 10;
+
+  const displayPeriod = weekNum
+    ? `Tuần ${weekNum}/ Tháng ${monthNum}`
+    : `Tháng ${monthNum}`;
+
+  const cleanSheetName = weekNum
+    ? `T${weekNum}-T${monthNum}`
+    : `Thang_${monthNum}`;
+
   // Row heights
   ws['!rows'] = [
-    { hpt: 32 }, // Row 0: Title "KẾT QUẢ RÈN LUYỆN LỚP 12B6"
-    { hpt: 22 }, // Row 1: Header tier 1 (TT, Họ tên, Tuần 5)
-    { hpt: 26 }, // Row 2: Header tier 2 (Điểm rèn luyện, Lỗi vi phạm, Cộng điểm)
+    { hpt: 16 }, // Row 0 (A1): đệm
+    { hpt: 28 }, // Row 1 (A2): Tiêu đề "KẾT QUẢ RÈN LUYỆN LỚP 12B4"
+    { hpt: 20 }, // Row 2 (A3): GVCN
+    { hpt: 22 }, // Row 3 (A4): Tuần X/ Tháng Y
+    { hpt: 24 }, // Row 4 (A5): STT | Họ và tên | Điểm rèn luyện | Lỗi vi phạm | Điểm cộng
   ];
 
   // Column widths
   ws['!cols'] = [
-    { wch: 6 },   // TT
-    { wch: 25 },  // Họ và tên
-    { wch: 13 },  // Điểm rèn luyện
-    { wch: 46 },  // Lỗi vi phạm
-    { wch: 46 },  // Cộng điểm
+    { wch: 7 },   // STT
+    { wch: 26 },  // Họ và tên
+    { wch: 15 },  // Điểm rèn luyện
+    { wch: 48 },  // Lỗi vi phạm
+    { wch: 48 },  // Điểm cộng
   ];
 
   // Helper to safely set a cell
@@ -82,57 +98,55 @@ export function exportConductSheetToExcel(options: ConductReportExportOptions) {
     }
   };
 
-  // 1. ROW 0: Title "KẾT QUẢ RÈN LUYỆN LỚP 12B6"
+  // 1. Dòng 2 (Row idx 1): Title "KẾT QUẢ RÈN LUYỆN LỚP [Tên Lớp]" (Merge A2:E2)
   const titleText = `KẾT QUẢ RÈN LUYỆN LỚP ${className}`;
   const titleStyle = {
     font: { name: 'Times New Roman', sz: 14, bold: true, color: { rgb: '000000' } },
     alignment: { horizontal: 'center', vertical: 'center' },
   };
-  setCell(0, 0, titleText, titleStyle);
-  for (let c = 1; c <= 4; c++) {
-    setCell(0, c, '', titleStyle);
-  }
+  setCell(1, 0, titleText, titleStyle);
+  for (let c = 1; c <= 4; c++) setCell(1, c, '', titleStyle);
 
-  // 2. ROW 1 & 2: Header Tier 1 & 2
-  const headerStyle = {
+  // 2. Dòng 3 (Row idx 2): GVCN (Merge B3:E3)
+  const teacherText = `GVCN: ${homeroomTeacher || 'Nguyễn Văn Sang'}`;
+  const teacherStyle = {
+    font: { name: 'Times New Roman', sz: 11, bold: true, italic: true, color: { rgb: '000000' } },
+    alignment: { horizontal: 'left', vertical: 'center' },
+  };
+  setCell(2, 0, '', teacherStyle);
+  setCell(2, 1, teacherText, teacherStyle);
+  for (let c = 2; c <= 4; c++) setCell(2, c, '', teacherStyle);
+
+  // 3. Dòng 4 (Row idx 3): Tuần X/ Tháng Y (Merge C4:E4)
+  const periodStyle = {
+    font: { name: 'Times New Roman', sz: 11, bold: true, color: { rgb: '000000' } },
+    alignment: { horizontal: 'center', vertical: 'center' },
+  };
+  setCell(3, 0, '', periodStyle);
+  setCell(3, 1, '', periodStyle);
+  setCell(3, 2, displayPeriod, periodStyle);
+  setCell(3, 3, '', periodStyle);
+  setCell(3, 4, '', periodStyle);
+
+  // 4. Dòng 5 (Row idx 4): Header bảng 5 cột chuẩn
+  const tableHeaderStyle = {
     font: { name: 'Times New Roman', sz: 11, bold: true, color: { rgb: '000000' } },
     alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
     fill: { fgColor: { rgb: 'E2E8F0' } },
     border: thinBorder,
   };
 
-  // Cell A2 (r:1, c:0): TT (merge A2:A3)
-  setCell(1, 0, 'TT', headerStyle);
-  setCell(2, 0, '', headerStyle);
+  setCell(4, 0, 'STT', tableHeaderStyle);
+  setCell(4, 1, 'Họ và tên', tableHeaderStyle);
+  setCell(4, 2, 'Điểm rèn luyện', tableHeaderStyle);
+  setCell(4, 3, 'Lỗi vi phạm', tableHeaderStyle);
+  setCell(4, 4, 'Điểm cộng', tableHeaderStyle);
 
-  // Cell B2 (r:1, c:1): Họ và tên (merge B2:B3)
-  setCell(1, 1, 'Họ và tên', headerStyle);
-  setCell(2, 1, '', headerStyle);
-
-  // Cell C2 (r:1, c:2): Tuần 5 (merge C2:E2)
-  setCell(1, 2, periodLabel, headerStyle);
-  setCell(1, 3, '', headerStyle);
-  setCell(1, 4, '', headerStyle);
-
-  // Cell C3 (r:2, c:2): Điểm rèn luyện
-  setCell(2, 2, 'Điểm\nrèn luyện', headerStyle);
-
-  // Cell D3 (r:2, c:3): Lỗi vi phạm
-  setCell(2, 3, 'Lỗi vi phạm', headerStyle);
-
-  // Cell E3 (r:2, c:4): Cộng điểm
-  setCell(2, 4, 'Cộng điểm', headerStyle);
-
-  // Ensure merge borders
-  fillMergeBorders(1, 0, 2, 0, headerStyle);
-  fillMergeBorders(1, 1, 2, 1, headerStyle);
-  fillMergeBorders(1, 2, 1, 4, headerStyle);
-
-  // 3. DATA ROWS (Row 3 onwards)
+  // 5. DATA ROWS (Row idx 5 onwards)
   rows.forEach((r, idx) => {
-    const rowIdx = 3 + idx;
+    const rowIdx = 5 + idx;
 
-    // TT
+    // STT
     setCell(rowIdx, 0, idx + 1, {
       font: { name: 'Times New Roman', sz: 11, color: { rgb: '000000' } },
       alignment: { horizontal: 'center', vertical: 'center' },
@@ -161,8 +175,8 @@ export function exportConductSheetToExcel(options: ConductReportExportOptions) {
       border: thinBorder,
     });
 
-    // Cộng điểm (cách nhau dấu phẩy hoặc xuống dòng, wrapText)
-    const bonusesStr = r.bonusesList.length > 0 ? r.bonusesList.join(', ') : '';
+    // Điểm cộng (cách nhau dấu chấm phẩy hoặc xuống dòng, wrapText)
+    const bonusesStr = r.bonusesList.length > 0 ? r.bonusesList.join('; ') : '';
     setCell(rowIdx, 4, bonusesStr, {
       font: { name: 'Times New Roman', sz: 10.5, color: { rgb: '000000' } },
       alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
@@ -170,23 +184,164 @@ export function exportConductSheetToExcel(options: ConductReportExportOptions) {
     });
   });
 
-  // Cell merges
+  // Cell merges chuẩn mẫu 12B4
   ws['!merges'] = [
-    { s: { r: 0, c: 0 }, e: { r: 0, c: 4 } }, // Title
-    { s: { r: 1, c: 0 }, e: { r: 2, c: 0 } }, // TT
-    { s: { r: 1, c: 1 }, e: { r: 2, c: 1 } }, // Họ và tên
-    { s: { r: 1, c: 2 }, e: { r: 1, c: 4 } }, // Tuần 5
+    { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } }, // Title: A2:E2
+    { s: { r: 2, c: 1 }, e: { r: 2, c: 4 } }, // GVCN: B3:E3
+    { s: { r: 3, c: 2 }, e: { r: 3, c: 4 } }, // Tuần/Tháng: C4:E4
   ];
 
   // Set ref range
-  const totalRows = 3 + rows.length;
-  ws['!ref'] = `A1:E${Math.max(totalRows, 4)}`;
+  const totalRows = 5 + rows.length;
+  ws['!ref'] = `A1:E${Math.max(totalRows, 6)}`;
 
   // Append sheet and download
-  const cleanSheetName = periodLabel.replace(/\s+/g, '_');
   XLSX.utils.book_append_sheet(wb, ws, cleanSheetName.slice(0, 31));
 
-  const fileName = `Ket_qua_ren_luyen_Lop_${className}_${periodLabel.replace(/\s+/g, '_')}.xlsx`;
+  const fileName = `Ket_qua_ren_luyen_Lop_${className}_${cleanSheetName}.xlsx`;
+  XLSX.writeFile(wb, fileName);
+}
+
+/**
+ * Xuất file Excel nhiều sheet cho cả tháng (ví dụ: T1-T10, T2-T10, T3-T10, T4-T10)
+ * Chuẩn 100% mẫu file '12B4- Chấm điểm rèn luyện tháng 10.xlsx'
+ */
+export function exportMultiWeekConductToExcel(params: {
+  className: string;
+  homeroomTeacher: string;
+  month: number;
+  weeksData: Array<{
+    weekNumber: number;
+    rows: ConductSheetRow[];
+  }>;
+}) {
+  const { className, homeroomTeacher, month, weeksData } = params;
+  const wb = XLSX.utils.book_new();
+
+  weeksData.forEach(({ weekNumber, rows }) => {
+    const ws: XLSX.WorkSheet = {};
+    const sheetName = `T${weekNumber}-T${month}`;
+    const displayPeriod = `Tuần ${weekNumber}/ Tháng ${month}`;
+
+    ws['!rows'] = [
+      { hpt: 16 },
+      { hpt: 28 },
+      { hpt: 20 },
+      { hpt: 22 },
+      { hpt: 24 },
+    ];
+
+    ws['!cols'] = [
+      { wch: 7 },
+      { wch: 26 },
+      { wch: 15 },
+      { wch: 48 },
+      { wch: 48 },
+    ];
+
+    const setCell = (r: number, c: number, val: string | number, style: any) => {
+      const ref = XLSX.utils.encode_cell({ r, c });
+      ws[ref] = {
+        t: typeof val === 'number' ? 'n' : 's',
+        v: val,
+        s: style,
+      };
+    };
+
+    // Title
+    const titleText = `KẾT QUẢ RÈN LUYỆN LỚP ${className}`;
+    const titleStyle = {
+      font: { name: 'Times New Roman', sz: 14, bold: true, color: { rgb: '000000' } },
+      alignment: { horizontal: 'center', vertical: 'center' },
+    };
+    setCell(1, 0, titleText, titleStyle);
+    for (let c = 1; c <= 4; c++) setCell(1, c, '', titleStyle);
+
+    // GVCN
+    const teacherText = `GVCN: ${homeroomTeacher || 'Nguyễn Văn Sang'}`;
+    const teacherStyle = {
+      font: { name: 'Times New Roman', sz: 11, bold: true, italic: true, color: { rgb: '000000' } },
+      alignment: { horizontal: 'left', vertical: 'center' },
+    };
+    setCell(2, 0, '', teacherStyle);
+    setCell(2, 1, teacherText, teacherStyle);
+    for (let c = 2; c <= 4; c++) setCell(2, c, '', teacherStyle);
+
+    // Period
+    const periodStyle = {
+      font: { name: 'Times New Roman', sz: 11, bold: true, color: { rgb: '000000' } },
+      alignment: { horizontal: 'center', vertical: 'center' },
+    };
+    setCell(3, 0, '', periodStyle);
+    setCell(3, 1, '', periodStyle);
+    setCell(3, 2, displayPeriod, periodStyle);
+    setCell(3, 3, '', periodStyle);
+    setCell(3, 4, '', periodStyle);
+
+    // Header table
+    const tableHeaderStyle = {
+      font: { name: 'Times New Roman', sz: 11, bold: true, color: { rgb: '000000' } },
+      alignment: { horizontal: 'center', vertical: 'center', wrapText: true },
+      fill: { fgColor: { rgb: 'E2E8F0' } },
+      border: thinBorder,
+    };
+
+    setCell(4, 0, 'STT', tableHeaderStyle);
+    setCell(4, 1, 'Họ và tên', tableHeaderStyle);
+    setCell(4, 2, 'Điểm rèn luyện', tableHeaderStyle);
+    setCell(4, 3, 'Lỗi vi phạm', tableHeaderStyle);
+    setCell(4, 4, 'Điểm cộng', tableHeaderStyle);
+
+    // Data rows
+    rows.forEach((r, idx) => {
+      const rowIdx = 5 + idx;
+
+      setCell(rowIdx, 0, idx + 1, {
+        font: { name: 'Times New Roman', sz: 11, color: { rgb: '000000' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder,
+      });
+
+      setCell(rowIdx, 1, r.fullName, {
+        font: { name: 'Times New Roman', sz: 11, color: { rgb: '000000' } },
+        alignment: { horizontal: 'left', vertical: 'center' },
+        border: thinBorder,
+      });
+
+      setCell(rowIdx, 2, r.finalScore, {
+        font: { name: 'Times New Roman', sz: 12, bold: true, color: { rgb: 'FF0000' } },
+        alignment: { horizontal: 'center', vertical: 'center' },
+        border: thinBorder,
+      });
+
+      const violationsStr = r.violationsLines.length > 0 ? r.violationsLines.join('\n') : '';
+      setCell(rowIdx, 3, violationsStr, {
+        font: { name: 'Times New Roman', sz: 10.5, color: { rgb: '000000' } },
+        alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
+        border: thinBorder,
+      });
+
+      const bonusesStr = r.bonusesList.length > 0 ? r.bonusesList.join('; ') : '';
+      setCell(rowIdx, 4, bonusesStr, {
+        font: { name: 'Times New Roman', sz: 10.5, color: { rgb: '000000' } },
+        alignment: { horizontal: 'left', vertical: 'center', wrapText: true },
+        border: thinBorder,
+      });
+    });
+
+    ws['!merges'] = [
+      { s: { r: 1, c: 0 }, e: { r: 1, c: 4 } },
+      { s: { r: 2, c: 1 }, e: { r: 2, c: 4 } },
+      { s: { r: 3, c: 2 }, e: { r: 3, c: 4 } },
+    ];
+
+    const totalRows = 5 + rows.length;
+    ws['!ref'] = `A1:E${Math.max(totalRows, 6)}`;
+
+    XLSX.utils.book_append_sheet(wb, ws, sheetName);
+  });
+
+  const fileName = `Ket_qua_ren_luyen_Lop_${className}_Thang_${month}.xlsx`;
   XLSX.writeFile(wb, fileName);
 }
 

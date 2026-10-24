@@ -81,6 +81,7 @@ export interface Student {
   policy?: string;
   disabilityOrOrphan?: string;
   martyrFamily?: string;
+  phone?: string; // Số điện thoại học sinh
   parentName?: string;
   parentPhone?: string;
   parentLookupToken?: string;

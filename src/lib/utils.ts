@@ -329,9 +329,9 @@ export function exportToCsv(data: Record<string, any>[], fileName: string) {
  */
 export function downloadStudentTemplate() {
   const template = [
-    { 'STT': 1, 'Mã học sinh': '419', 'Họ đệm': 'Nguyễn Văn', 'Tên': 'Trọng', 'Giới tính': 'Nam', 'Dân tộc': 'Dao', 'Ngày sinh': '16/05/2011', 'Điện thoại phụ huynh': '0912345678', 'Tên phụ huynh': 'Nguyễn Văn Hùng' },
-    { 'STT': 2, 'Mã học sinh': '421', 'Họ đệm': 'Chu Văn', 'Tên': 'Thương', 'Giới tính': 'Nam', 'Dân tộc': 'Cao Lan', 'Ngày sinh': '15/01/2011', 'Điện thoại phụ huynh': '0987654321', 'Tên phụ huynh': 'Lê Thị Mai' },
-    { 'STT': 3, 'Mã học sinh': '1257', 'Họ đệm': 'Nguyễn Thị', 'Tên': 'Linh', 'Giới tính': 'Nữ', 'Dân tộc': 'Tày', 'Ngày sinh': '24/10/2011', 'Điện thoại phụ huynh': '', 'Tên phụ huynh': '' },
+    { 'STT': 1, 'Mã học sinh': '419', 'Họ đệm': 'Nguyễn Văn', 'Tên': 'Trọng', 'Giới tính': 'Nam', 'Dân tộc': 'Dao', 'Ngày sinh': '16/05/2011', 'Số điện thoại HS': '0381234567', 'Điện thoại phụ huynh': '0912345678', 'Tên phụ huynh': 'Nguyễn Văn Hùng' },
+    { 'STT': 2, 'Mã học sinh': '421', 'Họ đệm': 'Chu Văn', 'Tên': 'Thương', 'Giới tính': 'Nam', 'Dân tộc': 'Cao Lan', 'Ngày sinh': '15/01/2011', 'Số điện thoại HS': '0398765432', 'Điện thoại phụ huynh': '0987654321', 'Tên phụ huynh': 'Lê Thị Mai' },
+    { 'STT': 3, 'Mã học sinh': '1257', 'Họ đệm': 'Nguyễn Thị', 'Tên': 'Linh', 'Giới tính': 'Nữ', 'Dân tộc': 'Tày', 'Ngày sinh': '24/10/2011', 'Số điện thoại HS': '', 'Điện thoại phụ huynh': '', 'Tên phụ huynh': '' },
   ];
   exportToExcel(template, 'Mau_nhap_danh_sach_hoc_sinh', 'DanhSachHocSinh');
 }
