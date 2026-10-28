@@ -54,7 +54,7 @@ export function RandomStudentPickerView() {
   } = useApp();
 
   const { students, ready: rosterReady } = useSubjectRoster(classConfig, workspaceClasses, ownStudents);
-  const subjectName = classConfig.subjectName || classConfig.teachingSubject || 'Toán';
+  const subjectName = classConfig.subjectName || classConfig.teachingSubject || 'Bộ môn';
   const teacherName = classConfig.homeroomTeacher || activeAccount?.displayName || 'Nguyễn Văn Sang';
   const todayStr = useMemo(() => new Date().toISOString().split('T')[0], []);
 
@@ -446,7 +446,7 @@ export function RandomStudentPickerView() {
     }
   };
 
-  // Tác vụ nhanh 2: Ghi thẳng vào Sổ điểm môn Toán (TX) cho 1 học sinh
+  // Tác vụ nhanh 2: Ghi thẳng vào Sổ điểm bộ môn (TX) cho 1 học sinh
   const handleSaveToSubjectGradebook = async (student: Student, overrideScore?: string) => {
     const rawScore = overrideScore !== undefined ? overrideScore : (individualScores[student.id] || customGradeInput);
     const score = parseFloat(rawScore.replace(',', '.'));

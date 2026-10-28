@@ -135,7 +135,7 @@ export async function loadClassGradebook(
     revision: loadedData?.revision || 0,
     pendingSync: loadedData?.pendingSync || false,
     classId,
-    subjectName: loadedData?.subjectName || subjectName || 'Toán',
+    subjectName: loadedData?.subjectName || subjectName || 'Bộ môn',
     schoolYear: loadedData?.schoolYear || schoolYear || '2026-2027',
     teacherName: loadedData?.teacherName || teacherName || 'Giáo viên',
     txCountSemester1,

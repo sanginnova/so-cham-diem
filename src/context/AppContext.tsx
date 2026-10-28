@@ -568,7 +568,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
     const directoryId = `cls_${crypto.randomUUID()}`;
     const id = `cfg_${directoryId}`;
     const classType = options?.classType || 'homeroom';
-    const subjectName = options?.subjectName || (classType === 'subject' ? (classConfig.teachingSubject || 'Toán') : undefined);
+    const subjectName = options?.subjectName || (classType === 'subject' ? (classConfig.teachingSubject || 'Bộ môn') : undefined);
     const config: ClassConfig = {
       ...classConfig,
       id,
@@ -584,7 +584,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       classType,
       rosterSourceClassId: classType === 'subject' ? options?.rosterSourceClassId || '' : '',
       subjectName,
-      teachingSubject: subjectName || classConfig.teachingSubject || 'Toán',
+      teachingSubject: subjectName || classConfig.teachingSubject || (classType === 'subject' ? 'Bộ môn' : ''),
       classPresident: '',
       academicVicePresident: '',
       disciplineVicePresident: '',

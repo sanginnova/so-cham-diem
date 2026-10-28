@@ -33,7 +33,7 @@ export function ClassWorkspaceSwitcher() {
   const [confirmDelete, setConfirmDelete] = useState(false);
   const [name, setName] = useState('');
   const [classType, setClassType] = useState<'homeroom' | 'subject'>('subject');
-  const [subjectName, setSubjectName] = useState('Toán');
+  const [subjectName, setSubjectName] = useState('');
   const [rosterSourceClassId, setRosterSourceClassId] = useState('');
   const [schoolYear, setSchoolYear] = useState(currentSchoolYear);
   const [start, setStart] = useState(() => defaultWeekOneStart(currentSchoolYear()));
@@ -104,7 +104,7 @@ export function ClassWorkspaceSwitcher() {
                 <optgroup label="📚 Lớp Bộ môn">
                   {subjectClasses.map((config) => (
                     <option key={config.id} value={config.id} className="dark:bg-slate-900">
-                      Lớp {config.className} · Môn {config.subjectName || config.teachingSubject || 'Toán'} · {config.schoolYear}
+                      Lớp {config.className} · {config.subjectName || config.teachingSubject ? `Môn ${config.subjectName || config.teachingSubject}` : 'Bộ môn'} · {config.schoolYear}
                     </option>
                   ))}
                 </optgroup>
@@ -289,7 +289,7 @@ export function ClassWorkspaceSwitcher() {
             try {
               await createWorkspaceClass(name, schoolYear, start, undefined, {
                 classType,
-                subjectName: classType === 'subject' ? subjectName.trim() || 'Toán' : undefined,
+                subjectName: classType === 'subject' ? subjectName.trim() || 'Bộ môn' : undefined,
                 rosterSourceClassId: classType === 'subject' ? rosterSourceClassId : undefined,
               });
               setOpenCreateForm(false);
@@ -297,7 +297,7 @@ export function ClassWorkspaceSwitcher() {
               setRosterSourceClassId('');
               setNotice(
                 classType === 'subject'
-                  ? `Đã tạo lớp bộ môn "${name} · Môn ${subjectName}" và chuyển sang lớp làm việc mới.`
+                  ? `Đã tạo lớp bộ môn "${name}${subjectName.trim() ? ` · Môn ${subjectName.trim()}` : ''}" và chuyển sang lớp làm việc mới.`
                   : `Đã tạo lớp chủ nhiệm "${name}" và chuyển sang lớp làm việc mới.`
               );
             } catch (failure) {
@@ -394,10 +394,10 @@ export function ClassWorkspaceSwitcher() {
                   required
                   value={subjectName}
                   onChange={(e) => setSubjectName(e.target.value)}
-                  placeholder="Ví dụ: Toán, Toán 10..."
+                  placeholder="Ví dụ: Ngữ văn, Tiếng Anh, Toán, Lịch sử..."
                   className="px-3 py-1.5 rounded-lg border border-purple-300 dark:border-purple-800 bg-white dark:bg-slate-900 text-xs font-bold text-purple-900 dark:text-purple-200 w-44 focus:ring-2 focus:ring-purple-500"
                 />
-                {['Toán', 'Toán 10', 'Toán 11', 'Toán 12', 'Tin học', 'Vật lý'].map((sub) => (
+                {['Ngữ văn', 'Toán', 'Tiếng Anh', 'Vật lý', 'Hóa học', 'Sinh học', 'Lịch sử', 'Địa lý', 'Tin học'].map((sub) => (
                   <button
                     key={sub}
                     type="button"

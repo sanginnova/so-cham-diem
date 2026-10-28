@@ -99,7 +99,7 @@ export function SubjectGradebookView() {
   // Focus navigation refs matrix: `${studentId}_${columnKey}`
   const inputRefs = useRef<Record<string, HTMLInputElement | null>>({});
 
-  const subjectName = classConfig.subjectName || classConfig.teachingSubject || 'Toán';
+  const subjectName = classConfig.subjectName || classConfig.teachingSubject || '';
   const teacherName = classConfig.homeroomTeacher || activeAccount?.displayName || 'Nguyễn Văn Sang';
 
   // 1. Tải sổ điểm khi đổi lớp
@@ -624,7 +624,7 @@ export function SubjectGradebookView() {
     return (
       <div className="p-12 text-center text-slate-500 flex flex-col items-center justify-center gap-2">
         <Clock className="h-6 w-6 animate-spin text-blue-600" />
-        <p className="font-semibold text-sm">Đang tải sổ điểm môn {subjectName}...</p>
+        <p className="font-semibold text-sm">Đang tải {subjectName ? `sổ điểm môn ${subjectName}` : 'sổ điểm bộ môn'}...</p>
       </div>
     );
   }
@@ -664,7 +664,7 @@ export function SubjectGradebookView() {
           setDeviceOnly(false);
         }}>Thử kết nối máy chủ</button>
       </div>}
-      {classConfig.rosterSourceClassId && <p className="rounded-xl border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">Danh sách học sinh dùng chung từ lớp nguồn. Thêm, sửa học sinh tại lớp nguồn; điểm trong sổ này chỉ thuộc môn {subjectName}.</p>}
+      {classConfig.rosterSourceClassId && <p className="rounded-xl border border-purple-200 bg-purple-50 p-3 text-sm text-purple-900">Danh sách học sinh dùng chung từ lớp nguồn. Thêm, sửa học sinh tại lớp nguồn; điểm trong sổ này chỉ thuộc {subjectName ? `môn ${subjectName}` : 'bộ môn này'}.</p>}
       {/* ── Page Header ── */}
       <div className="flex flex-wrap items-center justify-between gap-3 pb-3 border-b border-slate-200 dark:border-slate-800">
         <div className="flex items-center gap-3">
@@ -674,7 +674,7 @@ export function SubjectGradebookView() {
           <div>
             <div className="flex items-center gap-2">
               <h2 className="text-xl sm:text-2xl font-black tracking-tight">
-                Sổ điểm môn {subjectName}
+                {subjectName ? `Sổ điểm môn ${subjectName}` : 'Sổ điểm bộ môn'}
               </h2>
               <span className="px-2.5 py-0.5 rounded-full text-xs font-bold bg-purple-100 text-purple-800 dark:bg-purple-950/70 dark:text-purple-300 border border-purple-300 dark:border-purple-800">
                 Lớp {classConfig.className}
@@ -849,7 +849,7 @@ export function SubjectGradebookView() {
           <div>
             <div className="flex items-center gap-2 flex-wrap">
               <h3 className="text-xs sm:text-sm font-black text-purple-950 dark:text-purple-200 uppercase tracking-tight">
-                Chấm điểm học lực môn {subjectName}
+                {subjectName ? `Chấm điểm học lực môn ${subjectName}` : 'Chấm điểm học lực bộ môn'}
               </h3>
               <span className="text-[10px] px-2 py-0.5 rounded-full bg-purple-200/80 text-purple-900 dark:bg-purple-900/60 dark:text-purple-300 font-bold border border-purple-300/50">
                 Chuyên môn · Bài kiểm tra

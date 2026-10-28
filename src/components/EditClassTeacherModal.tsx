@@ -44,7 +44,7 @@ export const EditClassTeacherModal: React.FC<EditClassTeacherModalProps> = ({
 
   // Class Type & Subject states
   const [classType, setClassType] = useState<'homeroom' | 'subject'>(classConfig.classType || 'homeroom');
-  const [subjectName, setSubjectName] = useState(classConfig.subjectName || classConfig.teachingSubject || 'Toán');
+  const [subjectName, setSubjectName] = useState(classConfig.subjectName || classConfig.teachingSubject || '');
 
   // Form states
   const [homeroomTeacher, setHomeroomTeacher] = useState(classConfig.homeroomTeacher || '');
@@ -92,7 +92,7 @@ export const EditClassTeacherModal: React.FC<EditClassTeacherModalProps> = ({
   useEffect(() => {
     if (isOpen) {
       setClassType(classConfig.classType || 'homeroom');
-      setSubjectName(classConfig.subjectName || classConfig.teachingSubject || 'Toán');
+      setSubjectName(classConfig.subjectName || classConfig.teachingSubject || '');
 
       setHomeroomTeacher(classConfig.homeroomTeacher || '');
       setTeacherPhone(classConfig.teacherPhone || '');
@@ -171,8 +171,8 @@ export const EditClassTeacherModal: React.FC<EditClassTeacherModalProps> = ({
       setIsSaving(true);
       await updateClassConfig({
         classType,
-        subjectName: classType === 'subject' ? (subjectName.trim() || 'Toán') : undefined,
-        teachingSubject: classType === 'subject' ? (subjectName.trim() || teachingSubject.trim() || 'Toán') : teachingSubject.trim(),
+        subjectName: classType === 'subject' ? (subjectName.trim() || 'Bộ môn') : undefined,
+        teachingSubject: classType === 'subject' ? (subjectName.trim() || teachingSubject.trim() || 'Bộ môn') : teachingSubject.trim(),
         homeroomTeacher: homeroomTeacher.trim(),
         teacherPhone: teacherPhone.trim(),
         teacherEmail: teacherEmail.trim(),
@@ -437,7 +437,7 @@ export const EditClassTeacherModal: React.FC<EditClassTeacherModalProps> = ({
                         if (targetTeacher.phone) setTeacherPhone(targetTeacher.phone);
                         if (targetTeacher.department) {
                           setTeachingSubject(targetTeacher.department);
-                          if (classType === 'subject' && (!subjectName || subjectName === 'Toán')) {
+                          if (classType === 'subject' && (!subjectName || subjectName === 'Toán' || subjectName === 'Bộ môn')) {
                             setSubjectName(targetTeacher.department);
                           }
                         }

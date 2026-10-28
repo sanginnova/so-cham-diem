@@ -2,7 +2,7 @@ import type { ClassConfig } from '../types';
 
 const normalize = (value: string) => value.trim().replace(/\s+/g, ' ').toLocaleLowerCase('vi');
 const normalizeYear = (value: string) => value.replace(/\s/g, '').replace(/[–—]/g, '-');
-export const workspaceSubject = (config: ClassConfig) => config.subjectName || config.teachingSubject || 'Toán';
+export const workspaceSubject = (config: ClassConfig) => config.subjectName || config.teachingSubject || 'Bộ môn';
 
 export function rosterCandidates(configs: ClassConfig[], target: Pick<ClassConfig, 'id' | 'teacherId' | 'className' | 'schoolYear'>): ClassConfig[] {
   return configs.filter(source => source.id !== target.id && source.teacherId === target.teacherId

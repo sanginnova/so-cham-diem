@@ -145,7 +145,7 @@ export function ExportAllGradebooksModal({ isOpen, onClose }: ExportAllGradebook
           classId: item.config.id,
           teacherId: item.config.teacherId || teacherId,
           teacherName,
-          subjectName: workspaceSubject(item.config) || 'Toán',
+          subjectName: workspaceSubject(item.config) || 'Bộ môn',
           schoolYear: item.config.schoolYear,
           txCountSemester1: 4,
           txCountSemester2: 4,

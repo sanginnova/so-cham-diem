@@ -120,7 +120,7 @@ export const INITIAL_CLASS_CONFIG: ClassConfig = {
   homeroomTeacher: 'Nguyễn Văn Sang',
   teacherPhone: '0912 345 678',
   teacherEmail: 'sanginnova8@gmail.com',
-  teachingSubject: 'Toán học',
+  teachingSubject: '',
   defaultTeacherNote: 'Kính mong Quý Phụ huynh tiếp tục theo dõi, phối hợp chặt chẽ cùng nhà trường để động viên các con rèn luyện nề nếp và học tập tốt nhất!',
   classPresident: 'Nguyễn Văn An',
   academicVicePresident: 'Trần Thị Bích',

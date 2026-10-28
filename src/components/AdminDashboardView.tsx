@@ -82,7 +82,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
     schoolYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
     teacherId: '',
     classType: 'homeroom' as 'homeroom' | 'subject',
-    subjectName: 'Toán',
+    subjectName: '',
   });
 
   // Password reset modal state
@@ -184,7 +184,7 @@ export const AdminDashboardView: React.FC<AdminDashboardViewProps> = ({ onNaviga
       schoolYear: `${new Date().getFullYear()}-${new Date().getFullYear() + 1}`,
       teacherId: '',
       classType: 'homeroom',
-      subjectName: 'Toán',
+      subjectName: '',
     });
     setClassFeedback(
       `Đã tạo thành công lớp "${createdName}"${

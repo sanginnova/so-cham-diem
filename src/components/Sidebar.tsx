@@ -109,7 +109,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                 subItems: [
                   {
                     id: 'gradebook' as TabType,
-                    label: `Sổ điểm môn ${classConfig.subjectName || classConfig.teachingSubject || 'Toán'}`,
+                    label: 'Sổ điểm bộ môn',
                     shortLabel: 'Sổ điểm',
                     icon: BookOpen,
                   },
@@ -694,7 +694,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
                   {activeAccount.displayName}
                 </p>
                 <p className="text-[10px] text-slate-400 truncate">
-                  {userRole === 'owner' ? 'Chủ hệ thống' : userRole === 'admin' ? 'Ban Giám Hiệu' : userRole === 'monitor' ? '⭐ Lớp trưởng chấm điểm' : (classConfig.classType === 'subject' ? `GVBM ${classConfig.subjectName || classConfig.teachingSubject || 'Toán'} • Lớp ${classConfig.className}` : `GVCN • Lớp ${classConfig.className}`)}
+                  {userRole === 'owner' ? 'Chủ hệ thống' : userRole === 'admin' ? 'Ban Giám Hiệu' : userRole === 'monitor' ? '⭐ Lớp trưởng chấm điểm' : (classConfig.classType === 'subject' ? `GVBM ${classConfig.subjectName || classConfig.teachingSubject ? `· Môn ${classConfig.subjectName || classConfig.teachingSubject}` : ''} • Lớp ${classConfig.className}` : `GVCN • Lớp ${classConfig.className}`)}
                 </p>
               </div>
             )}

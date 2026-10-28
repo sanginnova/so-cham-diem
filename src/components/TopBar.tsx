@@ -201,7 +201,7 @@ export const TopBar: React.FC<TopBarProps> = ({
               <span className="text-[10px] text-slate-400 font-normal">·</span>
               <span className="text-[10px] text-slate-500 dark:text-slate-400 truncate">
                 {classConfig.classType === 'subject'
-                  ? `Môn ${classConfig.subjectName || classConfig.teachingSubject || 'Toán'}`
+                  ? (classConfig.subjectName || classConfig.teachingSubject ? `Môn ${classConfig.subjectName || classConfig.teachingSubject}` : 'Bộ môn')
                   : (classConfig.homeroomTeacher || 'GVCN')}
               </span>
             </button>

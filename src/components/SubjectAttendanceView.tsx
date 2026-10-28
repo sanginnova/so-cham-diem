@@ -39,7 +39,7 @@ export function SubjectAttendanceView() {
 
   const teacherId = activeAccount?.uid || '';
   const teacherName = classConfig.homeroomTeacher || activeAccount?.displayName || 'Nguyễn Văn Sang';
-  const subjectName = classConfig.subjectName || classConfig.teachingSubject || 'Toán';
+  const subjectName = classConfig.subjectName || classConfig.teachingSubject || 'Bộ môn';
 
   const { students, ready: rosterReady, error: rosterError } = useSubjectRoster(
     classConfig,
