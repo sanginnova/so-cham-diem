@@ -716,27 +716,47 @@ export function resolveTemplateTags(params: {
   if (!options.includeHonors) {
     danhSachKhenThuongText = '(Không bao gồm danh sách khen thưởng theo tùy chọn)';
   } else {
-    // Filter students with good/excellent score or with bonus points
-    const minHonorScore = classConfig.rankThresholds?.tot ?? 8.0;
-    const topStudents = [...targetSummaries]
-      .filter((s) => s.finalScore >= minHonorScore || (s.totalBonus && s.totalBonus > 0) || (s.bonusCount && s.bonusCount > 0))
-      .sort((a, b) => b.finalScore - a.finalScore || (b.totalBonus || 0) - (a.totalBonus || 0));
+    // 1. Lọc học sinh có điểm thưởng hoặc thành tích thi đua cụ thể
+    const studentsWithBonus = [...targetSummaries]
+      .filter((s) => (s.totalBonus && s.totalBonus > 0) || (s.bonusCount && s.bonusCount > 0) || (s.achievements && s.achievements.length > 0))
+      .sort((a, b) => (b.totalBonus || 0) - (a.totalBonus || 0) || b.finalScore - a.finalScore);
 
-    if (topStudents.length === 0) {
+    // 2. Lọc học sinh giữ trọn vẹn điểm chuẩn 10đ không vi phạm
+    const studentsPerfect = [...targetSummaries]
+      .filter((s) => s.finalScore >= 10 && (!s.totalDeduct || s.totalDeduct === 0) && (!s.violationCount || s.violationCount === 0));
+
+    // Kiểm tra tình hình cả lớp
+    const hasAnyViolationInClass = targetSummaries.some((s) => (s.totalDeduct && s.totalDeduct > 0) || (s.violationCount && s.violationCount > 0));
+    const hasAnyBonusInClass = studentsWithBonus.length > 0;
+
+    if (!hasAnyBonusInClass && !hasAnyViolationInClass) {
+      // Cả lớp giữ nguyên điểm nền 10đ, chưa có điểm thưởng thi đua đột phá hoặc tuần mới chưa có ghi nhận vi phạm
       danhSachKhenThuongText = periodMode === 'week'
-        ? 'Tuần này cả lớp duy trì rèn luyện ổn định, chưa có cá nhân đạt điểm đột phá.'
-        : 'Tháng này cả lớp duy trì rèn luyện ổn định, chưa có cá nhân nhận điểm thưởng thi đua.';
-    } else {
+        ? `Toàn bộ ${totalCount} học sinh trong lớp duy trì nề nếp tốt, giữ vững chuẩn 10/10 điểm nền rèn luyện; chưa có cá nhân nhận điểm thưởng thi đua đột phá.`
+        : `Toàn bộ ${totalCount} học sinh trong lớp duy trì nề nếp tốt, giữ vững chuẩn điểm nền rèn luyện; chưa có cá nhân nhận điểm thưởng thi đua đột phá trong tháng.`;
+    } else if (studentsWithBonus.length > 0) {
+      // Có học sinh được khen thưởng thành tích / việc tốt thực tế
       const lines: string[] = [];
-      topStudents.slice(0, 15).forEach((item, index) => {
+      studentsWithBonus.slice(0, 15).forEach((item, index) => {
         const bonusDesc = item.achievements && item.achievements.length > 0 ? ` (${item.achievements.join(', ')})` : '';
         const bonusPoint = item.totalBonus && item.totalBonus > 0 ? ` [Thưởng: +${formatVietnameseNumber(item.totalBonus)}đ]` : '';
         lines.push(`${index + 1}. ${item.fullName} - ${formatVietnameseNumber(item.finalScore)}đ (${item.rank})${bonusPoint}${bonusDesc}`);
       });
-      if (topStudents.length > 15) {
-        lines.push(`... cùng ${topStudents.length - 15} em học sinh khác có ý thức rèn luyện rất tốt.`);
+      if (studentsWithBonus.length > 15) {
+        lines.push(`... cùng ${studentsWithBonus.length - 15} em học sinh khác nhận điểm thưởng thi đua.`);
       }
       danhSachKhenThuongText = lines.join('\n');
+    } else {
+      // Có vi phạm trong lớp nhưng không ai có bonus: biểu dương nhóm các em giữ vững 10đ không vi phạm
+      if (studentsPerfect.length <= 10) {
+        const lines: string[] = [];
+        studentsPerfect.forEach((item, index) => {
+          lines.push(`${index + 1}. ${item.fullName} - ${formatVietnameseNumber(item.finalScore)}đ (${item.rank}) - Gương mẫu không vi phạm`);
+        });
+        danhSachKhenThuongText = lines.join('\n');
+      } else {
+        danhSachKhenThuongText = `Có ${studentsPerfect.length}/${totalCount} học sinh chấp hành xuất sắc nề nếp kỷ luật, giữ vững 10/10 điểm chuẩn không vi phạm trong ${periodMode === 'week' ? `Tuần ${selectedWeek}` : `Tháng ${selectedMonth}`}.`;
+      }
     }
   }
 
