@@ -48,6 +48,7 @@ import {
   setTeacherDefaultTimetableMode,
   exportTimetableToTsv,
   SAMPLE_TIMETABLE_SLOTS,
+  SAMPLE_TIMETABLE_RAW_TSV,
   getTimetableSlotsForWeek,
   setTimetableSlotsForWeek,
   copyTimetableFromWeekToWeek,
@@ -394,11 +395,28 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
     persistTimetable(nextTable);
   };
 
-  // Nạp bộ dữ liệu mẫu thực tế từ ảnh
+  // Nạp bộ dữ liệu mẫu thực tế từ ảnh (12B4, 12B1, 12B6, 10A17)
   const handleLoadSampleFromImage = () => {
-    if (window.confirm(`Thầy có muốn nạp Thời khóa biểu mẫu thực tế (10A8, 12B6, 12B1, 10A17) vào Tuần ${selectedWeekNumber} không?`)) {
+    const applyAll = window.confirm(
+      `Thầy có muốn nạp Thời khóa biểu mẫu mới (12B4, 12B1, 12B6, 10A17) làm TKB chuẩn cho TOÀN BỘ CÁC TUẦN không?\n\n- Bấm OK để áp dụng làm TKB chuẩn cho toàn bộ các tuần trong học kỳ.\n- Bấm Cancel để chỉ áp dụng riêng cho Tuần ${selectedWeekNumber}.`
+    );
+    if (applyAll) {
+      const nextTable: TeacherTimetable = {
+        ...timetable,
+        slots: SAMPLE_TIMETABLE_SLOTS,
+        weekSlots: {
+          ...(timetable.weekSlots || {}),
+          [`w${selectedWeekNumber}`]: SAMPLE_TIMETABLE_SLOTS,
+        },
+        mode: 'mon-fri',
+      };
+      setMode('mon-fri');
+      persistTimetable(nextTable);
+      alert(`Đã áp dụng Thời khóa biểu mẫu mới làm TKB chuẩn cho toàn bộ các tuần!`);
+    } else {
       const nextTable = setTimetableSlotsForWeek(timetable, selectedWeekNumber, SAMPLE_TIMETABLE_SLOTS);
       persistTimetable(nextTable);
+      alert(`Đã nạp Thời khóa biểu mẫu vào Tuần ${selectedWeekNumber}!`);
     }
   };
 
@@ -534,10 +552,10 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
             type="button"
             onClick={handleLoadSampleFromImage}
             className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 shadow-2xs transition active:scale-95 cursor-pointer"
-            title="Nạp ngay TKB mẫu chuẩn theo ảnh Thầy vừa gửi"
+            title="Nạp ngay TKB mẫu chuẩn mới (12B4, 12B1, 12B6, 10A17)"
           >
             <Sparkles className="h-4 w-4 text-amber-600" />
-            <span className="hidden sm:inline">Nạp mẫu</span>
+            <span className="hidden sm:inline">Nạp TKB mẫu mới</span>
           </button>
 
           {/* Nút Xóa TKB tuần này */}
@@ -1270,6 +1288,19 @@ export function TeacherTimetableView({ onNavigateTab }: TeacherTimetableViewProp
             </div>
 
             <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Nhập hoặc dán văn bản / Excel:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPasteRawText(SAMPLE_TIMETABLE_RAW_TSV.trim())}
+                  className="text-[11px] font-semibold text-indigo-600 dark:text-indigo-400 hover:underline cursor-pointer"
+                >
+                  + Điền mẫu TKB (12B4, 12B1, 12B6, 10A17)
+                </button>
+              </div>
+
               <textarea
                 rows={7}
                 value={pasteRawText}

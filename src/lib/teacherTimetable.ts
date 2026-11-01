@@ -424,41 +424,62 @@ export function exportTimetableToTsv(
 }
 
 /**
- * Bộ dữ liệu mẫu thực tế trích xuất 100% chính xác từ 2 ảnh Thầy vừa gửi
+ * Bộ dữ liệu mẫu thực tế trích xuất 100% chính xác từ TKB GVBM Thầy vừa gửi
+ * Sáng (Tiết 1 -> 4):
+ *  Tiết 1: Thứ 2 (12B4-HĐTN-HN), Thứ 3 (12B4-HĐTN-HN), Thứ 5 (12B4-Toán), Thứ 6 (12B1-Toán)
+ *  Tiết 2: Thứ 2 (12B1-Toán), Thứ 3 (12B4-Toán), Thứ 5 (12B4-Toán), Thứ 6 (12B1-Toán)
+ *  Tiết 3: Thứ 5 (12B6-Toán), Thứ 6 (12B6-Toán)
+ *  Tiết 4: Thứ 5 (12B6-Toán), Thứ 6 (12B4-HĐTN-HN)
+ * Chiều (Tiết 1 -> 3, tương ứng tiết 6, 7, 8):
+ *  Tiết 1 Chiều: Thứ 5 (10A17-Toán)
+ *  Tiết 2 Chiều: Thứ 5 (10A17-Toán)
+ *  Tiết 3 Chiều: Thứ 6 (10A17-Toán)
  */
 export const SAMPLE_TIMETABLE_SLOTS: Record<string, TimetableSlot> = {
   // Sáng:
-  // Tiết 1: Thứ 2 (10A8-HĐTN-HN)
-  '2_p1': { dayOfWeek: 2, period: 1, className: '10A8', subjectName: 'HĐTN-HN' },
-  // Tiết 2: Thứ 3 (12B6-Toán), Thứ 5 (12B1-Toán)
-  '3_p2': { dayOfWeek: 3, period: 2, className: '12B6', subjectName: 'Toán' },
-  '5_p2': { dayOfWeek: 5, period: 2, className: '12B1', subjectName: 'Toán' },
-  // Tiết 3: Thứ 2 (10A8-Toán), Thứ 3 (12B1-Toán), Thứ 4 (10A8-HĐTN-HN), Thứ 5 (12B6-Toán), Thứ 6 (10A8-Toán), Thứ 7 (10A8-Toán)
-  '2_p3': { dayOfWeek: 2, period: 3, className: '10A8', subjectName: 'Toán' },
-  '3_p3': { dayOfWeek: 3, period: 3, className: '12B1', subjectName: 'Toán' },
-  '4_p3': { dayOfWeek: 4, period: 3, className: '10A8', subjectName: 'HĐTN-HN' },
-  '5_p3': { dayOfWeek: 5, period: 3, className: '12B6', subjectName: 'Toán' },
-  '6_p3': { dayOfWeek: 6, period: 3, className: '10A8', subjectName: 'Toán' },
-  '7_p3': { dayOfWeek: 7, period: 3, className: '10A8', subjectName: 'Toán' },
-  // Tiết 4: Thứ 2 (10A8-Toán), Thứ 3 (12B1-Toán), Thứ 5 (12B6-Toán), Thứ 6 (10A8-HĐTN-HN), Thứ 7 (10A8-HĐTN-HN)
-  '2_p4': { dayOfWeek: 2, period: 4, className: '10A8', subjectName: 'Toán' },
-  '3_p4': { dayOfWeek: 3, period: 4, className: '12B1', subjectName: 'Toán' },
-  '5_p4': { dayOfWeek: 5, period: 4, className: '12B6', subjectName: 'Toán' },
-  '6_p4': { dayOfWeek: 6, period: 4, className: '10A8', subjectName: 'HĐTN-HN' },
-  '7_p4': { dayOfWeek: 7, period: 4, className: '10A8', subjectName: 'HĐTN-HN' },
+  // Tiết 1: Thứ 2 (12B4-HĐTN-HN), Thứ 3 (12B4-HĐTN-HN), Thứ 5 (12B4-Toán), Thứ 6 (12B1-Toán)
+  '2_p1': { dayOfWeek: 2, period: 1, className: '12B4', subjectName: 'HĐTN-HN' },
+  '3_p1': { dayOfWeek: 3, period: 1, className: '12B4', subjectName: 'HĐTN-HN' },
+  '5_p1': { dayOfWeek: 5, period: 1, className: '12B4', subjectName: 'Toán' },
+  '6_p1': { dayOfWeek: 6, period: 1, className: '12B1', subjectName: 'Toán' },
 
-  // Chiều (Tiết 6 = Tiết 1 Chiều, Tiết 7 = Tiết 2 Chiều, Tiết 8 = Tiết 3 Chiều):
-  // Chiều Tiết 1 (p6): Thứ 3 (10A17-Toán), Thứ 5 (10A8-Ôn Toán)
-  '3_p6': { dayOfWeek: 3, period: 6, className: '10A17', subjectName: 'Toán' },
-  '5_p6': { dayOfWeek: 5, period: 6, className: '10A8', subjectName: 'Ôn Toán' },
-  // Chiều Tiết 2 (p7): Thứ 3 (10A17-Toán), Thứ 5 (10A8-Ôn Toán)
-  '3_p7': { dayOfWeek: 3, period: 7, className: '10A17', subjectName: 'Toán' },
-  '5_p7': { dayOfWeek: 5, period: 7, className: '10A8', subjectName: 'Ôn Toán' },
-  // Chiều Tiết 3 (p8): Thứ 3 (10A8-Ôn Toán), Thứ 6 (10A17-Toán), Thứ 7 (10A17-Toán)
-  '3_p8': { dayOfWeek: 3, period: 8, className: '10A8', subjectName: 'Ôn Toán' },
+  // Tiết 2: Thứ 2 (12B1-Toán), Thứ 3 (12B4-Toán), Thứ 5 (12B4-Toán), Thứ 6 (12B1-Toán)
+  '2_p2': { dayOfWeek: 2, period: 2, className: '12B1', subjectName: 'Toán' },
+  '3_p2': { dayOfWeek: 3, period: 2, className: '12B4', subjectName: 'Toán' },
+  '5_p2': { dayOfWeek: 5, period: 2, className: '12B4', subjectName: 'Toán' },
+  '6_p2': { dayOfWeek: 6, period: 2, className: '12B1', subjectName: 'Toán' },
+
+  // Tiết 3: Thứ 5 (12B6-Toán), Thứ 6 (12B6-Toán)
+  '5_p3': { dayOfWeek: 5, period: 3, className: '12B6', subjectName: 'Toán' },
+  '6_p3': { dayOfWeek: 6, period: 3, className: '12B6', subjectName: 'Toán' },
+
+  // Tiết 4: Thứ 5 (12B6-Toán), Thứ 6 (12B4-HĐTN-HN)
+  '5_p4': { dayOfWeek: 5, period: 4, className: '12B6', subjectName: 'Toán' },
+  '6_p4': { dayOfWeek: 6, period: 4, className: '12B4', subjectName: 'HĐTN-HN' },
+
+  // Chiều (Tiết 1 -> 5, tương ứng period 6 -> 10):
+  // Chiều Tiết 1 (period 6): Thứ 5 (10A17-Toán)
+  '5_p6': { dayOfWeek: 5, period: 6, className: '10A17', subjectName: 'Toán' },
+
+  // Chiều Tiết 2 (period 7): Thứ 5 (10A17-Toán)
+  '5_p7': { dayOfWeek: 5, period: 7, className: '10A17', subjectName: 'Toán' },
+
+  // Chiều Tiết 3 (period 8): Thứ 6 (10A17-Toán)
   '6_p8': { dayOfWeek: 6, period: 8, className: '10A17', subjectName: 'Toán' },
-  '7_p8': { dayOfWeek: 7, period: 8, className: '10A17', subjectName: 'Toán' },
 };
+
+export const SAMPLE_TIMETABLE_RAW_TSV = `Sáng\t\t\tThứ 2\tThứ 3\tThứ 4\tThứ 5\tThứ 6\tThứ 7
+\tTiết 1\t7h15-8h00\t12B4-HĐTN-HN\t12B4-HĐTN-HN\t\t12B4-Toán\t12B1-Toán\t
+\tTiết 2\t8h05-8h50\t12B1-Toán\t12B4-Toán\t\t12B4-Toán\t12B1-Toán\t
+\tTiết 3\t9h00-9h45\t\t\t\t12B6-Toán\t12B6-Toán\t
+\tTiết 4\t9h50-10h35\t\t\t\t12B6-Toán\t12B4-HĐTN-HN\t
+\tTiết 5\t10h40-11h25\t\t\t\t\t\t
+Chiều\t\t\tThứ 2\tThứ 3\tThứ 4\tThứ 5\tThứ 6\tThứ 7
+\tTiết 1\t13h30-14h15\t\t\t\t10A17-Toán\t\t
+\tTiết 2\t14h20-15h05\t\t\t\t10A17-Toán\t\t
+\tTiết 3\t15h15-16h00\t\t\t\t\t10A17-Toán\t
+\tTiết 4\t16h05-16h50\t\t\t\t\t\t
+\tTiết 5\t16h55-17h40\t\t\t\t\t\t`;
 
 /**
  * Lấy các slots của một tuần cụ thể. Nếu tuần đó chưa được chỉnh sửa riêng, trả về TKB chuẩn (slots)
@@ -582,7 +603,7 @@ export function loadTeacherTimetable(
     semester,
     mode: preferredDefaultMode,
     weekStartDate: getMondayOfCurrentWeek(),
-    slots: {},
+    slots: SAMPLE_TIMETABLE_SLOTS,
     weekSlots: {},
     updatedAt: new Date().toISOString(),
   };

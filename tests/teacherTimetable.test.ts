@@ -77,11 +77,19 @@ test('getWeekDates calculates accurate dates from Monday', () => {
 });
 
 test('SAMPLE_TIMETABLE_SLOTS contains correct entries matching user images', () => {
-  assert.equal(SAMPLE_TIMETABLE_SLOTS['2_p1']?.className, '10A8');
+  assert.equal(SAMPLE_TIMETABLE_SLOTS['2_p1']?.className, '12B4');
   assert.equal(SAMPLE_TIMETABLE_SLOTS['2_p1']?.subjectName, 'HĐTN-HN');
-  assert.equal(SAMPLE_TIMETABLE_SLOTS['3_p6']?.className, '10A17');
-  assert.equal(SAMPLE_TIMETABLE_SLOTS['5_p6']?.className, '10A8');
-  assert.equal(SAMPLE_TIMETABLE_SLOTS['5_p6']?.subjectName, 'Ôn Toán');
+  assert.equal(SAMPLE_TIMETABLE_SLOTS['3_p1']?.className, '12B4');
+  assert.equal(SAMPLE_TIMETABLE_SLOTS['5_p1']?.className, '12B4');
+  assert.equal(SAMPLE_TIMETABLE_SLOTS['5_p1']?.subjectName, 'Toán');
+  assert.equal(SAMPLE_TIMETABLE_SLOTS['6_p1']?.className, '12B1');
+  assert.equal(SAMPLE_TIMETABLE_SLOTS['2_p2']?.className, '12B1');
+  assert.equal(SAMPLE_TIMETABLE_SLOTS['5_p3']?.className, '12B6');
+  assert.equal(SAMPLE_TIMETABLE_SLOTS['6_p4']?.className, '12B4');
+  assert.equal(SAMPLE_TIMETABLE_SLOTS['6_p4']?.subjectName, 'HĐTN-HN');
+  assert.equal(SAMPLE_TIMETABLE_SLOTS['5_p6']?.className, '10A17');
+  assert.equal(SAMPLE_TIMETABLE_SLOTS['6_p8']?.className, '10A17');
+  assert.equal(Object.keys(SAMPLE_TIMETABLE_SLOTS).length, 15);
 });
 
 test('loadTeacherTimetable returns default when empty and persists updates', () => {
@@ -95,7 +103,7 @@ test('loadTeacherTimetable returns default when empty and persists updates', () 
   assert.equal(initial.teacherName, 'Nguyễn Văn Sang');
   assert.equal(initial.semester, 1);
   assert.equal(initial.mode, 'mon-fri'); // Mặc định Thứ 2 - Thứ 6 theo yêu cầu GV
-  assert.deepEqual(initial.slots, {});
+  assert.equal(initial.slots['2_p1']?.className, '12B4');
 
   // Lưu một tiết dạy
   const updated: TeacherTimetable = {
