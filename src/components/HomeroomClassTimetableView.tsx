@@ -41,6 +41,8 @@ import {
   saveClassTimetable,
   parseClassTimetableFromText,
   exportClassTimetableToExcel,
+  SAMPLE_12B4_CLASS_TIMETABLE_SLOTS,
+  SAMPLE_12B4_CLASS_TIMETABLE_RAW_TSV,
 } from '../lib/classTimetable';
 import { schoolWeeksFrom, defaultWeekOneStart } from '../lib/classScope';
 import { TabType } from './Navbar';
@@ -57,6 +59,7 @@ function getSubjectBadgeColor(subject: string) {
   if (/văn|sử|địa/i.test(s)) return 'bg-amber-100 text-amber-800 dark:bg-amber-950/70 dark:text-amber-300 border-amber-300 dark:border-amber-800';
   if (/tiếng anh|ngoại ngữ/i.test(s)) return 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/70 dark:text-emerald-300 border-emerald-300 dark:border-emerald-800';
   if (/vật lí|hóa học|sinh học/i.test(s)) return 'bg-purple-100 text-purple-800 dark:bg-purple-950/70 dark:text-purple-300 border-purple-300 dark:border-purple-800';
+  if (/gdkt|kinh tế/i.test(s)) return 'bg-cyan-100 text-cyan-800 dark:bg-cyan-950/70 dark:text-cyan-300 border-cyan-300 dark:border-cyan-800';
   if (/thể dục|gdqp/i.test(s)) return 'bg-teal-100 text-teal-800 dark:bg-teal-950/70 dark:text-teal-300 border-teal-300 dark:border-teal-800';
   if (/trải nghiệm|hđtn/i.test(s)) return 'bg-indigo-100 text-indigo-800 dark:bg-indigo-950/70 dark:text-indigo-300 border-indigo-300 dark:border-indigo-800';
   return 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-200 border-slate-300 dark:border-slate-700';
@@ -302,6 +305,38 @@ export function HomeroomClassTimetableView({ onNavigateTab }: HomeroomClassTimet
     }
   };
 
+  // Nạp bộ dữ liệu TKB mẫu lớp 12B4 (22 tiết chuẩn mẫu Thầy gửi)
+  const handleLoadSample12B4 = () => {
+    const applyAll = window.confirm(
+      `Thầy/Cô có muốn nạp Thời khóa biểu mẫu chuẩn lớp 12B4 (22 tiết) làm TKB chuẩn cho TOÀN BỘ CÁC TUẦN không?\n\n- Bấm OK để áp dụng làm TKB chuẩn cho toàn bộ các tuần trong học kỳ.\n- Bấm Cancel để chỉ áp dụng riêng cho Tuần ${selectedWeekNumber}.`
+    );
+    if (applyAll) {
+      const nextTable: ClassTimetable = {
+        ...timetable,
+        slots: SAMPLE_12B4_CLASS_TIMETABLE_SLOTS,
+        weekSlots: {
+          ...(timetable.weekSlots || {}),
+          [`w${selectedWeekNumber}`]: SAMPLE_12B4_CLASS_TIMETABLE_SLOTS,
+        },
+        mode: 'mon-fri',
+      };
+      setMode('mon-fri');
+      persistTimetable(nextTable);
+      alert(`Đã áp dụng Thời khóa biểu mẫu 12B4 làm TKB chuẩn cho toàn bộ các tuần!`);
+    } else {
+      const nextWeekSlotsMap = {
+        ...(timetable.weekSlots || {}),
+        [`w${selectedWeekNumber}`]: SAMPLE_12B4_CLASS_TIMETABLE_SLOTS,
+      };
+      const nextTable: ClassTimetable = {
+        ...timetable,
+        weekSlots: nextWeekSlotsMap,
+      };
+      persistTimetable(nextTable);
+      alert(`Đã nạp Thời khóa biểu mẫu 12B4 vào Tuần ${selectedWeekNumber}!`);
+    }
+  };
+
   const handleClearCurrentWeek = () => {
     if (!window.confirm(`Xóa toàn bộ các tiết học của Tuần ${selectedWeekNumber}?`)) return;
     const nextMap = { ...(timetable.weekSlots || {}), [`w${selectedWeekNumber}`]: {} };
@@ -385,13 +420,24 @@ export function HomeroomClassTimetableView({ onNavigateTab }: HomeroomClassTimet
             <span>In TKB</span>
           </button>
 
+          {/* Nạp mẫu TKB 12B4 */}
+          <button
+            type="button"
+            onClick={handleLoadSample12B4}
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-800 dark:text-amber-300 border border-amber-300 dark:border-amber-800 shadow-2xs transition active:scale-95 cursor-pointer"
+            title="Nạp ngay Thời khóa biểu mẫu chuẩn lớp 12B4 (22 tiết)"
+          >
+            <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <span>Nạp mẫu 12B4</span>
+          </button>
+
           <button
             type="button"
             onClick={handleSetWeekAsDefault}
-            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-amber-50 dark:bg-amber-950/60 hover:bg-amber-100 dark:hover:bg-amber-900/60 text-amber-700 dark:text-amber-300 border border-amber-300 dark:border-amber-800 shadow-2xs transition active:scale-95 cursor-pointer"
+            className="inline-flex items-center gap-1.5 px-3 py-2 rounded-xl text-xs font-bold bg-emerald-50 dark:bg-emerald-950/60 hover:bg-emerald-100 dark:hover:bg-emerald-900/60 text-emerald-700 dark:text-emerald-300 border border-emerald-300 dark:border-emerald-800 shadow-2xs transition active:scale-95 cursor-pointer"
             title="Đặt TKB của tuần này làm TKB chuẩn chung cả kỳ"
           >
-            <Sparkles className="h-4 w-4 text-amber-600 dark:text-amber-400" />
+            <CheckCircle2 className="h-4 w-4 text-emerald-600 dark:text-emerald-400" />
             <span>Đặt làm chuẩn</span>
           </button>
         </div>
@@ -779,6 +825,19 @@ export function HomeroomClassTimetableView({ onNavigateTab }: HomeroomClassTimet
             </div>
 
             <div className="space-y-2.5">
+              <div className="flex items-center justify-between">
+                <span className="text-xs text-slate-500 dark:text-slate-400">
+                  Nhập hoặc dán văn bản / Excel:
+                </span>
+                <button
+                  type="button"
+                  onClick={() => setPasteRawText(SAMPLE_12B4_CLASS_TIMETABLE_RAW_TSV.trim())}
+                  className="text-[11px] font-semibold text-emerald-600 dark:text-emerald-400 hover:underline cursor-pointer"
+                >
+                  + Điền mẫu TKB 12B4 (22 tiết)
+                </button>
+              </div>
+
               <textarea
                 rows={7}
                 value={pasteRawText}

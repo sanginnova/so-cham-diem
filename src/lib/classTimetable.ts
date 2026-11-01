@@ -42,14 +42,78 @@ export const COMMON_HIGH_SCHOOL_SUBJECTS = [
   'Địa lí',
   'Tin học',
   'GD Kinh tế & Pháp luật',
+  'GDKT-PL',
+  'CĐ GDKT-PL',
+  'CĐ Địa lí',
+  'CĐ Ngữ văn',
+  'CĐ Lịch sử',
+  'CĐ Toán',
   'Công nghệ',
   'Giáo dục Thể chất',
   'GDQP-AN',
   'Hoạt động trải nghiệm, hướng nghiệp',
+  'HĐTN-HN',
   'Sinh hoạt lớp',
   'Nghề phổ thông / Chuyên ngành',
   'Ôn thi tốt nghiệp',
 ];
+
+/**
+ * Thời khóa biểu học sinh lớp chủ nhiệm 12B4 (chuẩn thực tế theo mẫu Thầy gửi):
+ * - Sáng (Tiết 1 -> 5):
+ *   + Tiết 1: Thứ 2 (HĐTN-HN), Thứ 3 (HĐTN-HN), Thứ 4 (Địa lí), Thứ 5 (Toán), Thứ 6 (Ngữ văn)
+ *   + Tiết 2: Thứ 2 (Địa lí), Thứ 3 (Toán), Thứ 4 (Lịch sử), Thứ 5 (Toán), Thứ 6 (Ngữ văn)
+ *   + Tiết 3: Thứ 2 (Lịch sử), Thứ 3 (Ngữ văn), Thứ 4 (Vật lí), Thứ 5 (GDKT-PL), Thứ 6 (Hóa học)
+ *   + Tiết 4: Thứ 2 (Vật lí), Thứ 3 (GDKT-PL), Thứ 4 (Hóa học), Thứ 5 (CĐ GDKT-PL), Thứ 6 (HĐTN-HN)
+ *   + Tiết 5: Thứ 3 (CĐ Địa lí), Thứ 5 (CĐ Ngữ văn)
+ * - Chiều: Trống
+ */
+export const SAMPLE_12B4_CLASS_TIMETABLE_SLOTS: Record<string, ClassTimetableSlot> = {
+  // Tiết 1 (7h15-8h00):
+  '2_p1': { dayOfWeek: 2, period: 1, subjectName: 'HĐTN-HN', teacherName: 'Thầy Sang' },
+  '3_p1': { dayOfWeek: 3, period: 1, subjectName: 'HĐTN-HN', teacherName: 'Thầy Sang' },
+  '4_p1': { dayOfWeek: 4, period: 1, subjectName: 'Địa lí', teacherName: '' },
+  '5_p1': { dayOfWeek: 5, period: 1, subjectName: 'Toán', teacherName: 'Thầy Sang' },
+  '6_p1': { dayOfWeek: 6, period: 1, subjectName: 'Ngữ văn', teacherName: '' },
+
+  // Tiết 2 (8h05-8h50):
+  '2_p2': { dayOfWeek: 2, period: 2, subjectName: 'Địa lí', teacherName: '' },
+  '3_p2': { dayOfWeek: 3, period: 2, subjectName: 'Toán', teacherName: 'Thầy Sang' },
+  '4_p2': { dayOfWeek: 4, period: 2, subjectName: 'Lịch sử', teacherName: '' },
+  '5_p2': { dayOfWeek: 5, period: 2, subjectName: 'Toán', teacherName: 'Thầy Sang' },
+  '6_p2': { dayOfWeek: 6, period: 2, subjectName: 'Ngữ văn', teacherName: '' },
+
+  // Tiết 3 (9h00-9h45):
+  '2_p3': { dayOfWeek: 2, period: 3, subjectName: 'Lịch sử', teacherName: '' },
+  '3_p3': { dayOfWeek: 3, period: 3, subjectName: 'Ngữ văn', teacherName: '' },
+  '4_p3': { dayOfWeek: 4, period: 3, subjectName: 'Vật lí', teacherName: '' },
+  '5_p3': { dayOfWeek: 5, period: 3, subjectName: 'GDKT-PL', teacherName: '' },
+  '6_p3': { dayOfWeek: 6, period: 3, subjectName: 'Hóa học', teacherName: '' },
+
+  // Tiết 4 (9h50-10h35):
+  '2_p4': { dayOfWeek: 2, period: 4, subjectName: 'Vật lí', teacherName: '' },
+  '3_p4': { dayOfWeek: 3, period: 4, subjectName: 'GDKT-PL', teacherName: '' },
+  '4_p4': { dayOfWeek: 4, period: 4, subjectName: 'Hóa học', teacherName: '' },
+  '5_p4': { dayOfWeek: 5, period: 4, subjectName: 'CĐ GDKT-PL', teacherName: '' },
+  '6_p4': { dayOfWeek: 6, period: 4, subjectName: 'HĐTN-HN', teacherName: 'Thầy Sang' },
+
+  // Tiết 5 (10h40-11h25):
+  '3_p5': { dayOfWeek: 3, period: 5, subjectName: 'CĐ Địa lí', teacherName: '' },
+  '5_p5': { dayOfWeek: 5, period: 5, subjectName: 'CĐ Ngữ văn', teacherName: '' },
+};
+
+export const SAMPLE_12B4_CLASS_TIMETABLE_RAW_TSV = `12B4\t\t\t\t\t\t\t\t
+Tiết\tThời gian\tThứ 2\tThứ 3\tThứ 4\tThứ 5\tThứ 6\tThứ 7\tChủ nhật
+Tiết 1\t7h15-8h00\tHĐTN-HN\tHĐTN-HN\tĐịa lí\tToán\tNgữ văn\t\t
+Tiết 2\t8h05-8h50\tĐịa lí\tToán\tLịch sử\tToán\tNgữ văn\t\t
+Tiết 3\t9h00-9h45\tLịch sử\tNgữ văn\tVật lí\tGDKT-PL\tHóa học\t\t
+Tiết 4\t9h50-10h35\tVật lí\tGDKT-PL\tHóa học\tCĐ GDKT-PL\tHĐTN-HN\t\t
+Tiết 5\t10h40-11h25\t\tCĐ Địa lí\t\tCĐ Ngữ văn\t\t\t
+Tiết 1\t13h30-14h15\t\t\t\t\t\t\t
+Tiết 2\t14h20-15h05\t\t\t\t\t\t\t
+Tiết 3\t15h15-16h00\t\t\t\t\t\t\t
+Tiết 4\t16h05-16h50\t\t\t\t\t\t\t
+Tiết 5\t16h55-17h40\t\t\t\t\t\t\t`;
 
 export function getClassTimetableStorageKey(classId: string, schoolYear: string, semester: number): string {
   return `homeroom_class_timetable_v1_${classId}_${schoolYear}_s${semester}`;
@@ -75,12 +139,31 @@ export function parseClassTimetableCell(rawText: string): { subjectName: string;
     mainText = mainText.replace(teacherParenMatch[0], '').trim();
   }
 
-  // Tách bằng dấu gạch ngang: "Toán - Thầy Sang", "Ngữ văn - Cô Mai"
-  const dashIndex = mainText.indexOf('-');
-  if (!teacherName && dashIndex > 0) {
-    const part1 = mainText.slice(0, dashIndex).trim();
-    const part2 = mainText.slice(dashIndex + 1).trim();
+  // Bảo toàn các môn học có gạch nối chuẩn: HĐTN-HN, GDKT-PL, GDQP-AN, CĐ GDKT-PL...
+  if (/^(?:cđ\s*)?(?:hđtn|hdtn|gdkt|gdqp)[-–](?:hn|pl|an)$/i.test(mainText)) {
+    return { subjectName: mainText, teacherName, room };
+  }
+
+  // Tách bằng dấu gạch ngang có khoảng trắng: "Toán - Thầy Sang", "Ngữ văn - Cô Mai"
+  const spaceDashMatch = mainText.match(/^(.+?)\s+[-–]\s+(.+)$/);
+  if (!teacherName && spaceDashMatch) {
+    const part1 = spaceDashMatch[1].trim();
+    const part2 = spaceDashMatch[2].trim();
+    // Nếu part2 là viết tắt đuôi môn học thì ghép lại
+    if (/^(?:hn|pl|an)$/i.test(part2)) {
+      return { subjectName: `${part1}-${part2}`, teacherName, room };
+    }
     return { subjectName: part1, teacherName: part2, room };
+  }
+
+  // Nếu là gạch nối liền nhưng phần sau có từ khóa giáo viên: "Toán-Thầy Sang"
+  const teacherDashMatch = mainText.match(/^(.+?)[-–]((?:thầy|cô|gv)\s+.+)$/i);
+  if (!teacherName && teacherDashMatch) {
+    return {
+      subjectName: teacherDashMatch[1].trim(),
+      teacherName: teacherDashMatch[2].trim(),
+      room,
+    };
   }
 
   return { subjectName: mainText, teacherName, room };
@@ -166,6 +249,10 @@ export function parseClassTimetableFromText(
     }
 
     if (period === null) {
+      if (!activeDayMap) {
+        // Chưa gặp dòng tiêu đề Thứ và không có số tiết/giờ => Bỏ qua dòng tiêu đề lớp/bảng như "12B4"
+        continue;
+      }
       if (lastPeriod === 0) {
         period = currentSession === 'afternoon' ? 6 : 1;
       } else if (lastPeriod < 10) {
@@ -233,14 +320,17 @@ export function loadClassTimetable(
   schoolYear: string,
   semester: 1 | 2 = 1
 ): ClassTimetable {
+  const is12B4 = (classId || '').includes('12B4') || (className || '').includes('12B4');
+  const defaultSlots = is12B4 ? SAMPLE_12B4_CLASS_TIMETABLE_SLOTS : {};
+
   const defaultTable: ClassTimetable = {
     classId,
-    className: className || 'Lớp Chủ Nhiệm',
+    className: className || (is12B4 ? '12B4' : 'Lớp Chủ Nhiệm'),
     schoolYear: schoolYear || '2026-2027',
     semester,
     mode: 'mon-fri',
     weekStartDate: getMondayOfCurrentWeek(),
-    slots: {},
+    slots: defaultSlots,
     weekSlots: {},
     updatedAt: new Date().toISOString(),
   };
@@ -253,10 +343,12 @@ export function loadClassTimetable(
     }
     if (!raw) return defaultTable;
     const parsed = JSON.parse(raw) as ClassTimetable;
+    const loadedSlots = sanitizeClassSlots(parsed.slots || {});
+    const finalSlots = Object.keys(loadedSlots).length > 0 ? loadedSlots : defaultSlots;
     return {
       ...defaultTable,
       ...parsed,
-      slots: sanitizeClassSlots(parsed.slots || {}),
+      slots: finalSlots,
       weekSlots: parsed.weekSlots || {},
     };
   } catch {
