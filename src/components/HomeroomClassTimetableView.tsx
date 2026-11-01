@@ -547,11 +547,11 @@ export function HomeroomClassTimetableView({ onNavigateTab }: HomeroomClassTimet
               <th className="p-3 w-16 border-r border-slate-200 dark:border-slate-800">Buổi</th>
               <th className="p-3 w-28 border-r border-slate-200 dark:border-slate-800">Tiết</th>
               {weekDays.map((d) => {
-                const dayLabels = ['Chủ Nhật', 'Thứ 2', 'Thứ 3', 'Thứ 4', 'Thứ 5', 'Thứ 6', 'Thứ 7'];
+                const dayName = d.dayOfWeek === 8 ? 'Chủ Nhật' : `Thứ ${d.dayOfWeek}`;
                 return (
                   <th key={d.dayOfWeek} className="p-3 border-r border-slate-200 dark:border-slate-800 last:border-r-0">
                     <div className="font-extrabold text-slate-900 dark:text-white text-sm">
-                      {dayLabels[d.dayOfWeek]}
+                      {dayName}
                     </div>
                     <div className="text-[11px] font-medium text-slate-500 mt-0.5">
                       {d.displayDate}

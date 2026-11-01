@@ -203,14 +203,36 @@ export function extractDayColumnsFromRow(cells: string[]): Record<number, number
  * Tự động phát hiện dạng TKB (Thứ 2-Thứ 6 hay Thứ 2-Thứ 7) từ chuỗi copy
  */
 export function detectTimetableModeFromText(text: string): TimetableMode | null {
-  const lines = text.split(/\r?\n/);
-  for (const line of lines) {
-    const cols = line.split('\t').map(c => c.trim());
+  const lines = text.split(/\r?\n/).filter(l => l.replace(/[\t\s]/g, '').length > 0);
+  let detectedDayMap: Record<number, number> | null = null;
+  let headerIndex = -1;
+
+  for (let i = 0; i < lines.length; i++) {
+    const cols = lines[i].split('\t').map(c => c.trim());
     const dayMap = extractDayColumnsFromRow(cols);
     if (dayMap) {
-      if (dayMap[7] !== undefined) return 'mon-sat';
-      if (dayMap[2] !== undefined && dayMap[6] !== undefined) return 'mon-fri';
+      detectedDayMap = dayMap;
+      headerIndex = i;
+      break;
     }
+  }
+
+  if (detectedDayMap) {
+    if (detectedDayMap[7] !== undefined) {
+      // Kiểm tra xem cột Thứ 7 có tiết học thực tế hay không
+      const satColIdx = detectedDayMap[7];
+      let hasSaturdayLessons = false;
+      for (let i = headerIndex + 1; i < lines.length; i++) {
+        const cols = lines[i].split('\t').map(c => c.trim());
+        const cell = cols[satColIdx] || '';
+        if (cell && cell !== '-' && cell !== '—' && !/^\d{1,2}$/.test(cell)) {
+          hasSaturdayLessons = true;
+          break;
+        }
+      }
+      return hasSaturdayLessons ? 'mon-sat' : 'mon-fri';
+    }
+    if (detectedDayMap[2] !== undefined && detectedDayMap[6] !== undefined) return 'mon-fri';
   }
   return null;
 }

@@ -7,6 +7,7 @@ import {
   SAMPLE_12B4_CLASS_TIMETABLE_SLOTS,
   SAMPLE_12B4_CLASS_TIMETABLE_RAW_TSV,
 } from '../src/lib/classTimetable';
+import { detectTimetableModeFromText } from '../src/lib/teacherTimetable';
 
 test('parseClassTimetableCell preserves hyphenated subjects (HĐTN-HN, GDKT-PL, CĐ GDKT-PL)', () => {
   const cell1 = parseClassTimetableCell('HĐTN-HN');
@@ -91,3 +92,10 @@ test('loadClassTimetable initializes 12B4 with sample timetable', () => {
   assert.equal(Object.keys(table.slots).length, 22);
   assert.equal(table.className, '12B4');
 });
+
+test('detectTimetableModeFromText detects mon-fri when Saturday column has no lessons', () => {
+  const mode = detectTimetableModeFromText(SAMPLE_12B4_CLASS_TIMETABLE_RAW_TSV);
+  assert.equal(mode, 'mon-fri');
+});
+
+
