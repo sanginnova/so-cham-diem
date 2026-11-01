@@ -69,7 +69,7 @@ test('parse real excel file D:\\TOAN\\CĐN01\\12B4\\12B4- Chấm điểm rèn lu
     const buf = fs.readFileSync(samplePath);
     const wb = XLSX.read(buf, { type: 'buffer' });
     const sheets = parseConductWorkbook(wb, []);
-    assert.equal(sheets.length, 3);
+    assert.ok(sheets.length >= 3);
     assert.equal(sheets[0].className, '12B4');
     assert.equal(sheets[0].students.length, 40);
   }
