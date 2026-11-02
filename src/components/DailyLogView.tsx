@@ -80,6 +80,8 @@ export const DailyLogView: React.FC<DailyLogViewProps> = ({
   const [editingLog, setEditingLog] = useState<DisciplineLog | null>(null);
   const [historyLog, setHistoryLog] = useState<DisciplineLog | null>(null);
   const [deletingLogId, setDeletingLogId] = useState<string | null>(null);
+  const [toastNotice, setToastNotice] = useState<string | null>(null);
+  const [isUpdating, setIsUpdating] = useState(false);
 
   // Filtered & Sorted logs for the main table
   const filteredLogs = useMemo(() => {
@@ -529,6 +531,34 @@ export const DailyLogView: React.FC<DailyLogViewProps> = ({
                 </div>
               )}
 
+              {/* Chuyển đổi loại: Trừ Điểm Vi Phạm vs Cộng Điểm Thưởng */}
+              <div className="flex rounded-xl p-1 bg-slate-100 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 mb-3">
+                <button
+                  type="button"
+                  disabled={isEditLocked}
+                  onClick={() => setEditingLog({ ...editingLog, type: 'deduct' })}
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                    editingLog.type === 'deduct'
+                      ? 'bg-rose-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  }`}
+                >
+                  <span>⛔ Trừ Điểm Vi Phạm</span>
+                </button>
+                <button
+                  type="button"
+                  disabled={isEditLocked}
+                  onClick={() => setEditingLog({ ...editingLog, type: 'bonus' })}
+                  className={`flex-1 py-1.5 px-3 rounded-lg text-xs font-bold transition flex items-center justify-center gap-1.5 cursor-pointer ${
+                    editingLog.type === 'bonus'
+                      ? 'bg-emerald-600 text-white shadow-xs'
+                      : 'text-slate-600 dark:text-slate-400 hover:text-slate-900'
+                  }`}
+                >
+                  <span>⭐ Cộng Điểm Thưởng</span>
+                </button>
+              </div>
+
               <div className="space-y-3.5 text-xs">
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
                   <div>
@@ -597,7 +627,7 @@ export const DailyLogView: React.FC<DailyLogViewProps> = ({
                         key={p.value}
                         type="button"
                         onClick={() => setEditingLog({ ...editingLog, periodOrTime: p.value })}
-                        className={`px-1.5 py-0.5 rounded border transition ${
+                        className={`px-1.5 py-0.5 rounded border transition cursor-pointer ${
                           editingLog.periodOrTime === p.value
                             ? 'bg-amber-500 text-white border-amber-500'
                             : 'bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-slate-700 dark:text-slate-300'
@@ -612,7 +642,7 @@ export const DailyLogView: React.FC<DailyLogViewProps> = ({
                         key={p.value}
                         type="button"
                         onClick={() => setEditingLog({ ...editingLog, periodOrTime: p.value })}
-                        className={`px-1.5 py-0.5 rounded border transition ${
+                        className={`px-1.5 py-0.5 rounded border transition cursor-pointer ${
                           editingLog.periodOrTime === p.value
                             ? 'bg-sky-500 text-white border-sky-500'
                             : 'bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 hover:bg-sky-50 dark:hover:bg-sky-950/40 text-slate-700 dark:text-slate-300'
@@ -635,29 +665,65 @@ export const DailyLogView: React.FC<DailyLogViewProps> = ({
                   />
                 </div>
 
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold mb-1">Điểm mỗi lần</label>
-                    <input
-                      type="number"
-                      step="0.5"
-                      min="0"
-                      disabled={isEditLocked}
-                      value={editingLog.scorePerUnit}
-                      onChange={(e) => setEditingLog({ ...editingLog, scorePerUnit: Number(e.target.value) })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl disabled:opacity-60"
-                    />
+                {/* Chỉnh sửa điểm & Nút chọn nhanh */}
+                <div>
+                  <div className="flex items-center justify-between mb-1">
+                    <label className="block font-semibold">
+                      Điểm mỗi lần ({editingLog.type === 'deduct' ? 'Trừ' : 'Cộng'}) & Số lần
+                    </label>
+                    <span className="text-[11px] text-slate-500 font-medium">Bấm chọn nhanh điểm dưới</span>
                   </div>
-                  <div>
-                    <label className="block font-semibold mb-1">Số lần</label>
-                    <input
-                      type="number"
-                      min="1"
-                      disabled={isEditLocked}
-                      value={editingLog.count}
-                      onChange={(e) => setEditingLog({ ...editingLog, count: Math.max(1, Number(e.target.value)) })}
-                      className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl disabled:opacity-60"
-                    />
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                    <div className="relative">
+                      <input
+                        type="number"
+                        step="0.5"
+                        min="0"
+                        disabled={isEditLocked}
+                        value={editingLog.scorePerUnit}
+                        onChange={(e) => setEditingLog({ ...editingLog, scorePerUnit: Math.max(0, Number(e.target.value)) })}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl disabled:opacity-60 font-bold text-slate-800 dark:text-slate-100"
+                        placeholder="Điểm mỗi lần"
+                      />
+                      <span className="absolute right-3 top-2 text-xs text-slate-400 pointer-events-none">điểm/lần</span>
+                    </div>
+                    <div className="relative">
+                      <input
+                        type="number"
+                        min="1"
+                        disabled={isEditLocked}
+                        value={editingLog.count}
+                        onChange={(e) => setEditingLog({ ...editingLog, count: Math.max(1, Number(e.target.value)) })}
+                        className="w-full px-3 py-2 bg-slate-50 dark:bg-slate-750 border border-slate-200 dark:border-slate-700 rounded-xl disabled:opacity-60 font-bold text-slate-800 dark:text-slate-100"
+                        placeholder="Số lần"
+                      />
+                      <span className="absolute right-3 top-2 text-xs text-slate-400 pointer-events-none">lần</span>
+                    </div>
+                  </div>
+
+                  {/* Quick Select Point Chips */}
+                  <div className="flex flex-wrap items-center gap-1.5 mt-2">
+                    <span className="text-[11px] font-semibold text-slate-500">Mức điểm nhanh:</span>
+                    {[0.5, 1, 2, 3, 5, 10].map((pts) => {
+                      const isActive = editingLog.scorePerUnit === pts && editingLog.count === 1;
+                      return (
+                        <button
+                          key={pts}
+                          type="button"
+                          disabled={isEditLocked}
+                          onClick={() => setEditingLog({ ...editingLog, scorePerUnit: pts, count: 1 })}
+                          className={`px-2.5 py-1 rounded-lg border font-mono font-bold text-xs transition cursor-pointer ${
+                            isActive
+                              ? editingLog.type === 'deduct'
+                                ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                                : 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                              : 'bg-white dark:bg-slate-700 border-slate-200 dark:border-slate-600 hover:border-blue-400 text-slate-700 dark:text-slate-300'
+                          }`}
+                        >
+                          {editingLog.type === 'deduct' ? `-${pts}đ` : `+${pts}đ`}
+                        </button>
+                      );
+                    })}
                   </div>
                 </div>
 
@@ -672,12 +738,32 @@ export const DailyLogView: React.FC<DailyLogViewProps> = ({
                   />
                 </div>
 
-                <div className="p-3 bg-slate-50 dark:bg-slate-750 rounded-xl border flex justify-between items-center font-mono">
-                  <span>Tổng điểm sau chỉnh sửa:</span>
-                  <span className="font-bold text-base">
-                    {editingLog.type === 'deduct' ? '-' : '+'}
-                    {formatVietnameseNumber(editingLog.scorePerUnit * editingLog.count)}đ
-                  </span>
+                {/* Tổng điểm trực quan nổi bật */}
+                <div
+                  className={`p-3.5 rounded-xl border flex justify-between items-center transition ${
+                    editingLog.type === 'deduct'
+                      ? 'bg-rose-50 dark:bg-rose-950/40 border-rose-200 dark:border-rose-900/60'
+                      : 'bg-emerald-50 dark:bg-emerald-950/40 border-emerald-200 dark:border-emerald-900/60'
+                  }`}
+                >
+                  <div className="flex flex-col">
+                    <span className="font-bold text-slate-800 dark:text-slate-100 text-xs">
+                      Tổng điểm sau chỉnh sửa cập nhật vào sổ:
+                    </span>
+                    <span className="text-[11px] text-slate-500 font-mono">
+                      = {formatVietnameseNumber(editingLog.scorePerUnit)}đ × {editingLog.count} lần
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span
+                      className={`font-mono font-black text-2xl ${
+                        editingLog.type === 'deduct' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'
+                      }`}
+                    >
+                      {editingLog.type === 'deduct' ? '-' : '+'}
+                      {formatVietnameseNumber(editingLog.scorePerUnit * editingLog.count)}đ
+                    </span>
+                  </div>
                 </div>
               </div>
 
@@ -691,27 +777,40 @@ export const DailyLogView: React.FC<DailyLogViewProps> = ({
                 </button>
                 <button
                   type="button"
-                  disabled={isEditLocked}
+                  disabled={isEditLocked || isUpdating}
                   onClick={async () => {
-                    if (isEditLocked) return;
-                    await updateDisciplineLog(
-                      editingLog.id,
-                      {
-                        date: editingLog.date,
-                        weekNumber: editingLog.weekNumber,
-                        behaviorDescription: editingLog.behaviorDescription,
-                        scorePerUnit: editingLog.scorePerUnit,
-                        count: editingLog.count,
-                        periodOrTime: editingLog.periodOrTime,
-                        note: editingLog.note,
-                      },
-                      classConfig.homeroomTeacher
-                    );
-                    setEditingLog(null);
+                    if (isEditLocked || isUpdating) return;
+                    setIsUpdating(true);
+                    try {
+                      await updateDisciplineLog(
+                        editingLog.id,
+                        {
+                          date: editingLog.date,
+                          weekNumber: editingLog.weekNumber,
+                          behaviorDescription: editingLog.behaviorDescription,
+                          scorePerUnit: editingLog.scorePerUnit,
+                          count: editingLog.count,
+                          periodOrTime: editingLog.periodOrTime,
+                          note: editingLog.note,
+                          type: editingLog.type,
+                        },
+                        classConfig.homeroomTeacher
+                      );
+                      const sign = editingLog.type === 'deduct' ? '-' : '+';
+                      const pts = formatVietnameseNumber(editingLog.scorePerUnit * editingLog.count);
+                      setToastNotice(`✅ Đã cập nhật điểm thành công: ${editingLog.studentName} (${sign}${pts}đ)!`);
+                      setTimeout(() => setToastNotice(null), 3000);
+                      setEditingLog(null);
+                    } catch (e) {
+                      alert('Lỗi cập nhật: ' + (e as Error).message);
+                    } finally {
+                      setIsUpdating(false);
+                    }
                   }}
-                  className="px-4 py-2 bg-blue-600 disabled:opacity-50 text-white rounded-xl text-xs font-bold hover:bg-blue-500 cursor-pointer"
+                  className="px-5 py-2.5 bg-blue-600 disabled:opacity-50 text-white rounded-xl text-xs font-bold hover:bg-blue-500 cursor-pointer flex items-center gap-1.5 shadow-xs"
                 >
-                  Cập nhật bản ghi
+                  <Check className="h-4 w-4" />
+                  <span>{isUpdating ? 'Đang lưu...' : 'Cập nhật bản ghi'}</span>
                 </button>
               </div>
             </div>
@@ -810,6 +909,17 @@ export const DailyLogView: React.FC<DailyLogViewProps> = ({
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
       />
+
+      {/* Toast Notice */}
+      {toastNotice && (
+        <div className="fixed bottom-6 right-6 z-50 bg-emerald-600 text-white px-4 py-3 rounded-2xl shadow-xl flex items-center gap-2 text-sm font-semibold animate-in fade-in slide-in-from-bottom-3 duration-200">
+          <Check className="h-4 w-4 text-white" />
+          <span>{toastNotice}</span>
+          <button onClick={() => setToastNotice(null)} className="ml-2 text-emerald-200 hover:text-white cursor-pointer">
+            <X className="h-4 w-4" />
+          </button>
+        </div>
+      )}
     </div>
   );
 };
