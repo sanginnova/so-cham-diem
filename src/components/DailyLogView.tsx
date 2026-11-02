@@ -147,11 +147,13 @@ export const DailyLogView: React.FC<DailyLogViewProps> = ({
       'Căn cứ quy định': l.basisOrRegulation || '',
       'Ghi chú': l.note || '',
     }));
-    exportToExcel(exportData, `Nhat_ky_ne_nep_10A8_${new Date().toISOString().slice(0, 10)}`, 'NhatKy');
+    const classNameStr = classConfig.className || '12B4';
+    exportToExcel(exportData, `Nhat_ky_ne_nep_${classNameStr}_${new Date().toISOString().slice(0, 10)}`, 'NhatKy');
   };
 
   // Export to CSV
   const handleExportCsv = () => {
+    const classNameStr = classConfig.className || '12B4';
     const exportData = filteredLogs.map((l, idx) => ({
       STT: idx + 1,
       'Ngày ghi nhận': formatVietnameseDate(l.date),
@@ -170,7 +172,7 @@ export const DailyLogView: React.FC<DailyLogViewProps> = ({
       'Căn cứ quy định': l.basisOrRegulation || '',
       'Ghi chú': l.note || '',
     }));
-    exportToCsv(exportData, `Nhat_ky_ne_nep_10A8_${new Date().toISOString().slice(0, 10)}`);
+    exportToCsv(exportData, `Nhat_ky_ne_nep_${classNameStr}_${new Date().toISOString().slice(0, 10)}`);
   };
 
   return (

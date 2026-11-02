@@ -306,21 +306,23 @@ export const StudentsView: React.FC<StudentsViewProps> = ({
 
   // Export current list to Excel
   const handleExportStudents = () => {
+    const classNameStr = classConfig.className || '12B4';
     const exportRows = filteredStudents.map((s, idx) => ({
       STT: idx + 1,
       'Mã học sinh': s.studentCode,
+      'Lớp': classNameStr,
       'Họ đệm': s.lastName,
-      'Dân tộc': s.ethnicity || '',
       'Tên': s.firstName,
       'Họ và tên': s.fullName,
       'Ngày sinh': formatVietnameseDate(s.dateOfBirth),
       'Giới tính': s.gender || '',
+      'Dân tộc': s.ethnicity || '',
       'Số điện thoại HS': s.phone || '',
       'Trạng thái': s.status === 'active' ? 'Đang học' : 'Ngừng theo học',
       'Tên phụ huynh': s.parentName || '',
       'Số điện thoại phụ huynh': s.parentPhone || '',
     }));
-    exportToExcel(exportRows, `Danh_sach_hoc_sinh_10A8_${new Date().toISOString().slice(0, 10)}`, 'HocSinh');
+    exportToExcel(exportRows, `Danh_sach_hoc_sinh_${classNameStr}_${new Date().toISOString().slice(0, 10)}`, `Lop_${classNameStr}`);
   };
 
   return (

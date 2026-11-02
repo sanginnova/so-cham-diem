@@ -466,7 +466,7 @@ export function downloadDisciplineLogTemplate() {
       'Ghi chú': 'Buổi chiều thực hành nghề',
     },
   ];
-  exportToExcel(template, 'Mau_nhap_nhat_ky_ne_nep_10A8', 'NhatKyLoi');
+  exportToExcel(template, 'Mau_nhap_nhat_ky_ne_nep', 'NhatKyLoi');
 }
 
 /**
