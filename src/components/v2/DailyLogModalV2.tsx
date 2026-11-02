@@ -129,9 +129,21 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
 
   useEffect(() => {
     if (!isOpen) return;
-    const week = classConfig.weeks.find(item => item.startDate <= eventDate && eventDate <= item.endDate);
-    if (week) setSelectedWeek(week.weekNumber);
-  }, [isOpen, eventDate, classConfig.weeks]);
+    if (initialWeek !== undefined) {
+      setSelectedWeek(initialWeek);
+      const w = classConfig.weeks.find((item) => item.weekNumber === initialWeek);
+      if (w) {
+        setEventDate(w.startDate);
+      }
+    } else {
+      const week = classConfig.weeks.find((item) => item.startDate <= eventDate && eventDate <= item.endDate);
+      if (week) setSelectedWeek(week.weekNumber);
+    }
+    if (initialStudentId) {
+      const student = students.find((s) => s.id === initialStudentId);
+      if (student) setSelectedSingleStudent(student);
+    }
+  }, [isOpen, initialWeek, initialStudentId, classConfig.weeks, students]);
 
   // The dialog stays mounted between entries. Follow live catalog updates,
   // including changes received from another device, instead of retaining a copy.
@@ -336,8 +348,7 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
 
     try {
       setIsSubmitting(true);
-      const d = new Date(eventDate);
-      const month = d.getMonth() + 1;
+      const month = Number(eventDate.split('-')[1]) || (new Date(eventDate).getMonth() + 1);
       const behCode = selectedCategory ? selectedCategory.code : 'KHT';
       const behDesc = customDescription.trim() || (selectedCategory ? selectedCategory.name : '');
 
@@ -395,8 +406,7 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
 
     try {
       setIsSubmitting(true);
-      const d = new Date(eventDate);
-      const month = d.getMonth() + 1;
+      const month = Number(eventDate.split('-')[1]) || (new Date(eventDate).getMonth() + 1);
       const behCode = selectedCategory ? selectedCategory.code : 'KHT';
       const behDesc = customDescription.trim() || (selectedCategory ? selectedCategory.name : '');
 
@@ -592,7 +602,14 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
               <input
                 type="date"
                 value={eventDate}
-                onChange={(e) => setEventDate(e.target.value)}
+                onChange={(e) => {
+                  const newDate = e.target.value;
+                  setEventDate(newDate);
+                  if (newDate) {
+                    const week = classConfig.weeks.find((item) => item.startDate <= newDate && newDate <= item.endDate);
+                    if (week) setSelectedWeek(week.weekNumber);
+                  }
+                }}
                 className="w-full px-2 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-xs"
               />
             </div>
@@ -600,7 +617,15 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
               <label className="block text-slate-500 font-semibold mb-1 text-[11px] sm:text-xs">Tuần học</label>
               <select
                 value={selectedWeek}
-                onChange={(e) => setSelectedWeek(Number(e.target.value))}
+                onChange={(e) => {
+                  const newWeek = Number(e.target.value);
+                  setSelectedWeek(newWeek);
+                  const targetWeek = classConfig.weeks.find((w) => w.weekNumber === newWeek);
+                  if (targetWeek) {
+                    // Tự động chuyển đến ngày đầu tiên của tuần (Thứ Hai)
+                    setEventDate(targetWeek.startDate);
+                  }
+                }}
                 className="w-full px-2 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-xs truncate"
               >
                 {classConfig.weeks.map((w) => (
