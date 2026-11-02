@@ -63,8 +63,8 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
   const canAddViolations = isMonitor ? (activeAccount?.permissions?.canAddViolations ?? true) : true;
   const canAddBonuses = isMonitor ? (activeAccount?.permissions?.canAddBonuses ?? true) : true;
 
-  // Mode: Single vs Bulk
-  const [logMode, setLogMode] = useState<'single' | 'bulk'>('single');
+  // Mode: Single vs Bulk (Mặc định chọn chế độ Nhiều Học Sinh / Bulk)
+  const [logMode, setLogMode] = useState<'single' | 'bulk'>(() => (initialStudentId ? 'single' : 'bulk'));
 
   // Form State
   const [eventDate, setEventDate] = useState<string>(
@@ -140,8 +140,11 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
       if (week) setSelectedWeek(week.weekNumber);
     }
     if (initialStudentId) {
+      setLogMode('single');
       const student = students.find((s) => s.id === initialStudentId);
       if (student) setSelectedSingleStudent(student);
+    } else {
+      setLogMode('bulk');
     }
   }, [isOpen, initialWeek, initialStudentId, classConfig.weeks, students]);
 
@@ -542,7 +545,7 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
               }`}
             >
               <Users className="h-3.5 w-3.5" />
-              <span>Cả Nhóm (Bulk)</span>
+              <span>Nhiều Học Sinh (Bulk)</span>
             </button>
           </div>
         </div>
