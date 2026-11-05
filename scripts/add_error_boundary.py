@@ -80,3 +80,4 @@ if old_app in content:
     print('ErrorBoundary added to App.tsx successfully!')
 else:
     print('Failed to find old_app in App.tsx')
+

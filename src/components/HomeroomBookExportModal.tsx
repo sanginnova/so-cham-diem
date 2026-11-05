@@ -14,6 +14,8 @@ import {
   Sparkles,
   Loader2,
   ShieldCheck,
+  Save,
+  Check,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import type { HomeroomBookExportOptions, HomeroomBookNotes } from '../lib/homeroomBookWordExport';
@@ -65,6 +67,29 @@ export const HomeroomBookExportModal: React.FC<HomeroomBookExportModalProps> = (
   const [activeTab, setActiveTab] = useState<'scope' | 'sections' | 'admin' | 'notes'>('scope');
   const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
+  const [saveToast, setSaveToast] = useState(false);
+
+  const handleSaveDraft = () => {
+    try {
+      localStorage.setItem(cacheKey, JSON.stringify({
+        teacherName,
+        approverName,
+        classPresident,
+        academicVicePresident,
+        disciplineVicePresident,
+        parentHead,
+        parentPhone,
+        notes,
+        department,
+        schoolName,
+        updatedAt: new Date().toISOString()
+      }));
+      setSaveToast(true);
+      setTimeout(() => setSaveToast(false), 2500);
+    } catch (err: any) {
+      alert('Không thể lưu vào bộ nhớ trình duyệt: ' + (err.message || String(err)));
+    }
+  };
 
   // Drafts are isolated by teacher and class, and reset on each open.
   useEffect(() => {
@@ -225,6 +250,19 @@ export const HomeroomBookExportModal: React.FC<HomeroomBookExportModalProps> = (
           <p className="text-xs text-slate-500">Xuất theo các mục của mẫu bạn cung cấp. Dữ liệu lấy từ lớp đang chọn; thông tin còn thiếu để trống để bổ sung trong Word. Bản nháp nội dung lưu trên thiết bị theo từng lớp khi bấm tải.</p>
           {activeTab === 'notes' && (
             <div className="space-y-4">
+              <div className="flex items-center justify-between p-3.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs">
+                <span className="text-blue-900 dark:text-blue-200 font-medium">
+                  💡 Thầy/Cô có thể ghi chép kế hoạch và bấm <strong>Lưu nội dung</strong> để hệ thống ghi nhớ cho các lần mở sổ và xuất Word tiếp theo.
+                </span>
+                <button
+                  type="button"
+                  onClick={handleSaveDraft}
+                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold flex items-center gap-1.5 cursor-pointer shrink-0 shadow-xs ml-2"
+                >
+                  <Save className="w-3.5 h-3.5" />
+                  <span>{saveToast ? 'Đã lưu!' : 'Lưu ngay'}</span>
+                </button>
+              </div>
               {([
                 ['subjectTeachers', 'Giáo viên bộ môn (mỗi dòng: Môn — Họ tên — SĐT)'],
                 ['organization', 'Phân tổ và nhiệm vụ học sinh'], ['seatingPlan', 'Sơ đồ chỗ ngồi (mỗi dòng một bàn)'],
@@ -517,6 +555,10 @@ export const HomeroomBookExportModal: React.FC<HomeroomBookExportModalProps> = (
               <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5 animate-in fade-in">
                 <CheckCircle2 className="w-4 h-4" /> Đã tải Sổ Chủ Nhiệm thành công!
               </span>
+            ) : saveToast ? (
+              <span className="text-emerald-600 dark:text-emerald-400 font-semibold flex items-center gap-1.5 animate-in fade-in">
+                <CheckCircle2 className="w-4 h-4" /> Đã lưu nội dung sổ thành công!
+              </span>
             ) : (
               <span>Định dạng Word (.docx) chuẩn OpenXML, chỉnh sửa trực tiếp 100%</span>
             )}
@@ -528,6 +570,15 @@ export const HomeroomBookExportModal: React.FC<HomeroomBookExportModalProps> = (
               className="px-4 py-2 text-xs sm:text-sm font-semibold rounded-xl text-slate-600 dark:text-slate-300 hover:bg-slate-200/60 dark:hover:bg-slate-800 transition cursor-pointer"
             >
               Đóng
+            </button>
+            <button
+              type="button"
+              onClick={handleSaveDraft}
+              className="px-4 py-2.5 text-xs sm:text-sm font-bold rounded-xl bg-blue-600 hover:bg-blue-500 text-white shadow-md transition flex items-center gap-1.5 cursor-pointer"
+              title="Lưu lại toàn bộ nội dung đã nhập vào thiết bị"
+            >
+              <Save className="w-4 h-4" />
+              <span>{saveToast ? 'Đã lưu!' : 'Lưu nội dung'}</span>
             </button>
             <button
               onClick={handleExport}

@@ -41,3 +41,4 @@ else:
 with open('src/components/SettingsBackupView.tsx', 'w', encoding='utf-8') as f:
     f.write(content)
 print('Done writing SettingsBackupView.tsx')
+
