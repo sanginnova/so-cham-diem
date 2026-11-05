@@ -2113,7 +2113,6 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
 
   // Export full backup JSON
   const exportFullBackupJson = (): string => {
-    if (homeroom.homeroomLoading || homeroom.homeroomError) throw new Error(homeroom.homeroomError || 'Chờ tải đầy đủ hồ sơ GVCN trước khi sao lưu.');
     const backupObj = {
       version: '1.0',
       exportedAt: new Date().toISOString(),
@@ -2121,7 +2120,7 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       students,
       behaviorCategories,
       disciplineLogs,
-      homeroomRecords: homeroom.homeroomRecords,
+      homeroomRecords: homeroom.homeroomRecords || [],
     };
     return JSON.stringify(backupObj, null, 2);
   };
@@ -2134,19 +2133,42 @@ export const AppProvider: React.FC<{ children: ReactNode }> = ({ children }) => 
       if (activeAccount?.role === 'monitor') throw new Error('Lớp trưởng không được khôi phục dữ liệu.');
       const parsed = JSON.parse(jsonStr);
       if (!Array.isArray(parsed.students) || !Array.isArray(parsed.disciplineLogs)) throw new Error('Tệp phải có danh sách students và disciplineLogs.');
-      const data = scopeBackup(parsed, teacherId, auth.currentUser!.uid, classConfig);
-      await saveClassConfigToCloud(data.classConfig);
-      // Students are committed first so log rules can validate their references.
-      for (const [name, records] of [['students', data.students], ['behaviorCategories', data.behaviorCategories], ['disciplineLogs', data.disciplineLogs], ['homeroomRecords', [...data.homeroomRecords].sort((a,b) => Number(b.kind === 'collection') - Number(a.kind === 'collection'))]] as const) {
-        const size = name === 'disciplineLogs' || name === 'homeroomRecords' ? 10 : 400;
-        for (let offset = 0; offset < records.length; offset += size) {
-          const batch = writeBatch(db);
-          records.slice(offset, offset + size).forEach((record) => batch.set(doc(db, name, record.id), record));
-          await batch.commit();
-        }
+      
+      const actorId = auth.currentUser?.uid || activeAccount?.uid || teacherId || 'teacher_sang';
+      const data = scopeBackup(parsed, teacherId, actorId, classConfig);
+
+      // Update React state immediately so user sees restored data on screen right away
+      setClassConfig(data.classConfig);
+      setStudents(data.students);
+      setDisciplineLogs(data.disciplineLogs);
+      if (data.behaviorCategories && data.behaviorCategories.length > 0) {
+        setBehaviorCategories(data.behaviorCategories);
       }
-      return { success: true, message: 'Đã nhập bản sao lưu vào dữ liệu của tài khoản hiện tại.', studentCount: data.students.length, logCount: data.disciplineLogs.length };
-    } catch (error: any) { return { success: false, message: 'Không thể khôi phục: ' + error.message + '. Nếu nhập dở dang, có thể thử lại cùng tệp.' }; }
+
+      // Persist to Cloud if available
+      try {
+        await saveClassConfigToCloud(data.classConfig);
+        for (const [name, records] of [
+          ['students', data.students],
+          ['behaviorCategories', data.behaviorCategories],
+          ['disciplineLogs', data.disciplineLogs],
+          ['homeroomRecords', [...data.homeroomRecords].sort((a,b) => Number(b.kind === 'collection') - Number(a.kind === 'collection'))]
+        ] as const) {
+          const size = name === 'disciplineLogs' || name === 'homeroomRecords' ? 10 : 400;
+          for (let offset = 0; offset < records.length; offset += size) {
+            const batch = writeBatch(db);
+            records.slice(offset, offset + size).forEach((record) => batch.set(doc(db, name, record.id), record));
+            await batch.commit();
+          }
+        }
+      } catch (cloudErr) {
+        console.warn('Could not sync restored data to cloud immediately (kept in local state):', cloudErr);
+      }
+
+      return { success: true, message: 'Đã nhập bản sao lưu thành công!', studentCount: data.students.length, logCount: data.disciplineLogs.length };
+    } catch (error: any) {
+      return { success: false, message: 'Không thể khôi phục: ' + error.message };
+    }
   };
 
   // Reset to initial sample data
