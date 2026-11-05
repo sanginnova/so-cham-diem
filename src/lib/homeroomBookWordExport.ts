@@ -68,6 +68,7 @@ function table(headers: string[], rows: string[][], widths?: number[]) {
     width: { size: 100, type: WidthType.PERCENTAGE },
     rows: [headers, ...rows].map((row, index) => new TableRow({
       tableHeader: index === 0,
+      cantSplit: true,
       children: row.map((text, col) => new TableCell({
         width: widths ? { size: widths[col], type: WidthType.PERCENTAGE } : undefined,
         borders: { top: border, bottom: border, left: border, right: border },
@@ -101,7 +102,7 @@ export async function generateHomeroomBookBlob(o: HomeroomBookExportOptions): Pr
     sections.push({
       properties: { page: {
         size: { width: 11906, height: 16838, orientation: landscape ? PageOrientation.LANDSCAPE : PageOrientation.PORTRAIT },
-        margin: { top: 1134, bottom: 1134, left: 1417, right: 850 },
+        margin: { top: 1134, bottom: 1134, left: 1701, right: 850 },
       } },
       footers: { default: new Footer({ children: [new Paragraph({ alignment: AlignmentType.CENTER,
         children: [new TextRun({ text: 'Trang ', font, size: 20 }), new TextRun({ children: [PageNumber.CURRENT], font, size: 20 })],
@@ -127,8 +128,27 @@ export async function generateHomeroomBookBlob(o: HomeroomBookExportOptions): Pr
   }
   if (o.includeStudentList !== false) {
     body.push(heading('DANH SÁCH GIÁO VIÊN BỘ MÔN'));
-    text(notes.subjectTeachers);
-    body.push(table(['Bộ môn', 'Họ tên', 'Số điện thoại', 'Ghi chú'], [['', '', '', '']]));
+    const parsedTeachers: string[][] = [];
+    if (notes.subjectTeachers?.trim()) {
+      notes.subjectTeachers.split('\n').forEach(line => {
+        const trimmed = line.trim();
+        if (!trimmed) return;
+        const parts = trimmed.split(/[—–-]/).map(s => s.trim());
+        if (parts.length >= 2) {
+          const subj = parts[0];
+          const name = parts[1];
+          const phone = parts[2]?.replace(/^SĐT:?\s*/i, '') || '';
+          const note = parts[3] || (name.includes('GVCN') ? 'GVCN' : '');
+          parsedTeachers.push([subj, name, phone, note]);
+        }
+      });
+    }
+    if (parsedTeachers.length > 0) {
+      body.push(table(['Bộ môn', 'Họ và tên', 'Số điện thoại', 'Ghi chú'], parsedTeachers, [22, 38, 25, 15]));
+    } else {
+      text(notes.subjectTeachers);
+      body.push(table(['Bộ môn', 'Họ tên', 'Số điện thoại', 'Ghi chú'], [['', '', '', '']], [22, 38, 25, 15]));
+    }
     page();
     body.push(heading(`DANH SÁCH HỌC SINH LỚP ${o.className}`));
     body.push(table(['TT', 'Họ và tên', 'Nữ', 'Ngày sinh', 'Dân tộc', 'Khuyết tật / mồ côi', 'Con TB / LS', 'Chính sách', 'Họ tên bố/mẹ', 'Nghề nghiệp', 'Chỗ ở', 'SĐT', 'Ghi chú'],
@@ -225,11 +245,72 @@ export async function generateHomeroomBookBlob(o: HomeroomBookExportOptions): Pr
     page();
   }
   if (o.includeStudentFollowUp !== false) {
-    body.push(heading('THEO DÕI HỌC SINH CẦN QUAN TÂM')); text(notes.studentFollowUp);
-    body.push(table(['Họ tên', 'Nội dung cần theo dõi', 'Biện pháp', 'Kết quả'], [['', '', '', ''], ['', '', '', '']]));
-    body.push(heading('KẾT HỢP VỚI PHỤ HUYNH HỌC SINH')); text(notes.parentCooperation);
-    body.push(table(['Thời gian', 'Phụ huynh / Học sinh', 'Nội dung trao đổi', 'Kết quả / Theo dõi'], [['', '', '', ''], ['', '', '', '']]));
-    body.push(p(''), table(['DUYỆT CỦA TRƯỞNG KHOA / TTCM', 'GIÁO VIÊN CHỦ NHIỆM'], [['(Ký và ghi rõ họ tên)', '(Ký và ghi rõ họ tên)'], ['', ''], [o.approverName || 'Phạm Thị Thu Trang', o.homeroomTeacher || 'Nguyễn Văn Sang']]));
+    body.push(heading('THEO DÕI HỌC SINH CẦN QUAN TÂM'));
+    const parsedFollowUps: string[][] = [];
+    if (notes.studentFollowUp?.trim()) {
+      const blocks = notes.studentFollowUp.split(/\n\s*\n|\n(?=\d+\.\s*Em\s+)/i);
+      blocks.forEach(blk => {
+        const lines = blk.split('\n').map(l => l.trim()).filter(Boolean);
+        if (!lines.length) return;
+        const nameMatch = lines[0].match(/(?:^\d+\.\s*(?:Em\s+)?)?([^(\n]+)(?:\(([^)]+)\))?/i);
+        const name = nameMatch ? nameMatch[1].trim() : lines[0];
+        let content = '';
+        let remedy = '';
+        let result = '';
+        lines.slice(1).forEach(l => {
+          if (/nội dung/i.test(l)) content = l.replace(/^[-*•]\s*Nội dung(?:\s*cần\s*theo\s*dõi)?:\s*/i, '').trim();
+          else if (/biện pháp/i.test(l)) remedy = l.replace(/^[-*•]\s*Biện pháp(?:\s*giáo\s*dục)?:\s*/i, '').trim();
+          else if (/kết quả/i.test(l)) result = l.replace(/^[-*•]\s*Kết quả:\s*/i, '').trim();
+        });
+        if (name && (content || remedy || result)) {
+          parsedFollowUps.push([name, content || 'Ý thức nề nếp', remedy || 'Nhắc nhở, phối hợp gia đình', result || 'Có tiến bộ']);
+        }
+      });
+    }
+    if (parsedFollowUps.length > 0) {
+      body.push(table(['Họ và tên học sinh', 'Nội dung cần theo dõi', 'Biện pháp giáo dục', 'Kết quả rèn luyện'], parsedFollowUps, [22, 35, 25, 18]));
+    } else {
+      text(notes.studentFollowUp);
+      body.push(table(['Họ tên', 'Nội dung cần theo dõi', 'Biện pháp', 'Kết quả'], [['', '', '', ''], ['', '', '', '']], [22, 35, 25, 18]));
+    }
+
+    body.push(heading('KẾT HỢP VỚI PHỤ HUYNH HỌC SINH'));
+    const parsedContacts: string[][] = [];
+    if (notes.parentCooperation?.trim()) {
+      const cLines = notes.parentCooperation.split('\n').map(l => l.trim()).filter(Boolean);
+      cLines.forEach(cl => {
+        const dateMatch = cl.match(/(?:ngày\s*)?(\d{1,2}[\/\-]\d{1,2}(?:[\/\-]\d{2,4})?)/i);
+        const dateStr = dateMatch ? dateMatch[1] : '';
+        if (cl.includes('Họp') || cl.includes('Liên hệ') || cl.includes('Trao đổi') || cl.includes('—') || cl.includes(':')) {
+          const parts = cl.replace(/^[-*•\d.]+\s*/, '').split(/[:—–]/).map(s => s.trim());
+          const time = dateStr || parts[0] || '';
+          const target = parts[1] || 'Phụ huynh học sinh';
+          const content = parts[2] || parts[1] || cl;
+          const res = parts[3] || 'Gia đình nhất trí phối hợp cùng GVCN';
+          parsedContacts.push([time, target, content, res]);
+        }
+      });
+    }
+    if (parsedContacts.length > 0) {
+      body.push(table(['Thời gian', 'Phụ huynh / Học sinh', 'Nội dung trao đổi', 'Kết quả phối hợp'], parsedContacts.slice(0, 15), [15, 25, 38, 22]));
+    } else {
+      text(notes.parentCooperation);
+      body.push(table(['Thời gian', 'Phụ huynh / Học sinh', 'Nội dung trao đổi', 'Kết quả / Theo dõi'], [['', '', '', ''], ['', '', '', '']], [15, 25, 38, 22]));
+    }
+
+    body.push(
+      p(''),
+      p(''),
+      table(
+        ['DUYỆT CỦA TRƯỞNG KHOA / TTCM', 'GIÁO VIÊN CHỦ NHIỆM'],
+        [
+          ['(Ký và ghi rõ họ tên)', '(Ký và ghi rõ họ tên)'],
+          ['\n\n\n', '\n\n\n'],
+          [o.approverName || 'Phạm Thị Thu Trang', o.homeroomTeacher || 'Nguyễn Văn Sang'],
+        ],
+        [50, 50]
+      )
+    );
     page();
   }
   if (!sections.length) throw new Error('Phạm vi hiện tại không có nội dung để xuất.');
