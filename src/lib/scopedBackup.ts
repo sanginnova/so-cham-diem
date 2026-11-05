@@ -31,13 +31,21 @@ export function scopeBackup(data: { students: Student[]; disciplineLogs: Discipl
       const matched = studentByCode.get(log.studentCode.trim().toUpperCase());
       if (matched) studentId = matched;
     }
+    if (studentId && !studentIds.has(studentId)) {
+      throw new Error('Dữ liệu nhật ký có học sinh không có trong danh sách học sinh.');
+    }
     return { ...log, id: ownedId(log.id), studentId, teacherId, classId, createdBy: actorId };
   });
+
+  const collectionIds = new Set((data.homeroomRecords || []).filter(r => r.kind === 'collection').map(r => ownedId(r.id)));
 
   return {
     students, disciplineLogs,
     homeroomRecords: (data.homeroomRecords || []).map(record => {
-      let studentId = record.studentId ? ownedId(record.studentId) : '';
+      let studentId = record.studentId ? (record.studentId === '__seating_chart__' ? '__seating_chart__' : ownedId(record.studentId)) : '';
+      if (studentId && studentId !== '__seating_chart__' && !studentIds.has(studentId)) {
+        throw new Error('Dữ liệu hồ sơ có học sinh không có trong danh sách học sinh.');
+      }
       const recordData = { ...record.data };
       if (record.kind === 'collection') {
         const members: string[] = JSON.parse(recordData.studentIds || '[]');
@@ -47,7 +55,11 @@ export function scopeBackup(data: { students: Student[]; disciplineLogs: Discipl
       }
       if (['payment', 'allowance'].includes(record.kind)) {
         if (recordData.collectionId) {
-          recordData.collectionId = ownedId(recordData.collectionId);
+          const mappedColId = ownedId(recordData.collectionId);
+          if (!collectionIds.has(mappedColId)) {
+            throw new Error('Khoản thu liên kết không có trong dữ liệu.');
+          }
+          recordData.collectionId = mappedColId;
         }
       }
       return { ...record, data: recordData, id: ownedId(record.id), studentId, teacherId, classId, createdBy: actorId };

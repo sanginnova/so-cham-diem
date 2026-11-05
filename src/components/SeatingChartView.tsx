@@ -11,6 +11,7 @@ import {
   autoAssignSeatsBalanced,
   generateSeatingChartDocx,
   getSeatingStorageKey,
+  saveSeatingLocally,
 } from '../lib/seatingChart';
 import {
   LayoutGrid,
@@ -28,6 +29,7 @@ import {
   Plus,
   ArrowRightLeft,
   ChevronDown,
+  Search,
   Monitor,
   Laptop,
   DoorOpen,
@@ -68,8 +70,12 @@ export function SeatingChartView() {
     userRole,
     homeroomRecords: records,
     saveHomeroomRecord,
+    saveHomeroomRecordsBatch,
     isLocalMode,
   } = useApp();
+
+  const isDirtyRef = React.useRef(false);
+  const loadedClassIdRef = React.useRef(classConfig.id);
 
   const [activeTab, setActiveTab] = useState<'seating' | 'groups'>('seating');
   const [config, setConfig] = useState<SeatingChartConfig>(() =>
@@ -83,6 +89,8 @@ export function SeatingChartView() {
     null
   );
   const [selectedStudentForPlacement, setSelectedStudentForPlacement] = useState<string | null>(null);
+  const [quickAssignSeat, setQuickAssignSeat] = useState<{ col: number; row: number; seatIndex: number } | null>(null);
+  const [searchQuery, setSearchQuery] = useState('');
 
   const [message, setMessage] = useState<{ text: string; type: 'success' | 'info' | 'error' } | null>(
     null
@@ -92,8 +100,21 @@ export function SeatingChartView() {
 
   // Sync state when records/students change
   useEffect(() => {
-    setConfig(loadSeatingConfig(classConfig.teacherId, classConfig.id, records));
-    setGroupMap(loadGroupAssignments(students, records));
+    if (loadedClassIdRef.current !== classConfig.id) {
+      loadedClassIdRef.current = classConfig.id;
+      isDirtyRef.current = false;
+      setConfig(loadSeatingConfig(classConfig.teacherId, classConfig.id, records));
+      setGroupMap(loadGroupAssignments(students, records));
+      return;
+    }
+
+    if (!isDirtyRef.current) {
+      const loaded = loadSeatingConfig(classConfig.teacherId, classConfig.id, records);
+      if (Object.keys(loaded.desks || {}).length > 0 || Object.keys(config.desks || {}).length === 0) {
+        setConfig(loaded);
+      }
+      setGroupMap(loadGroupAssignments(students, records));
+    }
   }, [classConfig.id, records]);
 
   const activeStudents = useMemo(() => students.filter((s) => s.status === 'active'), [students]);
@@ -115,6 +136,27 @@ export function SeatingChartView() {
     [activeStudents, seatedStudentIds]
   );
 
+  const seatedStudents = useMemo(
+    () => activeStudents.filter((s) => seatedStudentIds.has(s.id)),
+    [activeStudents, seatedStudentIds]
+  );
+
+  const filteredUnseated = useMemo(() => {
+    if (!searchQuery.trim()) return unseatedStudents;
+    const q = searchQuery.toLowerCase().trim();
+    return unseatedStudents.filter(
+      (s) => s.fullName.toLowerCase().includes(q) || s.studentCode.toLowerCase().includes(q)
+    );
+  }, [unseatedStudents, searchQuery]);
+
+  const filteredSeated = useMemo(() => {
+    if (!searchQuery.trim()) return seatedStudents;
+    const q = searchQuery.toLowerCase().trim();
+    return seatedStudents.filter(
+      (s) => s.fullName.toLowerCase().includes(q) || s.studentCode.toLowerCase().includes(q)
+    );
+  }, [seatedStudents, searchQuery]);
+
   const showToast = (text: string, type: 'success' | 'info' | 'error' = 'success') => {
     setMessage({ text, type });
     setTimeout(() => setMessage(null), 4000);
@@ -124,11 +166,8 @@ export function SeatingChartView() {
   const handleSave = async () => {
     setIsSaving(true);
     try {
-      // 1. Lưu Seating Config vào localStorage
-      localStorage.setItem(
-        getSeatingStorageKey(classConfig.teacherId, classConfig.id),
-        JSON.stringify(config)
-      );
+      // 1. Lưu Seating Config an toàn vào localStorage (hỗ trợ nhiều fallback key)
+      saveSeatingLocally(classConfig.teacherId, classConfig.id, config);
 
       // 2. Lưu Seating Config vào Cloud homeroomRecords
       const existingConfigRecord = records.find(
@@ -146,14 +185,14 @@ export function SeatingChartView() {
         },
       });
 
-      // 3. Lưu Tổ và Chức vụ của từng học sinh vào profile record
-      const promises = Object.values(groupMap).map(async (info) => {
+      // 3. Lưu Tổ và Chức vụ của từng học sinh vào profile record bằng batch
+      const batchInputs = Object.values(groupMap).map((info) => {
         const existingProfile = records.find(
           (r) => r.kind === 'profile' && r.studentId === info.studentId
         );
-        await saveHomeroomRecord({
+        return {
           id: existingProfile?.id,
-          kind: 'profile',
+          kind: 'profile' as const,
           studentId: info.studentId,
           date: existingProfile?.date || new Date().toISOString().slice(0, 10),
           data: {
@@ -161,10 +200,20 @@ export function SeatingChartView() {
             group: info.group,
             duty: info.duty,
           },
-        });
+        };
       });
 
-      await Promise.all(promises);
+      if (batchInputs.length > 0) {
+        if (typeof saveHomeroomRecordsBatch === 'function') {
+          await saveHomeroomRecordsBatch(batchInputs);
+        } else {
+          for (const item of batchInputs) {
+            await saveHomeroomRecord(item);
+          }
+        }
+      }
+
+      isDirtyRef.current = false;
       showToast(
         isLocalMode
           ? 'Đã lưu Sơ đồ lớp & Phân tổ trên thiết bị!'
@@ -234,6 +283,61 @@ export function SeatingChartView() {
     showToast(`Đã đổi cấu hình thành ${newSeatsPerDesk} học sinh / bàn!`, 'info');
   };
 
+  // Gán 1 học sinh trực tiếp vào ghế
+  const handleAssignStudentToSeat = (studentId: string, col: number, row: number, seatIndex: number) => {
+    isDirtyRef.current = true;
+    const deskKey = `${col}_${row}`;
+    const currentSeats = [...(config.desks[deskKey] || Array(config.seatsPerDesk).fill(null))];
+    while (currentSeats.length < config.seatsPerDesk) {
+      currentSeats.push(null);
+    }
+    const updatedDesks = { ...config.desks };
+    // Xóa khỏi vị trí cũ nếu đã ngồi đâu đó
+    Object.keys(updatedDesks).forEach((k) => {
+      updatedDesks[k] = updatedDesks[k].map((id) => (id === studentId ? null : id));
+    });
+
+    currentSeats[seatIndex] = studentId;
+    updatedDesks[deskKey] = currentSeats;
+
+    setConfig({ ...config, desks: updatedDesks });
+    setQuickAssignSeat(null);
+    setSearchQuery('');
+    const targetStudent = studentMap.get(studentId);
+    showToast(`Đã xếp ${targetStudent?.fullName || 'học sinh'} vào Dãy ${col} - Bàn ${row} (Vị trí ${seatIndex + 1})`);
+  };
+
+  // Tự động xếp các học sinh còn lại chưa có chỗ vào các ghế trống
+  const handleAutoFillRemainingSeats = () => {
+    if (!unseatedStudents.length) {
+      showToast('Tất cả học sinh đã có chỗ ngồi!', 'info');
+      return;
+    }
+    isDirtyRef.current = true;
+    const updatedDesks = { ...config.desks };
+    const queue = [...unseatedStudents];
+
+    for (let c = 1; c <= config.columns && queue.length > 0; c++) {
+      for (let r = 1; r <= config.rows && queue.length > 0; r++) {
+        const deskKey = `${c}_${r}`;
+        const seats = [...(updatedDesks[deskKey] || Array(config.seatsPerDesk).fill(null))];
+        while (seats.length < config.seatsPerDesk) {
+          seats.push(null);
+        }
+        for (let sIdx = 0; sIdx < config.seatsPerDesk && queue.length > 0; sIdx++) {
+          if (!seats[sIdx]) {
+            const nextStudent = queue.shift()!;
+            seats[sIdx] = nextStudent.id;
+          }
+        }
+        updatedDesks[deskKey] = seats;
+      }
+    }
+
+    setConfig({ ...config, desks: updatedDesks });
+    showToast(`Đã xếp ${unseatedStudents.length - queue.length} học sinh vào các ghế trống còn lại!`);
+  };
+
   // Xử lý click chọn ghế trong sơ đồ
   const handleSeatClick = (col: number, row: number, seatIndex: number) => {
     const deskKey = `${col}_${row}`;
@@ -271,6 +375,10 @@ export function SeatingChartView() {
           `Đã chọn ${studentMap.get(currentStudentId)?.fullName}. Hãy bấm vào một ghế khác để đổi chỗ hoặc chuyển ghế.`,
           'info'
         );
+      } else {
+        // Ghế trống: Mở hộp thoại chọn nhanh học sinh vào ghế này
+        setQuickAssignSeat({ col, row, seatIndex });
+        setSearchQuery('');
       }
       return;
     }
@@ -784,9 +892,22 @@ export function SeatingChartView() {
             {/* ── Unseated Students Sidebar List (1 col) ── */}
             <div className="bg-white dark:bg-slate-850 p-4 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-2xs space-y-3">
               <div className="flex items-center justify-between pb-2 border-b border-slate-100 dark:border-slate-800">
-                <h3 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300">
-                  Chưa xếp chỗ ({unseatedStudents.length})
-                </h3>
+                <div className="flex items-center gap-2">
+                  <h3 className="font-bold text-xs uppercase tracking-wider text-slate-700 dark:text-slate-300">
+                    Chưa xếp chỗ ({unseatedStudents.length})
+                  </h3>
+                  {unseatedStudents.length > 0 && (
+                    <button
+                      type="button"
+                      onClick={handleAutoFillRemainingSeats}
+                      className="text-[10px] font-bold text-indigo-600 dark:text-indigo-400 hover:text-indigo-800 flex items-center gap-1 cursor-pointer bg-indigo-50 dark:bg-indigo-950/50 px-2 py-0.5 rounded-lg border border-indigo-200 dark:border-indigo-800"
+                      title="Tự động xếp tất cả học sinh chưa có chỗ vào các bàn còn trống"
+                    >
+                      <Sparkles className="h-3 w-3" />
+                      <span>Xếp nốt</span>
+                    </button>
+                  )}
+                </div>
                 {selectedStudentForPlacement && (
                   <button
                     onClick={() => setSelectedStudentForPlacement(null)}
@@ -1038,6 +1159,121 @@ export function SeatingChartView() {
               </div>
             </div>
           )}
+        </div>
+      )}
+      {/* ── Quick Assign Student Modal on Empty Seat Click ── */}
+      {quickAssignSeat && (
+        <div className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-slate-900/60 backdrop-blur-xs">
+          <div className="bg-white dark:bg-slate-900 rounded-3xl border border-slate-200 dark:border-slate-800 shadow-2xl max-w-lg w-full overflow-hidden flex flex-col max-h-[85vh] animate-in fade-in zoom-in-95 duration-150">
+            {/* Modal Header */}
+            <div className="p-4 sm:p-5 border-b border-slate-100 dark:border-slate-800 flex items-center justify-between bg-gradient-to-r from-indigo-50 to-purple-50 dark:from-slate-850 dark:to-slate-800">
+              <div>
+                <h3 className="font-black text-base text-slate-900 dark:text-white flex items-center gap-2">
+                  <LayoutGrid className="h-5 w-5 text-indigo-600 dark:text-indigo-400" />
+                  <span>Xếp học sinh vào bàn</span>
+                </h3>
+                <p className="text-xs text-slate-500 dark:text-slate-400 mt-0.5">
+                  Vị trí: <strong>Dãy {quickAssignSeat.col}</strong> · <strong>Bàn {quickAssignSeat.row}</strong> · <strong>Chỗ {quickAssignSeat.seatIndex + 1}</strong>
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={() => setQuickAssignSeat(null)}
+                className="h-8 w-8 rounded-full bg-slate-200/80 hover:bg-slate-300 dark:bg-slate-800 dark:hover:bg-slate-700 flex items-center justify-center text-slate-600 dark:text-slate-300 transition cursor-pointer"
+              >
+                <X className="h-4 w-4" />
+              </button>
+            </div>
+
+            {/* Modal Body */}
+            <div className="p-4 space-y-3 flex-1 overflow-y-auto">
+              {/* Search box */}
+              <div className="relative">
+                <Search className="h-4 w-4 absolute left-3 top-1/2 -translate-y-1/2 text-slate-400" />
+                <input
+                  type="text"
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
+                  placeholder="Tìm học sinh theo tên, mã số..."
+                  className="w-full pl-9 pr-4 py-2 text-xs rounded-xl border border-slate-300 dark:border-slate-700 bg-slate-50 dark:bg-slate-850 focus:ring-2 focus:ring-indigo-500 font-medium"
+                  autoFocus
+                />
+              </div>
+
+              {/* Student choices: Unseated first, then seated */}
+              <div className="space-y-1.5">
+                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-500 pt-1">
+                  Học sinh chưa xếp chỗ ({filteredUnseated.length})
+                </div>
+                {filteredUnseated.length > 0 ? (
+                  <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                    {filteredUnseated.map((s) => {
+                      const grp = groupMap[s.id]?.group;
+                      return (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => handleAssignStudentToSeat(s.id, quickAssignSeat.col, quickAssignSeat.row, quickAssignSeat.seatIndex)}
+                          className="p-2.5 rounded-xl border border-slate-200 dark:border-slate-700 bg-slate-50 dark:bg-slate-850/60 hover:bg-indigo-50 dark:hover:bg-indigo-950/50 hover:border-indigo-300 text-left transition flex items-center justify-between cursor-pointer group"
+                        >
+                          <div className="min-w-0 flex-1">
+                            <p className="font-bold text-xs text-slate-900 dark:text-white group-hover:text-indigo-600 truncate">
+                              {s.fullName}
+                            </p>
+                            <p className="text-[10px] text-slate-400 font-mono">
+                              {s.studentCode} · {s.gender || 'Nam'}
+                            </p>
+                          </div>
+                          {grp && (
+                            <span className={`text-[10px] font-bold px-2 py-0.5 rounded-full ${GROUP_COLORS[grp]?.badgeBg || 'bg-slate-200 text-slate-700'}`}>
+                              {grp}
+                            </span>
+                          )}
+                        </button>
+                      );
+                    })}
+                  </div>
+                ) : (
+                  <p className="text-xs text-slate-400 italic py-2">
+                    {searchQuery ? 'Không tìm thấy học sinh phù hợp.' : 'Tất cả học sinh đều đã được xếp chỗ.'}
+                  </p>
+                )}
+
+                {/* Other seated students option to move */}
+                {filteredSeated.length > 0 && (
+                  <details className="mt-3 pt-2 border-t border-slate-100 dark:border-slate-800 text-xs">
+                    <summary className="font-bold text-slate-500 cursor-pointer hover:text-slate-800 dark:hover:text-slate-300 py-1">
+                      Chuyển từ vị trí khác ({filteredSeated.length} học sinh)
+                    </summary>
+                    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-2">
+                      {filteredSeated.map((s) => (
+                        <button
+                          key={s.id}
+                          type="button"
+                          onClick={() => handleAssignStudentToSeat(s.id, quickAssignSeat.col, quickAssignSeat.row, quickAssignSeat.seatIndex)}
+                          className="p-2 rounded-xl border border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-850 hover:bg-amber-50 dark:hover:bg-amber-950/40 text-left transition flex items-center justify-between cursor-pointer"
+                        >
+                          <span className="font-semibold text-xs truncate">{s.fullName}</span>
+                          <span className="text-[10px] text-amber-600 font-bold">Chuyển sang đây</span>
+                        </button>
+                      ))}
+                    </div>
+                  </details>
+                )}
+              </div>
+            </div>
+
+            {/* Modal Footer */}
+            <div className="p-3 bg-slate-50 dark:bg-slate-850 border-t border-slate-100 dark:border-slate-800 flex justify-end">
+              <button
+                type="button"
+                onClick={() => setQuickAssignSeat(null)}
+                className="px-4 py-2 rounded-xl text-xs font-bold text-slate-600 dark:text-slate-300 hover:bg-slate-200 dark:hover:bg-slate-800 cursor-pointer"
+              >
+                Đóng
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </section>

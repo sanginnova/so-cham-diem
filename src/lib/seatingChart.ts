@@ -29,7 +29,20 @@ export const DEFAULT_SEATING_CONFIG: SeatingChartConfig = {
 };
 
 export function getSeatingStorageKey(teacherId: string, classId: string): string {
-  return `so_cham_diem_seating_${teacherId}_${classId}`;
+  return `so_cham_diem_seating_${teacherId || ''}_${classId}`;
+}
+
+export function saveSeatingLocally(teacherId: string, classId: string, config: SeatingChartConfig): void {
+  try {
+    const json = JSON.stringify(config);
+    if (teacherId) {
+      localStorage.setItem(getSeatingStorageKey(teacherId, classId), json);
+    }
+    localStorage.setItem(`so_cham_diem_seating_${classId}`, json);
+    localStorage.setItem(`so_cham_diem_seating_fallback_${classId}`, json);
+  } catch {
+    // ignore
+  }
 }
 
 export function loadSeatingConfig(
@@ -38,23 +51,59 @@ export function loadSeatingConfig(
   records: HomeroomRecord[]
 ): SeatingChartConfig {
   // 1. Kiểm tra trong homeroomRecords cloud
-  const cloudRecord = records.find(
-    (r) => r.kind === 'profile' && r.studentId === '__seating_chart__'
-  );
-  if (cloudRecord?.data?.configJson) {
+  if (Array.isArray(records)) {
+    const cloudRecord = records.find(
+      (r) => r.kind === 'profile' && r.studentId === '__seating_chart__'
+    );
+    if (cloudRecord?.data?.configJson) {
+      try {
+        const parsed = JSON.parse(cloudRecord.data.configJson);
+        if (parsed && typeof parsed === 'object' && (parsed.desks || parsed.columns)) {
+          return { ...DEFAULT_SEATING_CONFIG, ...parsed };
+        }
+      } catch {
+        // ignore
+      }
+    }
+  }
+
+  // 2. Fallback kiểm tra các key localStorage khả dĩ
+  const possibleKeys = [
+    getSeatingStorageKey(teacherId, classId),
+    `so_cham_diem_seating_${classId}`,
+    `so_cham_diem_seating_fallback_${classId}`,
+  ];
+  if (teacherId) {
+    possibleKeys.push(`so_cham_diem_seating__${classId}`);
+  }
+
+  for (const k of possibleKeys) {
     try {
-      const parsed = JSON.parse(cloudRecord.data.configJson);
-      return { ...DEFAULT_SEATING_CONFIG, ...parsed };
+      const raw = localStorage.getItem(k);
+      if (raw) {
+        const parsed = JSON.parse(raw);
+        if (parsed && typeof parsed === 'object' && (parsed.desks || parsed.columns)) {
+          return { ...DEFAULT_SEATING_CONFIG, ...parsed };
+        }
+      }
     } catch {
       // ignore
     }
   }
 
-  // 2. Fallback kiểm tra localStorage
+  // 3. Quét toàn bộ localStorage xem có key nào kết thúc bằng _classId không
   try {
-    const raw = localStorage.getItem(getSeatingStorageKey(teacherId, classId));
-    if (raw) {
-      return { ...DEFAULT_SEATING_CONFIG, ...JSON.parse(raw) };
+    for (let i = 0; i < localStorage.length; i++) {
+      const key = localStorage.key(i);
+      if (key && key.startsWith('so_cham_diem_seating_') && key.endsWith(`_${classId}`)) {
+        const raw = localStorage.getItem(key);
+        if (raw) {
+          const parsed = JSON.parse(raw);
+          if (parsed && typeof parsed === 'object' && (parsed.desks || parsed.columns)) {
+            return { ...DEFAULT_SEATING_CONFIG, ...parsed };
+          }
+        }
+      }
     }
   } catch {
     // ignore

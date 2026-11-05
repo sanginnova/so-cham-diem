@@ -4,9 +4,9 @@ import { localDateString } from './logValidation';
 export function validateHomeroom(input: HomeroomInput, students: Student[], config: ClassConfig) {
   if (!['profile', 'contact', 'meeting', 'task', 'support', 'collection', 'payment', 'allowance'].includes(input.kind)) throw new Error('Loại hồ sơ không hợp lệ.');
   if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date) || localDateString(new Date(`${input.date}T12:00:00`)) !== input.date) throw new Error('Ngày không hợp lệ.');
-  if (input.studentId && !students.some(s => s.id === input.studentId && s.classId === config.id)) throw new Error('Học sinh không thuộc lớp đang chọn.');
+  if (input.studentId && input.studentId !== '__seating_chart__' && !students.some(s => s.id === input.studentId && (s.classId === config.id || (!s.classId && config.scopeVersion !== 2)))) throw new Error('Học sinh không thuộc lớp đang chọn.');
   if (['profile', 'contact', 'support', 'payment', 'allowance'].includes(input.kind) && !input.studentId) throw new Error('Vui lòng chọn học sinh.');
-  if (!input.data || Object.keys(input.data).length > 30 || Object.values(input.data).some(v => typeof v !== 'string' || v.length > 10000)) throw new Error('Nội dung quá dài hoặc sai định dạng.');
+  if (!input.data || Object.keys(input.data).length > 30 || Object.values(input.data).some(v => typeof v !== 'string' || v.length > (input.studentId === '__seating_chart__' ? 50000 : 10000))) throw new Error('Nội dung quá dài hoặc sai định dạng.');
   if (input.kind === 'meeting' && !config.weeks.some(w => String(w.weekNumber) === input.data.weekNumber)) throw new Error('Tuần sinh hoạt không thuộc lịch lớp.');
   if (input.kind === 'contact' && !input.data.summary?.trim()) throw new Error('Vui lòng nhập nội dung trao đổi.');
   if (input.kind === 'task' && !input.data.title?.trim()) throw new Error('Vui lòng nhập tên công việc.');
