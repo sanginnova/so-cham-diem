@@ -1,4 +1,5 @@
 import { homeroomWordNotes } from '../lib/homeroom';
+import { generateAutoHomeroomNotes } from '../lib/homeroomAutoFill';
 import React, { useState, useEffect } from 'react';
 import {
   X,
@@ -16,6 +17,8 @@ import {
   ShieldCheck,
   Save,
   Check,
+  RefreshCw,
+  Zap,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import type { HomeroomBookExportOptions, HomeroomBookNotes } from '../lib/homeroomBookWordExport';
@@ -68,6 +71,43 @@ export const HomeroomBookExportModal: React.FC<HomeroomBookExportModalProps> = (
   const [isExporting, setIsExporting] = useState(false);
   const [exportSuccess, setExportSuccess] = useState(false);
   const [saveToast, setSaveToast] = useState(false);
+  const [autoFillToast, setAutoFillToast] = useState(false);
+
+  const handleAutoFillNotes = (overwrite: boolean = false) => {
+    try {
+      const generated = generateAutoHomeroomNotes({
+        students,
+        disciplineLogs: logs,
+        classConfig,
+        homeroomRecords,
+        getWeeklySummary,
+        getMonthlySummary,
+        getSemesterSummary,
+        existingNotes: overwrite ? {} : notes,
+        overwrite,
+      });
+      setNotes(generated);
+      try {
+        localStorage.setItem(cacheKey, JSON.stringify({
+          teacherName,
+          approverName,
+          classPresident,
+          academicVicePresident,
+          disciplineVicePresident,
+          parentHead,
+          parentPhone,
+          notes: generated,
+          department,
+          schoolName,
+          updatedAt: new Date().toISOString()
+        }));
+      } catch { /* ignore */ }
+      setAutoFillToast(true);
+      setTimeout(() => setAutoFillToast(false), 3000);
+    } catch (err: any) {
+      alert('Không thể tạo dữ liệu tự động: ' + (err.message || String(err)));
+    }
+  };
 
   const handleSaveDraft = () => {
     try {
@@ -102,7 +142,31 @@ export const HomeroomBookExportModal: React.FC<HomeroomBookExportModalProps> = (
     setAcademicVicePresident(saved.academicVicePresident ?? classConfig.academicVicePresident ?? '');
     setDisciplineVicePresident(saved.disciplineVicePresident ?? classConfig.disciplineVicePresident ?? '');
     setParentHead(saved.parentHead ?? ''); setParentPhone(saved.parentPhone ?? '');
-    setNotes(saved.notes ?? {}); setDepartment(saved.department ?? '');
+    const initialNotes: HomeroomBookNotes = saved.notes ?? {};
+    const hasAnyContent = Boolean(
+      initialNotes.subjectTeachers?.trim() ||
+      initialNotes.organization?.trim() ||
+      initialNotes.studentFollowUp?.trim() ||
+      initialNotes.classSituation?.trim() ||
+      initialNotes.annualPlan?.trim()
+    );
+    if (!hasAnyContent) {
+      const autoNotes = generateAutoHomeroomNotes({
+        students,
+        disciplineLogs: logs,
+        classConfig,
+        homeroomRecords,
+        getWeeklySummary,
+        getMonthlySummary,
+        getSemesterSummary,
+        existingNotes: initialNotes,
+        overwrite: false,
+      });
+      setNotes(autoNotes);
+    } else {
+      setNotes(initialNotes);
+    }
+    setDepartment(saved.department ?? '');
     setSchoolName(saved.schoolName ?? classConfig.schoolName ?? '');
     setSelectedMonth(classConfig.months?.[0] || 9); setNoteMonth(classConfig.months?.[0] || 9);
     setNoteWeek(classConfig.weeks?.[0]?.weekNumber || 1); setExportSuccess(false);
@@ -250,47 +314,143 @@ export const HomeroomBookExportModal: React.FC<HomeroomBookExportModalProps> = (
           <p className="text-xs text-slate-500">Xuất theo các mục của mẫu bạn cung cấp. Dữ liệu lấy từ lớp đang chọn; thông tin còn thiếu để trống để bổ sung trong Word. Bản nháp nội dung lưu trên thiết bị theo từng lớp khi bấm tải.</p>
           {activeTab === 'notes' && (
             <div className="space-y-4">
-              <div className="flex items-center justify-between p-3.5 bg-blue-50 dark:bg-blue-950/40 border border-blue-200 dark:border-blue-900/50 rounded-xl text-xs">
-                <span className="text-blue-900 dark:text-blue-200 font-medium">
-                  💡 Thầy/Cô có thể ghi chép kế hoạch và bấm <strong>Lưu nội dung</strong> để hệ thống ghi nhớ cho các lần mở sổ và xuất Word tiếp theo.
-                </span>
-                <button
-                  type="button"
-                  onClick={handleSaveDraft}
-                  className="px-3.5 py-1.5 bg-blue-600 hover:bg-blue-500 text-white rounded-lg font-bold flex items-center gap-1.5 cursor-pointer shrink-0 shadow-xs ml-2"
-                >
-                  <Save className="w-3.5 h-3.5" />
-                  <span>{saveToast ? 'Đã lưu!' : 'Lưu ngay'}</span>
-                </button>
+              {/* Thanh công cụ Tự động điền từ báo cáo */}
+              <div className="p-4 bg-gradient-to-r from-amber-50 via-orange-50 to-amber-50 dark:from-amber-950/40 dark:via-orange-950/30 dark:to-amber-950/40 border border-amber-200 dark:border-amber-900/60 rounded-2xl space-y-3 shadow-xs">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-3">
+                  <div>
+                    <div className="flex items-center gap-2 text-sm font-bold text-amber-900 dark:text-amber-200">
+                      <Sparkles className="w-4 h-4 text-amber-600 animate-pulse" />
+                      Tự động đọc & điền dữ liệu từ báo cáo hệ thống
+                    </div>
+                    <p className="text-xs text-amber-800/80 dark:text-amber-300/80 mt-0.5">
+                      Đã phân tích: <strong>{students.length} học sinh</strong>, <strong>{logs.length} bản ghi nề nếp & vi phạm</strong>, sơ đồ chỗ ngồi và 4 tổ.
+                    </p>
+                  </div>
+                  <div className="flex items-center gap-2 shrink-0">
+                    <button
+                      type="button"
+                      onClick={() => handleAutoFillNotes(false)}
+                      className="px-3.5 py-2 bg-gradient-to-r from-amber-600 to-orange-600 hover:from-amber-500 hover:to-orange-500 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-md transition"
+                      title="Tự động đọc nhật ký nề nếp và điền vào các ô còn trống"
+                    >
+                      <Zap className="w-3.5 h-3.5" />
+                      <span>⚡ Điền tự động từ báo cáo</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={() => {
+                        if (window.confirm('Hệ thống sẽ phân tích lại toàn bộ nhật ký nề nếp, sơ đồ lớp và cập nhật lại nội dung sổ. Bạn có muốn tiếp tục?')) {
+                          handleAutoFillNotes(true);
+                        }
+                      }}
+                      className="px-3 py-2 bg-white dark:bg-slate-800 border border-amber-300 dark:border-amber-800 hover:bg-amber-100/60 dark:hover:bg-slate-700 text-amber-900 dark:text-amber-200 rounded-xl font-semibold text-xs flex items-center gap-1.5 cursor-pointer transition"
+                      title="Làm mới và tính toán lại toàn bộ dữ liệu mới nhất từ báo cáo"
+                    >
+                      <RefreshCw className="w-3.5 h-3.5" />
+                      <span>Làm mới</span>
+                    </button>
+                    <button
+                      type="button"
+                      onClick={handleSaveDraft}
+                      className="px-3.5 py-2 bg-blue-600 hover:bg-blue-500 text-white rounded-xl font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition"
+                      title="Lưu lại nội dung đã chỉnh sửa"
+                    >
+                      <Save className="w-3.5 h-3.5" />
+                      <span>{saveToast ? 'Đã lưu!' : 'Lưu'}</span>
+                    </button>
+                  </div>
+                </div>
+
+                {autoFillToast && (
+                  <div className="p-2.5 bg-emerald-100 dark:bg-emerald-950/60 border border-emerald-300 dark:border-emerald-800 text-emerald-800 dark:text-emerald-200 text-xs font-semibold rounded-xl flex items-center gap-2 animate-in fade-in">
+                    <CheckCircle2 className="w-4 h-4 text-emerald-600 dark:text-emerald-400" />
+                    <span>Đã tự động đọc dữ liệu từ báo cáo hệ thống và cập nhật vào nội dung sổ thành công!</span>
+                  </div>
+                )}
               </div>
+
               {([
-                ['subjectTeachers', 'Giáo viên bộ môn (mỗi dòng: Môn — Họ tên — SĐT)'],
-                ['organization', 'Phân tổ và nhiệm vụ học sinh'], ['seatingPlan', 'Sơ đồ chỗ ngồi (mỗi dòng một bàn)'],
-                ['classSituation', 'Đặc điểm lớp, thuận lợi và khó khăn'], ['annualPlan', 'Kế hoạch công tác chủ nhiệm năm học'],
-                ['annualTargets', 'Chỉ tiêu toàn diện cuối năm và biện pháp'], ['semesterReview', 'Nhận xét học kỳ và phương hướng'],
-                ['studentFollowUp', 'Theo dõi học sinh: Nội dung — Biện pháp — Kết quả'],
-                ['parentCooperation', 'Phối hợp phụ huynh: Ngày — Nội dung — Kết quả'],
-              ] as const).map(([key, label]) => <label key={key} className="block text-sm font-medium">{label}
-                <textarea rows={3} value={notes[key] || ''} onChange={e => setNotes(n => ({ ...n, [key]: e.target.value }))}
-                  className="block w-full mt-1 border rounded-lg p-2 bg-white dark:bg-slate-800" />
-              </label>)}
-              <label className="block text-sm font-medium">Kế hoạch tháng
-                <select value={noteMonth} onChange={e => setNoteMonth(Number(e.target.value))} className="ml-3 border rounded p-1 bg-white dark:bg-slate-800">
-                  {classConfig.months.map(m => <option key={m} value={m}>Tháng {m}</option>)}
-                </select>
-                <textarea rows={4} value={notes.monthlyPlans?.[noteMonth] || ''} onChange={e => setNotes(n => ({ ...n, monthlyPlans: { ...n.monthlyPlans, [noteMonth]: e.target.value } }))}
-                  className="block w-full mt-1 border rounded-lg p-2 bg-white dark:bg-slate-800" />
-              </label>
-              <label className="block text-sm font-medium">Nội dung tuần
-                <select value={noteWeek} onChange={e => setNoteWeek(Number(e.target.value))} className="ml-3 border rounded p-1 bg-white dark:bg-slate-800">
-                  {classConfig.weeks.map(w => <option key={w.weekNumber} value={w.weekNumber}>Tuần {w.weekNumber}</option>)}
-                </select>
-              </label>
-              {(['weeklyLearning', 'weeklyComments'] as const).map(key => <label key={key} className="block text-sm font-medium">
-                {key === 'weeklyLearning' ? 'b. Học tập' : 'c. Nhận xét'}
-                <textarea rows={3} value={notes[key]?.[noteWeek] || ''} onChange={e => setNotes(n => ({ ...n, [key]: { ...n[key], [noteWeek]: e.target.value } }))}
-                  className="block w-full mt-1 border rounded-lg p-2 bg-white dark:bg-slate-800" />
-              </label>)}
+                ['subjectTeachers', 'Giáo viên bộ môn (mỗi dòng: Môn — Họ tên — SĐT)', 4, 'Đã tổng hợp từ thời khóa biểu và danh sách GVBM'],
+                ['organization', 'Phân tổ và nhiệm vụ học sinh', 6, 'Tự động tổng hợp từ Ban cán sự lớp và danh sách 4 tổ'],
+                ['seatingPlan', 'Sơ đồ chỗ ngồi (mỗi dòng một bàn)', 5, 'Tự động trích xuất từ sơ đồ lớp học hiện tại'],
+                ['classSituation', 'Đặc điểm lớp, thuận lợi và khó khăn', 5, 'Tự động tính toán theo quy mô sĩ số, nam/nữ, diện chính sách'],
+                ['annualPlan', 'Kế hoạch công tác chủ nhiệm năm học', 5, 'Kế hoạch sư phạm trọng tâm bám sát năm học'],
+                ['annualTargets', 'Chỉ tiêu toàn diện cuối năm và biện pháp', 5, 'Chỉ tiêu thi đua rèn luyện, học tập và danh hiệu tập thể'],
+                ['semesterReview', 'Nhận xét học kỳ và phương hướng', 4, 'Tổng hợp đánh giá nề nếp thi đua và phương hướng'],
+                ['studentFollowUp', 'Theo dõi học sinh: Nội dung — Biện pháp — Kết quả', 6, 'Tự động tổng hợp từ các bản ghi vi phạm nề nếp & trợ giúp học sinh'],
+                ['parentCooperation', 'Phối hợp phụ huynh: Ngày — Nội dung — Kết quả', 5, 'Tự động tổng hợp từ các buổi họp CMHS & ngày có vi phạm chuyên cần'],
+              ] as const).map(([key, label, rows, hint]) => (
+                <div key={key} className="space-y-1">
+                  <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                    <label>{label}</label>
+                    <span className="text-[11px] text-slate-400 font-normal italic">{hint}</span>
+                  </div>
+                  <textarea
+                    rows={rows}
+                    value={notes[key] || ''}
+                    onChange={e => setNotes(n => ({ ...n, [key]: e.target.value }))}
+                    className="block w-full border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-200 leading-relaxed focus:ring-2 focus:ring-red-500 focus:outline-none"
+                    placeholder={`Nội dung ${label.toLowerCase()}...`}
+                  />
+                </div>
+              ))}
+
+              <div className="space-y-1 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <div className="flex items-center gap-2">
+                    <label>Kế hoạch trọng tâm từng tháng:</label>
+                    <select
+                      value={noteMonth}
+                      onChange={e => setNoteMonth(Number(e.target.value))}
+                      className="border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 bg-white dark:bg-slate-800 text-xs font-bold text-red-600 dark:text-red-400"
+                    >
+                      {classConfig.months.map(m => (
+                        <option key={m} value={m}>Tháng {m}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-normal italic">Kế hoạch chi tiết theo chủ điểm từng tháng</span>
+                </div>
+                <textarea
+                  rows={4}
+                  value={notes.monthlyPlans?.[noteMonth] || ''}
+                  onChange={e => setNotes(n => ({ ...n, monthlyPlans: { ...n.monthlyPlans, [noteMonth]: e.target.value } }))}
+                  className="block w-full border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-200 leading-relaxed focus:ring-2 focus:ring-red-500 focus:outline-none"
+                  placeholder="Kế hoạch chi tiết của tháng..."
+                />
+              </div>
+
+              <div className="space-y-2 pt-2 border-t border-slate-200 dark:border-slate-800">
+                <div className="flex items-center justify-between text-xs font-semibold text-slate-700 dark:text-slate-300">
+                  <div className="flex items-center gap-2">
+                    <label>Nội dung sinh hoạt theo tuần:</label>
+                    <select
+                      value={noteWeek}
+                      onChange={e => setNoteWeek(Number(e.target.value))}
+                      className="border border-slate-300 dark:border-slate-700 rounded-lg px-2 py-1 bg-white dark:bg-slate-800 text-xs font-bold text-red-600 dark:text-red-400"
+                    >
+                      {classConfig.weeks.map(w => (
+                        <option key={w.weekNumber} value={w.weekNumber}>Tuần {w.weekNumber}</option>
+                      ))}
+                    </select>
+                  </div>
+                  <span className="text-[11px] text-slate-400 font-normal italic">Tự động tổng hợp từ nhật ký chấm điểm & sơ kết tuần</span>
+                </div>
+                {(['weeklyLearning', 'weeklyComments'] as const).map(key => (
+                  <div key={key} className="space-y-1">
+                    <span className="text-xs font-medium text-slate-600 dark:text-slate-400">
+                      {key === 'weeklyLearning' ? 'b. Học tập trong tuần' : 'c. Nhận xét & đánh giá tuần'}
+                    </span>
+                    <textarea
+                      rows={3}
+                      value={notes[key]?.[noteWeek] || ''}
+                      onChange={e => setNotes(n => ({ ...n, [key]: { ...n[key], [noteWeek]: e.target.value } }))}
+                      className="block w-full border border-slate-300 dark:border-slate-700 rounded-xl p-2.5 bg-white dark:bg-slate-800 text-xs text-slate-800 dark:text-slate-200 leading-relaxed focus:ring-2 focus:ring-red-500 focus:outline-none"
+                      placeholder={`Nội dung ${key === 'weeklyLearning' ? 'học tập' : 'nhận xét'} tuần...`}
+                    />
+                  </div>
+                ))}
+              </div>
             </div>
           )}
           {/* TAB 1: PHẠM VI XUẤT */}
