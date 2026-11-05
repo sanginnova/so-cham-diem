@@ -61,3 +61,4 @@ export interface HomeroomBookExportOptions {
 export function generateHomeroomBookBlob(options: HomeroomBookExportOptions): Promise<Blob>;
 export function downloadHomeroomBook(options: HomeroomBookExportOptions): Promise<void>;
 ```
+

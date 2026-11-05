@@ -39,3 +39,4 @@
    - Hệ thống điền các mục còn thiếu mà không xóa mất câu Thầy đã sửa.
 5. Bấm nút **"Làm mới"** (và đồng ý xác nhận):
    - Hệ thống quét lại dữ liệu mới nhất từ nhật ký chấm điểm.
+

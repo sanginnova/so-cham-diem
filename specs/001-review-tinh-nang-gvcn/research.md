@@ -60,3 +60,4 @@ Giáo viên có thể đang gõ dở kế hoạch tháng hoặc nhận xét tu�
 - **Key cô lập theo giáo viên và lớp**: `homeroom-book:${teacherId}:${classId}`.
 - **Cơ chế Debounce Auto-Save**: Tự động lưu vào `localStorage` sau 1000ms khi giáo viên dừng gõ phím.
 - **Cơ chế Nạp an toàn**: Khi mở modal, ưu tiên đọc bản nháp đã lưu; nếu bản nháp trống thì tự động nạp từ bộ phân tích `generateAutoHomeroomNotes`.
+
