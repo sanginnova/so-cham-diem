@@ -33,6 +33,8 @@ import {
   Sliders,
   Sparkles,
   Smartphone,
+  Check,
+  X,
 } from 'lucide-react';
 import { useApp } from '../context/AppContext';
 import { PWAInstallButton } from './PWAInstallButton';
@@ -1969,7 +1971,15 @@ export const SettingsBackupView: React.FC = () => {
                 </div>
                 <div>
                   <span className="text-slate-500 block">Thời gian xuất:</span>
-                  <strong className="text-slate-800 dark:text-slate-200">{restorePreview.exportedAt ? new Date(restorePreview.exportedAt).toLocaleString('vi-VN') : '—'}</strong>
+                  <strong className="text-slate-800 dark:text-slate-200">{(() => {
+                    if (!restorePreview.exportedAt) return '—';
+                    try {
+                      const d = new Date(restorePreview.exportedAt);
+                      return isNaN(d.getTime()) ? String(restorePreview.exportedAt) : d.toLocaleString('vi-VN');
+                    } catch {
+                      return String(restorePreview.exportedAt);
+                    }
+                  })()}</strong>
                 </div>
               </div>
             </div>
