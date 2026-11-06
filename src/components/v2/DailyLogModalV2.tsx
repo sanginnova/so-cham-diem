@@ -40,6 +40,14 @@ interface DailyLogModalV2Props {
   initialWeek?: number;
 }
 
+export interface SelectedBehaviorItem {
+  id: string; // `${category.id}:::${name}`
+  category: BehaviorCategory;
+  name: string;
+  score: number;
+  count: number;
+}
+
 export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
   isOpen,
   onClose,
@@ -108,17 +116,18 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
     unmatched: string[];
   } | null>(null);
 
-  // Category selection
+  // Category & Multi-behavior selection
   const [categoryType, setCategoryType] = useState<BehaviorType>(() => {
     if (isMonitor && !canAddViolations && canAddBonuses) return 'bonus';
     return 'deduct';
   });
   const [categoryGroupFilter, setCategoryGroupFilter] = useState<string>('all');
   const [behaviorSearch, setBehaviorSearch] = useState('');
-  const [selectedCategory, setSelectedCategory] = useState<BehaviorCategory | null>(null);
+  
+  // Selected behaviors list (hỗ trợ chọn nhiều lỗi / nhiều việc tốt cùng lúc)
+  const [selectedBehaviors, setSelectedBehaviors] = useState<SelectedBehaviorItem[]>([]);
   const [customDescription, setCustomDescription] = useState<string>('');
   const [customScore, setCustomScore] = useState<number>(1);
-  const [hasCustomScore, setHasCustomScore] = useState(false);
   const [count, setCount] = useState<number>(1);
 
   // Bulk Confirmation Dialog
@@ -148,20 +157,18 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
     }
   }, [isOpen, initialWeek, initialStudentId, classConfig.weeks, students]);
 
-  // The dialog stays mounted between entries. Follow live catalog updates,
-  // including changes received from another device, instead of retaining a copy.
+  // Live catalog updates for selectedBehaviors
   useEffect(() => {
-    if (!selectedCategory) return;
-    const latest = behaviorCategories.find((category) => category.id === selectedCategory.id && category.isActive);
-    if (!latest) {
-      setSelectedCategory(null);
-      setHasCustomScore(false);
-      setErrorMessage('Hành vi đã bị xóa hoặc ngừng sử dụng. Vui lòng chọn lại.');
-      return;
-    }
-    if (latest !== selectedCategory) setSelectedCategory(latest);
-    if (!hasCustomScore) setCustomScore(latest.defaultScore);
-  }, [behaviorCategories, selectedCategory, hasCustomScore]);
+    if (selectedBehaviors.length === 0) return;
+    setSelectedBehaviors((prev) =>
+      prev.flatMap((item) => {
+        if (item.category.id === 'custom') return [item];
+        const latest = behaviorCategories.find((c) => c.id === item.category.id && c.isActive);
+        if (!latest) return [];
+        return [{ ...item, category: latest }];
+      })
+    );
+  }, [behaviorCategories, selectedBehaviors.length]);
 
   // Check period lock
   const isLocked = isPeriodLocked('week', selectedWeek);
@@ -192,9 +199,75 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
     const names = [...disciplineLogs].sort((a, b) => b.createdAt.localeCompare(a.createdAt)).filter(l => l.type === categoryType).map(l => l.behaviorDescription);
     return [...new Set(names)].flatMap(name => behaviorSuggestions.filter(s => s.name === name)).slice(0, 6);
   }, [disciplineLogs, categoryType, behaviorSuggestions]);
-  const duplicateStudents = selectedCategory ? disciplineLogs.filter(l => sameLogEntry(l, {
-    studentId: l.studentId, date: eventDate, behaviorCode: selectedCategory.code, behaviorDescription: customDescription || selectedCategory.name, type: categoryType, periodOrTime: lessonPeriod,
-  }) && (logMode === 'single' ? l.studentId === selectedSingleStudent?.id : selectedBulkStudentIds.includes(l.studentId))) : [];
+  // Items to save including selectedBehaviors and any unadded customDescription
+  const allBehaviorsToSave = useMemo(() => {
+    const list = [...selectedBehaviors];
+    if (list.length === 0 && customDescription.trim()) {
+      list.push({
+        id: 'custom_single',
+        category: {
+          id: 'custom',
+          code: categoryType === 'deduct' ? 'KHT' : 'BONUS_CUSTOM',
+          name: customDescription.trim(),
+          type: categoryType,
+          defaultScore: Number(customScore) || 1,
+          isActive: true,
+        },
+        name: customDescription.trim(),
+        score: Number(customScore) || 1,
+        count: Number(count) || 1,
+      });
+    }
+    return list;
+  }, [selectedBehaviors, customDescription, categoryType, customScore, count]);
+
+  const totalSelectedPoints = useMemo(() => {
+    const sum = allBehaviorsToSave.reduce((acc, item) => acc + item.score * item.count, 0);
+    return Math.round(sum * 100) / 100;
+  }, [allBehaviorsToSave]);
+
+  const totalBehaviorsCount = useMemo(() => {
+    return allBehaviorsToSave.length;
+  }, [allBehaviorsToSave]);
+
+  const duplicateStudents = useMemo(() => {
+    if (allBehaviorsToSave.length === 0) return [];
+    const targetStudentIds =
+      logMode === 'single'
+        ? selectedSingleStudent
+          ? [selectedSingleStudent.id]
+          : []
+        : selectedBulkStudentIds;
+
+    if (targetStudentIds.length === 0) return [];
+
+    return disciplineLogs.filter(
+      (l) =>
+        targetStudentIds.includes(l.studentId) &&
+        l.date === eventDate &&
+        l.type === categoryType &&
+        l.periodOrTime === lessonPeriod &&
+        allBehaviorsToSave.some((b) =>
+          sameLogEntry(l, {
+            studentId: l.studentId,
+            date: eventDate,
+            behaviorCode: b.category.code,
+            behaviorDescription: b.name,
+            type: categoryType,
+            periodOrTime: lessonPeriod,
+          })
+        )
+    );
+  }, [
+    allBehaviorsToSave,
+    logMode,
+    selectedSingleStudent,
+    selectedBulkStudentIds,
+    disciplineLogs,
+    eventDate,
+    categoryType,
+    lessonPeriod,
+  ]);
 
   // Distinct groups for category tabs
   const categoryGroups = useMemo(() => {
@@ -325,15 +398,69 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
     }
   };
 
-  // Select category
-  const handleSelectCategory = (cat: BehaviorCategory, name: string) => {
-    setSelectedCategory(cat);
-    setHasCustomScore(false);
-    setCustomScore(cat.defaultScore);
-    setCustomDescription(name);
+  // Toggle selection of a behavior card or quick chip
+  const handleToggleBehavior = (cat: BehaviorCategory, name: string) => {
+    const itemId = `${cat.id}:::${name}`;
+    setSelectedBehaviors((prev) => {
+      const exists = prev.find((item) => item.id === itemId);
+      if (exists) {
+        return prev.filter((item) => item.id !== itemId);
+      }
+      return [
+        ...prev,
+        {
+          id: itemId,
+          category: cat,
+          name: name,
+          score: cat.defaultScore,
+          count: 1,
+        },
+      ];
+    });
   };
 
-  // Submit Single Log
+  const handleRemoveBehavior = (itemId: string) => {
+    setSelectedBehaviors((prev) => prev.filter((item) => item.id !== itemId));
+  };
+
+  const handleUpdateBehaviorCount = (itemId: string, delta: number) => {
+    setSelectedBehaviors((prev) =>
+      prev.map((item) => {
+        if (item.id === itemId) {
+          const nextCount = Math.max(1, item.count + delta);
+          return { ...item, count: nextCount };
+        }
+        return item;
+      })
+    );
+  };
+
+  const handleAddCustomBehavior = () => {
+    if (!customDescription.trim()) return;
+    const customId = `custom:::${Date.now()}:::${customDescription.trim()}`;
+    const fallbackCat: BehaviorCategory = {
+      id: 'custom',
+      code: categoryType === 'deduct' ? 'KHT' : 'BONUS_CUSTOM',
+      name: customDescription.trim(),
+      type: categoryType,
+      defaultScore: Number(customScore) || 1,
+      isActive: true,
+    };
+    setSelectedBehaviors((prev) => [
+      ...prev,
+      {
+        id: customId,
+        category: fallbackCat,
+        name: customDescription.trim(),
+        score: Number(customScore) || 1,
+        count: Number(count) || 1,
+      },
+    ]);
+    setCustomDescription('');
+    setCount(1);
+  };
+
+  // Submit Single Log (hỗ trợ lưu cùng lúc nhiều lỗi / nhiều việc tốt cho 1 học sinh)
   const handleSubmitSingle = async () => {
     setErrorMessage(null);
     if (isLocked) {
@@ -344,42 +471,67 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
       setErrorMessage('Vui lòng chọn học sinh được chấm điểm.');
       return;
     }
-    if (!selectedCategory && !customDescription.trim()) {
-      setErrorMessage('Vui lòng chọn một hành vi hoặc nhập nội dung cụ thể.');
+
+    const itemsToSave: SelectedBehaviorItem[] = [...selectedBehaviors];
+    if (itemsToSave.length === 0 && customDescription.trim()) {
+      itemsToSave.push({
+        id: 'custom_single',
+        category: {
+          id: 'custom',
+          code: categoryType === 'deduct' ? 'KHT' : 'BONUS_CUSTOM',
+          name: customDescription.trim(),
+          type: categoryType,
+          defaultScore: Number(customScore) || 1,
+          isActive: true,
+        },
+        name: customDescription.trim(),
+        score: Number(customScore) || 1,
+        count: Number(count) || 1,
+      });
+    }
+
+    if (itemsToSave.length === 0) {
+      setErrorMessage('Vui lòng chọn ít nhất một hành vi hoặc nhập nội dung cụ thể.');
       return;
     }
 
     try {
       setIsSubmitting(true);
       const month = Number(eventDate.split('-')[1]) || (new Date(eventDate).getMonth() + 1);
-      const behCode = selectedCategory ? selectedCategory.code : 'KHT';
-      const behDesc = customDescription.trim() || (selectedCategory ? selectedCategory.name : '');
 
-      await addDisciplineLog({
-        date: eventDate,
-        month,
-        weekNumber: selectedWeek,
-        studentId: selectedSingleStudent.id,
-        studentCode: selectedSingleStudent.studentCode,
-        studentName: selectedSingleStudent.fullName,
-        behaviorCode: behCode,
-        behaviorDescription: behDesc,
-        type: categoryType,
-        scorePerUnit: Number(customScore),
-        count: Number(count),
-        periodOrTime: lessonPeriod,
-        reporter: reporter || 'GVCN',
-        basisOrRegulation: selectedCategory?.basisOrRegulation || '',
-        note: note.trim(),
-      });
+      for (const item of itemsToSave) {
+        await addDisciplineLog({
+          date: eventDate,
+          month,
+          weekNumber: selectedWeek,
+          studentId: selectedSingleStudent.id,
+          studentCode: selectedSingleStudent.studentCode,
+          studentName: selectedSingleStudent.fullName,
+          behaviorCode: item.category.code,
+          behaviorDescription: item.name,
+          type: categoryType,
+          scorePerUnit: Number(item.score),
+          count: Number(item.count),
+          periodOrTime: lessonPeriod,
+          reporter: reporter || 'GVCN',
+          basisOrRegulation: item.category.basisOrRegulation || '',
+          note: note.trim(),
+        });
+      }
 
-      const successNotice = `Đã lưu ${selectedSingleStudent.fullName}: ${categoryType === 'deduct' ? '−' : '+'}${Number(customScore) * Number(count)} điểm • Tuần ${selectedWeek} • ${formatVietnameseDate(eventDate)}. Xem tổng kết Tuần ${selectedWeek}.`;
+      const totalPts = itemsToSave.reduce((sum, b) => sum + b.score * b.count, 0);
+      const summaryNames = itemsToSave.map((b) => b.name).join(', ');
+      const successNotice = `Đã lưu ${selectedSingleStudent.fullName}: ${itemsToSave.length} hành vi (${summaryNames}) • ${
+        categoryType === 'deduct' ? '−' : '+'
+      }${totalPts}đ • Tuần ${selectedWeek} • ${formatVietnameseDate(eventDate)}.`;
+
       setToastMessage(successNotice);
       if (onSuccessToast) onSuccessToast(successNotice);
 
       if (keepContextOpen) {
-        // Keep date, week, lessonPeriod, category for fast next entry
         setSelectedSingleStudent(null);
+        setSelectedBehaviors([]);
+        setCustomDescription('');
         setNote('');
       } else {
         onClose();
@@ -391,7 +543,7 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
     }
   };
 
-  // Submit Bulk Log
+  // Submit Bulk Log (hỗ trợ áp dụng cùng lúc nhiều lỗi cho nhiều học sinh)
   const handleSubmitBulk = async () => {
     setErrorMessage(null);
     if (isLocked) {
@@ -402,47 +554,69 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
       setErrorMessage('Vui lòng chọn ít nhất 1 học sinh để áp dụng.');
       return;
     }
-    if (!selectedCategory && !customDescription.trim()) {
-      setErrorMessage('Vui lòng chọn một hành vi hoặc nhập nội dung cụ thể.');
+
+    const itemsToSave: SelectedBehaviorItem[] = [...selectedBehaviors];
+    if (itemsToSave.length === 0 && customDescription.trim()) {
+      itemsToSave.push({
+        id: 'custom_single',
+        category: {
+          id: 'custom',
+          code: categoryType === 'deduct' ? 'KHT' : 'BONUS_CUSTOM',
+          name: customDescription.trim(),
+          type: categoryType,
+          defaultScore: Number(customScore) || 1,
+          isActive: true,
+        },
+        name: customDescription.trim(),
+        score: Number(customScore) || 1,
+        count: Number(count) || 1,
+      });
+    }
+
+    if (itemsToSave.length === 0) {
+      setErrorMessage('Vui lòng chọn ít nhất một hành vi hoặc nhập nội dung cụ thể.');
       return;
     }
 
     try {
       setIsSubmitting(true);
       const month = Number(eventDate.split('-')[1]) || (new Date(eventDate).getMonth() + 1);
-      const behCode = selectedCategory ? selectedCategory.code : 'KHT';
-      const behDesc = customDescription.trim() || (selectedCategory ? selectedCategory.name : '');
 
-      const bulkPayloads = selectedBulkStudentIds.map((stId) => {
+      const bulkPayloads: any[] = [];
+      for (const stId of selectedBulkStudentIds) {
         const studentObj = students.find((s) => s.id === stId);
-        return {
-          date: eventDate,
-          month,
-          weekNumber: selectedWeek,
-          studentId: stId,
-          studentCode: studentObj?.studentCode || '',
-          studentName: studentObj?.fullName || '',
-          behaviorCode: behCode,
-          behaviorDescription: behDesc,
-          type: categoryType,
-          scorePerUnit: Number(customScore),
-          count: Number(count),
-          periodOrTime: lessonPeriod,
-          reporter: reporter || 'GVCN',
-          basisOrRegulation: selectedCategory?.basisOrRegulation || '',
-          note: note.trim(),
-        };
-      });
+        for (const item of itemsToSave) {
+          bulkPayloads.push({
+            date: eventDate,
+            month,
+            weekNumber: selectedWeek,
+            studentId: stId,
+            studentCode: studentObj?.studentCode || '',
+            studentName: studentObj?.fullName || '',
+            behaviorCode: item.category.code,
+            behaviorDescription: item.name,
+            type: categoryType,
+            scorePerUnit: Number(item.score),
+            count: Number(item.count),
+            periodOrTime: lessonPeriod,
+            reporter: reporter || 'GVCN',
+            basisOrRegulation: item.category.basisOrRegulation || '',
+            note: note.trim(),
+          });
+        }
+      }
 
       await addBulkDisciplineLogs(bulkPayloads);
 
       setShowBulkConfirm(false);
-      const notice = `Đã ghi nhận thành công cho ${selectedBulkStudentIds.length} học sinh!`;
+      const notice = `Đã ghi nhận thành công ${itemsToSave.length} hành vi cho ${selectedBulkStudentIds.length} học sinh (${bulkPayloads.length} bản ghi)!`;
       setToastMessage(notice);
       if (onSuccessToast) onSuccessToast(notice);
 
       if (keepContextOpen) {
         setSelectedBulkStudentIds([]);
+        setSelectedBehaviors([]);
+        setCustomDescription('');
         setNote('');
       } else {
         onClose();
@@ -971,7 +1145,7 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
                   disabled={!canAddViolations}
                   onClick={() => {
                     setCategoryType('deduct');
-                    setSelectedCategory(null);
+                    setSelectedBehaviors([]);
                     setCustomDescription('');
                     setCategoryGroupFilter('all');
                   }}
@@ -991,7 +1165,7 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
                   disabled={!canAddBonuses}
                   onClick={() => {
                     setCategoryType('bonus');
-                    setSelectedCategory(null);
+                    setSelectedBehaviors([]);
                     setCustomDescription('');
                     setCategoryGroupFilter('all');
                   }}
@@ -1011,9 +1185,13 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
 
             <label className="block text-xs font-semibold text-slate-600 dark:text-slate-300">
               Tìm hành vi cụ thể
-              <input type="search" value={behaviorSearch} onChange={e => setBehaviorSearch(e.target.value)}
+              <input
+                type="search"
+                value={behaviorSearch}
+                onChange={(e) => setBehaviorSearch(e.target.value)}
                 placeholder="Gõ nghỉ học, đi muộn, điện thoại, phát biểu..."
-                className="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs" />
+                className="mt-1 w-full px-3 py-2 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 text-xs"
+              />
             </label>
             {/* Category Groups Pills with smooth horizontal scrolling */}
             <div className="flex gap-1.5 overflow-x-auto pb-1 text-xs">
@@ -1044,80 +1222,235 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
               ))}
             </div>
 
-            {/* Categories Grid */}
-            {!behaviorSearch && recentSuggestions.length > 0 && <div className="flex flex-wrap gap-1.5 text-xs"><span className="text-slate-500 text-[11px]">Dùng gần đây:</span>{recentSuggestions.map(({ category, name }) => <button type="button" key={`${category.id}:${name}`} onClick={() => handleSelectCategory(category, name)} className="border border-blue-200 dark:border-blue-900/50 rounded-lg px-2 py-0.5 text-blue-600 dark:text-blue-400 text-[11px] font-medium">{name}</button>)}</div>}
-            {selectedCategory && <p className="text-xs font-semibold text-blue-700 dark:text-blue-300">Đã chọn: {customDescription} • {categoryType === 'deduct' ? '−' : '+'}{Math.round(customScore * count * 100) / 100}đ ({count} lần)</p>}
-            {duplicateStudents.length > 0 && <p role="alert" className="text-xs text-rose-600 font-semibold">Đã có bản ghi cùng ngày, tiết và hành vi của {duplicateStudents.map(l => l.studentName).join(', ')}. Hãy sửa bản ghi cũ hoặc tăng số lần.</p>}
-            <div className="max-h-44 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
+            {/* Quick Suggestions Chips (Multi-select toggle) */}
+            {!behaviorSearch && recentSuggestions.length > 0 && (
+              <div className="flex flex-wrap items-center gap-1.5 text-xs">
+                <span className="text-slate-500 text-[11px] font-semibold flex items-center gap-1">
+                  <Sparkles className="h-3 w-3 text-amber-500" />
+                  Dùng gần đây:
+                </span>
+                {recentSuggestions.map(({ category, name }) => {
+                  const itemId = `${category.id}:::${name}`;
+                  const isChipSelected = selectedBehaviors.some((item) => item.id === itemId);
+                  return (
+                    <button
+                      type="button"
+                      key={itemId}
+                      onClick={() => handleToggleBehavior(category, name)}
+                      className={`border rounded-lg px-2.5 py-1 text-[11px] font-medium transition cursor-pointer flex items-center gap-1 ${
+                        isChipSelected
+                          ? categoryType === 'deduct'
+                            ? 'bg-rose-600 text-white border-rose-600 shadow-xs'
+                            : 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
+                          : 'border-blue-200 dark:border-blue-900/50 bg-white dark:bg-slate-800 text-blue-600 dark:text-blue-400 hover:bg-blue-50 dark:hover:bg-blue-950/40'
+                      }`}
+                    >
+                      {isChipSelected && <Check className="h-3 w-3" />}
+                      <span>{name}</span>
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+
+            {/* Container danh sách các lỗi / việc tốt ĐÃ CHỌN (Học sinh mắc nhiều lỗi) */}
+            {selectedBehaviors.length > 0 && (
+              <div className={`p-3 rounded-2xl border-2 border-dashed space-y-2 animate-in fade-in duration-150 ${
+                categoryType === 'deduct'
+                  ? 'border-rose-300 dark:border-rose-800 bg-rose-50/70 dark:bg-rose-950/30'
+                  : 'border-emerald-300 dark:border-emerald-800 bg-emerald-50/70 dark:bg-emerald-950/30'
+              }`}>
+                <div className="flex items-center justify-between flex-wrap gap-1">
+                  <span className="text-xs font-bold text-slate-800 dark:text-slate-200 flex items-center gap-1.5">
+                    <CheckCircle2 className={`h-4 w-4 ${categoryType === 'deduct' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`} />
+                    Đã chọn {selectedBehaviors.length} {categoryType === 'deduct' ? 'lỗi vi phạm' : 'mục khen thưởng'} (Tổng: {categoryType === 'deduct' ? '−' : '+'}{totalSelectedPoints}đ):
+                  </span>
+                  <button
+                    type="button"
+                    onClick={() => setSelectedBehaviors([])}
+                    className="text-[11px] text-rose-600 hover:text-rose-800 dark:text-rose-400 underline font-semibold cursor-pointer"
+                  >
+                    Bỏ chọn tất cả
+                  </button>
+                </div>
+                <div className="flex flex-wrap gap-2">
+                  {selectedBehaviors.map((item) => (
+                    <div
+                      key={item.id}
+                      className="inline-flex items-center gap-1.5 px-2.5 py-1.5 rounded-xl bg-white dark:bg-slate-800 border border-slate-300 dark:border-slate-700 shadow-xs text-xs font-semibold"
+                    >
+                      <span className="text-slate-800 dark:text-slate-100 max-w-[220px] truncate" title={item.name}>
+                        {item.name}
+                      </span>
+                      <span
+                        className={`font-mono font-bold text-[11px] shrink-0 ${
+                          categoryType === 'deduct'
+                            ? 'text-rose-600 dark:text-rose-400'
+                            : 'text-emerald-600 dark:text-emerald-400'
+                        }`}
+                      >
+                        {categoryType === 'deduct' ? '−' : '+'}{Math.round(item.score * item.count * 100) / 100}đ
+                      </span>
+
+                      {/* Nút tăng giảm số lần vi phạm của từng lỗi */}
+                      <div className="flex items-center border border-slate-200 dark:border-slate-700 rounded-md overflow-hidden bg-slate-50 dark:bg-slate-900 ml-1">
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateBehaviorCount(item.id, -1)}
+                          className="px-1.5 py-0.5 text-[11px] hover:bg-slate-200 dark:hover:bg-slate-700 font-bold cursor-pointer"
+                          title="Giảm số lần"
+                        >
+                          −
+                        </button>
+                        <span className="px-1 text-[11px] font-mono font-bold min-w-[16px] text-center">
+                          {item.count}
+                        </span>
+                        <button
+                          type="button"
+                          onClick={() => handleUpdateBehaviorCount(item.id, 1)}
+                          className="px-1.5 py-0.5 text-[11px] hover:bg-slate-200 dark:hover:bg-slate-700 font-bold cursor-pointer"
+                          title="Tăng số lần"
+                        >
+                          +
+                        </button>
+                      </div>
+
+                      <button
+                        type="button"
+                        onClick={() => handleRemoveBehavior(item.id)}
+                        className="text-slate-400 hover:text-rose-600 dark:hover:text-rose-400 p-0.5 cursor-pointer ml-0.5"
+                        title="Bỏ chọn lỗi này"
+                      >
+                        <X className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            )}
+
+            {duplicateStudents.length > 0 && (
+              <p role="alert" className="text-xs text-rose-600 font-semibold flex items-center gap-1">
+                <AlertTriangle className="h-3.5 w-3.5 shrink-0" />
+                <span>
+                  Đã có bản ghi trùng ngày, tiết và hành vi của {duplicateStudents.map((l) => l.studentName).join(', ')}. Hãy kiểm tra lại hoặc điều chỉnh.
+                </span>
+              </p>
+            )}
+
+            {/* Categories Grid (Hỗ trợ chọn nhiều ô cùng lúc) */}
+            <div className="max-h-48 overflow-y-auto grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 gap-2">
               {behaviorSuggestions.map(({ category: cat, name }) => {
-                const isCatSelected = selectedCategory?.id === cat.id && customDescription === name;
+                const itemId = `${cat.id}:::${name}`;
+                const isCatSelected = selectedBehaviors.some((item) => item.id === itemId);
+                const selectedItem = selectedBehaviors.find((item) => item.id === itemId);
+
                 return (
                   <button
                     type="button"
-                    key={`${cat.id}:${name}`}
-                    onClick={() => handleSelectCategory(cat, name)}
+                    key={itemId}
+                    onClick={() => handleToggleBehavior(cat, name)}
                     className={`p-2.5 rounded-xl border text-left transition flex items-start justify-between gap-2 text-xs cursor-pointer ${
                       isCatSelected
                         ? categoryType === 'deduct'
-                          ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/60 text-rose-900 dark:text-rose-200 font-bold ring-2 ring-rose-500/20'
-                          : 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/60 text-emerald-900 dark:text-emerald-200 font-bold ring-2 ring-emerald-500/20'
-                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 text-slate-700 dark:text-slate-300'
+                          ? 'border-rose-500 bg-rose-50 dark:bg-rose-950/70 text-rose-900 dark:text-rose-200 font-bold ring-2 ring-rose-500 shadow-xs'
+                          : 'border-emerald-500 bg-emerald-50 dark:bg-emerald-950/70 text-emerald-900 dark:text-emerald-200 font-bold ring-2 ring-emerald-500 shadow-xs'
+                        : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 text-slate-700 dark:text-slate-300'
                     }`}
                   >
-                    <div>
-                      <div className="font-semibold">{name}</div>
-                      <div className="text-[10px] text-slate-400 mt-0.5">{cat.code}</div>
+                    <div className="min-w-0 flex-1">
+                      <div className="font-semibold leading-snug line-clamp-2">{name}</div>
+                      <div className="text-[10px] text-slate-400 mt-0.5 font-mono">{cat.code}</div>
                     </div>
-                    <span
-                      className={`font-mono font-bold text-xs px-2 py-0.5 rounded-full shrink-0 ${
-                        cat.type === 'deduct'
-                          ? 'bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-200'
-                          : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200'
-                      }`}
-                    >
-                      {cat.type === 'deduct' ? `-${cat.defaultScore}đ` : `+${cat.defaultScore}đ`}
-                    </span>
+                    <div className="flex flex-col items-end gap-1 shrink-0">
+                      <span
+                        className={`font-mono font-bold text-xs px-2 py-0.5 rounded-full ${
+                          cat.type === 'deduct'
+                            ? 'bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-200'
+                            : 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-200'
+                        }`}
+                      >
+                        {cat.type === 'deduct' ? `-${cat.defaultScore}đ` : `+${cat.defaultScore}đ`}
+                      </span>
+                      {isCatSelected && (
+                        <span className="text-[10px] font-bold text-blue-600 dark:text-blue-400 bg-white dark:bg-slate-900 px-1.5 py-0.2 rounded-md border border-blue-200 dark:border-blue-800">
+                          ✓ Đã chọn (x{selectedItem?.count || 1})
+                        </span>
+                      )}
+                    </div>
                   </button>
                 );
               })}
-              {behaviorSuggestions.length === 0 && <p className="col-span-full text-xs text-slate-500 p-3">Không tìm thấy hành vi phù hợp. Thử từ khóa khác hoặc chọn Tất cả nhóm.</p>}
+              {behaviorSuggestions.length === 0 && (
+                <p className="col-span-full text-xs text-slate-500 p-3">
+                  Không tìm thấy hành vi phù hợp. Thử từ khóa khác hoặc chọn Tất cả nhóm.
+                </p>
+              )}
             </div>
           </div>
 
-          {/* Row 4: Custom Description, Score & Count */}
-          <div className="grid grid-cols-2 sm:grid-cols-3 gap-2.5 sm:gap-3 bg-slate-50 dark:bg-slate-850/60 p-2.5 sm:p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-xs">
+          {/* Row 4: Custom Description, Score, Count & Note */}
+          <div className="bg-slate-50 dark:bg-slate-850/60 p-2.5 sm:p-3.5 rounded-2xl border border-slate-200/80 dark:border-slate-800 text-xs space-y-2.5">
+            <div className="flex items-center justify-between">
+              <span className="font-bold text-slate-700 dark:text-slate-300 text-[11px] sm:text-xs">
+                Tự nhập thêm hành vi ngoài danh mục (Tùy chọn)
+              </span>
+              {customDescription.trim() && (
+                <button
+                  type="button"
+                  onClick={handleAddCustomBehavior}
+                  className="px-2.5 py-1 rounded-lg bg-blue-600 hover:bg-blue-700 text-white font-bold text-[11px] flex items-center gap-1 cursor-pointer shadow-xs"
+                >
+                  <PlusCircle className="h-3.5 w-3.5" />
+                  <span>+ Thêm vào danh sách đã chọn</span>
+                </button>
+              )}
+            </div>
+
+            <div className="grid grid-cols-1 sm:grid-cols-4 gap-2">
+              <div className="sm:col-span-2">
+                <input
+                  type="text"
+                  value={customDescription}
+                  onChange={(e) => setCustomDescription(e.target.value)}
+                  placeholder="Nhập tên lỗi hoặc lý do cụ thể..."
+                  className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-xs"
+                />
+              </div>
+              <div>
+                <input
+                  type="number"
+                  step="0.5"
+                  min="0.1"
+                  max="100"
+                  value={customScore}
+                  onChange={(e) => setCustomScore(Number(e.target.value))}
+                  placeholder={`Điểm ${categoryType === 'deduct' ? 'trừ' : 'cộng'}`}
+                  className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono font-bold text-xs"
+                />
+              </div>
+              <div>
+                <input
+                  type="number"
+                  min="1"
+                  max="100"
+                  value={count}
+                  onChange={(e) => setCount(Number(e.target.value))}
+                  placeholder="Số lần"
+                  className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono font-bold text-xs"
+                />
+              </div>
+            </div>
+
             <div>
-              <label className="block text-slate-500 font-semibold mb-1 text-[11px] sm:text-xs">
-                Điểm ({categoryType === 'deduct' ? 'Trừ' : 'Cộng'})
+              <label className="block text-slate-500 font-semibold mb-1 text-[11px]">
+                Ghi chú cụ thể (Tùy chọn)
               </label>
-              <input
-                type="number"
-                step="0.5"
-                min="0.1"
-                max="100"
-                value={customScore}
-                onChange={(e) => { setHasCustomScore(true); setCustomScore(Number(e.target.value)); }}
-                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono font-bold text-sm"
-              />
-            </div>
-            <div>
-              <label className="block text-slate-500 font-semibold mb-1 text-[11px] sm:text-xs">Số lần</label>
-              <input
-                type="number"
-                min="1"
-                max="100"
-                value={count}
-                onChange={(e) => setCount(Number(e.target.value))}
-                className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-mono font-bold text-sm"
-              />
-            </div>
-            <div className="col-span-2 sm:col-span-1">
-              <label className="block text-slate-500 font-semibold mb-1 text-[11px] sm:text-xs">Ghi chú cụ thể (Tùy chọn)</label>
               <input
                 type="text"
                 value={note}
                 onChange={(e) => setNote(e.target.value)}
-                placeholder="Nguyên nhân / chi tiết..."
+                placeholder="Nguyên nhân / Chi tiết xử lý..."
                 className="w-full px-2.5 py-1.5 rounded-xl border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-900 font-medium text-xs"
               />
             </div>
@@ -1127,7 +1460,15 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
 
         {/* Footer Actions */}
         {(errorMessage || toastMessage) && (
-          <div role={errorMessage ? 'alert' : 'status'} aria-live="polite" className={`shrink-0 px-4 sm:px-5 py-2 text-xs font-semibold border-t ${errorMessage ? 'bg-rose-50 text-rose-700 border-rose-200' : 'bg-emerald-50 text-emerald-700 border-emerald-200'}`}>
+          <div
+            role={errorMessage ? 'alert' : 'status'}
+            aria-live="polite"
+            className={`shrink-0 px-4 sm:px-5 py-2 text-xs font-semibold border-t ${
+              errorMessage
+                ? 'bg-rose-50 text-rose-700 border-rose-200'
+                : 'bg-emerald-50 text-emerald-700 border-emerald-200'
+            }`}
+          >
             {errorMessage || toastMessage}
           </div>
         )}
@@ -1154,22 +1495,45 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
             {logMode === 'single' ? (
               <button
                 type="button"
-                disabled={isLocked || isSubmitting || !selectedSingleStudent || duplicateStudents.length > 0}
+                disabled={
+                  isLocked ||
+                  isSubmitting ||
+                  !selectedSingleStudent ||
+                  totalBehaviorsCount === 0 ||
+                  duplicateStudents.length > 0
+                }
                 onClick={handleSubmitSingle}
                 className="flex-1 sm:flex-none px-5 py-2.5 sm:py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Check className="h-4 w-4" />
-                <span>{isSubmitting ? 'Đang lưu...' : 'Lưu Ghi Nhận'}</span>
+                <span>
+                  {isSubmitting
+                    ? 'Đang lưu...'
+                    : totalBehaviorsCount > 1
+                    ? `Lưu ${totalBehaviorsCount} ${categoryType === 'deduct' ? 'Lỗi' : 'Mục'} (${categoryType === 'deduct' ? '−' : '+'}${totalSelectedPoints}đ)`
+                    : totalBehaviorsCount === 1
+                    ? `Lưu Ghi Nhận (${categoryType === 'deduct' ? '−' : '+'}${totalSelectedPoints}đ)`
+                    : 'Lưu Ghi Nhận'}
+                </span>
               </button>
             ) : (
               <button
                 type="button"
-                disabled={isLocked || isSubmitting || selectedBulkStudentIds.length === 0 || duplicateStudents.length > 0}
+                disabled={
+                  isLocked ||
+                  isSubmitting ||
+                  selectedBulkStudentIds.length === 0 ||
+                  totalBehaviorsCount === 0 ||
+                  duplicateStudents.length > 0
+                }
                 onClick={() => setShowBulkConfirm(true)}
                 className="flex-1 sm:flex-none px-5 py-2.5 sm:py-2 bg-blue-600 hover:bg-blue-700 disabled:opacity-50 text-white text-xs font-bold rounded-xl shadow-md transition flex items-center justify-center gap-1.5 cursor-pointer"
               >
                 <Users className="h-4 w-4" />
-                <span>Áp Dụng Cho {selectedBulkStudentIds.length} HS</span>
+                <span>
+                  Áp Dụng Cho {selectedBulkStudentIds.length} HS
+                  {totalBehaviorsCount > 1 ? ` (${totalBehaviorsCount} lỗi)` : ''}
+                </span>
               </button>
             )}
           </div>
@@ -1202,19 +1566,35 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
                 </span>
               </div>
               <div className="flex justify-between">
-                <span className="text-slate-500">Nội dung hành vi:</span>
+                <span className="text-slate-500">Số hành vi áp dụng:</span>
                 <span className="font-bold text-slate-900 dark:text-white text-right">
-                  {customDescription || selectedCategory?.name}
+                  {allBehaviorsToSave.length} {categoryType === 'deduct' ? 'lỗi vi phạm' : 'mục khen thưởng'}
                 </span>
               </div>
-              <div className="flex justify-between">
-                <span className="text-slate-500">Mức điểm áp dụng:</span>
+              <div className="text-[11px] text-slate-600 dark:text-slate-400 bg-white dark:bg-slate-900 p-2 rounded-xl border border-slate-200 dark:border-slate-700 space-y-1">
+                {allBehaviorsToSave.map((b) => (
+                  <div key={b.id} className="flex justify-between">
+                    <span className="truncate mr-2">• {b.name} (x{b.count})</span>
+                    <span className="font-mono font-bold shrink-0">
+                      {categoryType === 'deduct' ? '−' : '+'}{b.score * b.count}đ
+                    </span>
+                  </div>
+                ))}
+              </div>
+              <div className="flex justify-between pt-1 border-t border-slate-200 dark:border-slate-700">
+                <span className="text-slate-500">Tổng điểm mỗi HS:</span>
                 <span
                   className={`font-bold font-mono ${
                     categoryType === 'deduct' ? 'text-rose-600' : 'text-emerald-600'
                   }`}
                 >
-                  {categoryType === 'deduct' ? `-${customScore} điểm` : `+${customScore} điểm`} / HS
+                  {categoryType === 'deduct' ? `-${totalSelectedPoints} điểm` : `+${totalSelectedPoints} điểm`} / HS
+                </span>
+              </div>
+              <div className="flex justify-between">
+                <span className="text-slate-500">Tổng bản ghi sẽ tạo:</span>
+                <span className="font-mono font-bold text-slate-700 dark:text-slate-300">
+                  {selectedBulkStudentIds.length * allBehaviorsToSave.length} bản ghi
                 </span>
               </div>
               <div className="flex justify-between">

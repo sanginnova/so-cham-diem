@@ -307,8 +307,8 @@ export function StudentPointEditor({
     }
   };
 
-  // Submit thêm mới
-  const handleSaveNew = async (e: React.FormEvent) => {
+  // Submit thêm mới (hỗ trợ lưu và tiếp tục thêm lỗi khác cho cùng 1 học sinh)
+  const handleSaveNew = async (e: React.FormEvent, keepOpen = false) => {
     e.preventDefault();
     if (!student) return;
     if (!newDescription.trim()) {
@@ -354,10 +354,21 @@ export function StudentPointEditor({
         createdBy: activeAccount?.displayName || classConfig.homeroomTeacher,
       });
 
-      setIsAddingOpen(false);
-      setNotice(
-        `Đã thêm thành công bản ghi ${newType === 'bonus' ? 'khen thưởng (+)' : 'vi phạm (-)'} cho ${student.fullName}.`
-      );
+      if (keepOpen) {
+        setNotice(
+          `✓ Đã thêm: "${newDescription.trim()}" (${newType === 'bonus' ? '+' : '−'}${newScore * newCount}đ). Bạn có thể tiếp tục thêm lỗi khác bên dưới.`
+        );
+        setNewDescription('');
+        setNewCategoryCode('');
+        setNewScore(1);
+        setNewCount(1);
+        setNewNote('');
+      } else {
+        setIsAddingOpen(false);
+        setNotice(
+          `Đã thêm thành công bản ghi ${newType === 'bonus' ? 'khen thưởng (+)' : 'vi phạm (-)'} cho ${student.fullName}.`
+        );
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : String(err));
     } finally {
@@ -834,13 +845,22 @@ export function StudentPointEditor({
                   </span>
                 </span>
 
-                <div className="flex gap-2">
+                <div className="flex flex-wrap items-center gap-2">
                   <button
                     type="button"
                     onClick={() => setIsAddingOpen(false)}
-                    className="px-3.5 py-1.5 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-700"
+                    className="px-3 py-1.5 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-semibold hover:bg-slate-100 dark:hover:bg-slate-700 cursor-pointer"
                   >
                     Hủy
+                  </button>
+                  <button
+                    type="button"
+                    disabled={busy || !newDescription.trim()}
+                    onClick={(e) => handleSaveNew(e, true)}
+                    className="px-3 py-1.5 rounded-xl text-xs font-bold border border-slate-300 dark:border-slate-600 hover:bg-slate-100 dark:hover:bg-slate-750 text-slate-700 dark:text-slate-200 transition cursor-pointer disabled:opacity-40"
+                    title="Lưu bản ghi này và giữ form để ghi thêm lỗi khác cho học sinh này"
+                  >
+                    Lưu & Thêm lỗi khác
                   </button>
                   <button
                     type="submit"
@@ -849,7 +869,7 @@ export function StudentPointEditor({
                       newType === 'deduct' ? 'bg-rose-600 hover:bg-rose-500' : 'bg-emerald-600 hover:bg-emerald-500'
                     }`}
                   >
-                    {busy ? 'Đang lưu…' : 'Xác nhận thêm'}
+                    {busy ? 'Đang lưu…' : 'Xác nhận xong'}
                   </button>
                 </div>
               </div>
