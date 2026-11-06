@@ -39,6 +39,7 @@ import {
   exportToExcel,
   compareVietnameseNames,
   compareStudentCodes,
+  removeVietnameseAccents,
 } from '../lib/utils';
 import { ConductSheetTable, ConductSheetRow } from './ConductSheetTable';
 import { getStudentConductDetail } from '../lib/conductReportHelper';
@@ -53,6 +54,7 @@ import { PeriodLockBannerV2 } from './v2/PeriodLockBannerV2';
 import { ScoreExplanation } from './ScoreExplanation';
 import { PeriodReview } from './PeriodReview';
 import { StudentPointEditor } from './StudentPointEditor';
+import { StudentQuickSearchBox } from './StudentQuickSearchBox';
 import { isMonthlyBonus } from '../lib/scoreBreakdown';
 
 interface MonthlySummaryViewProps {
@@ -88,6 +90,7 @@ export const MonthlySummaryView: React.FC<MonthlySummaryViewProps> = ({
   const [selectedMonth, setSelectedMonth] = useState<number>(9);
   const [explainStudentId, setExplainStudentId] = useState<string | null>(null);
   const [editPointsStudentId, setEditPointsStudentId] = useState<string | null>(null);
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [rankFilter, setRankFilter] = useState<string>('all');
   const [attendanceFilter, setAttendanceFilter] = useState<'all' | 'unexcused' | 'excused' | 'any'>('all');
   const [isZaloModalOpen, setIsZaloModalOpen] = useState<boolean>(false);
@@ -200,6 +203,18 @@ export const MonthlySummaryView: React.FC<MonthlySummaryViewProps> = ({
       list = list.filter((d) => (d.unexcusedAbsenceCount || 0) > 0 || (d.excusedAbsenceCount || 0) > 0 || (d.truancyCount || 0) > 0);
     }
 
+    // Filter by quick student search query (họ, tên đệm, tên, mã HS)
+    if (searchQuery.trim()) {
+      const q = removeVietnameseAccents(searchQuery.trim().toLowerCase());
+      const rawQ = searchQuery.trim().toLowerCase();
+      list = list.filter((d) => {
+        const normName = removeVietnameseAccents(d.fullName.toLowerCase());
+        const rawName = d.fullName.toLowerCase();
+        const code = (d.studentCode || '').toLowerCase();
+        return normName.includes(q) || rawName.includes(rawQ) || code.includes(rawQ);
+      });
+    }
+
     return [...list].sort((a, b) => {
       if (sortField === 'name') {
         return compareVietnameseNames(a, b, sortDirection);
@@ -212,7 +227,7 @@ export const MonthlySummaryView: React.FC<MonthlySummaryViewProps> = ({
       if (diff !== 0) return sortDirection === 'desc' ? diff : -diff;
       return compareVietnameseNames(a, b, 'asc');
     });
-  }, [monthlyData, rankFilter, attendanceFilter, sortField, sortDirection]);
+  }, [monthlyData, rankFilter, attendanceFilter, searchQuery, sortField, sortDirection]);
 
   // Logs for current month to extract violations and bonuses
   const monthLogs = useMemo(() => {
@@ -827,7 +842,32 @@ export const MonthlySummaryView: React.FC<MonthlySummaryViewProps> = ({
       </div>
 
       {/* KHỐI BỘ LỌC CHUYÊN CẦN & XẾP LOẠI THI ĐUA */}
-      <div className="bg-white dark:bg-slate-800 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-2.5 print:hidden">
+      <div className="bg-white dark:bg-slate-800 p-3.5 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xs space-y-3 print:hidden">
+        {/* Box tìm kiếm nhanh học sinh & Gợi ý tự động */}
+        <StudentQuickSearchBox
+          value={searchQuery}
+          onChange={setSearchQuery}
+          students={monthlyData}
+          totalCount={monthlyData.length}
+          matchedCount={filteredData.length}
+          hasActiveFilters={rankFilter !== 'all' || attendanceFilter !== 'all'}
+          onClearAllFilters={() => {
+            setRankFilter('all');
+            setAttendanceFilter('all');
+            setSearchQuery('');
+          }}
+          onSelectStudent={(studentId) => {
+            const el = document.getElementById(`monthly-student-row-${studentId}`);
+            if (el) {
+              el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+              el.classList.add('ring-2', 'ring-blue-500', 'bg-blue-50/60');
+              setTimeout(() => {
+                el.classList.remove('ring-2', 'ring-blue-500', 'bg-blue-50/60');
+              }, 3000);
+            }
+          }}
+        />
+
         {/* Dòng 1: Bộ lọc Chuyên Cần & Vắng Nghỉ */}
         <div className="flex items-center justify-between flex-wrap gap-2 pb-2.5 border-b border-slate-100 dark:border-slate-700/60">
           <div className="flex items-center gap-2 flex-wrap">
@@ -919,11 +959,12 @@ export const MonthlySummaryView: React.FC<MonthlySummaryViewProps> = ({
             </button>
           </div>
 
-          {(rankFilter !== 'all' || attendanceFilter !== 'all') && (
+          {(rankFilter !== 'all' || attendanceFilter !== 'all' || searchQuery.trim() !== '') && (
             <button
               onClick={() => {
                 setRankFilter('all');
                 setAttendanceFilter('all');
+                setSearchQuery('');
               }}
               className="text-xs text-blue-600 dark:text-blue-400 hover:underline font-semibold flex items-center gap-1 cursor-pointer bg-blue-50 dark:bg-blue-950/40 px-2.5 py-1 rounded-lg"
               title="Xóa toàn bộ bộ lọc và hiển thị tất cả học sinh"
@@ -1157,7 +1198,9 @@ export const MonthlySummaryView: React.FC<MonthlySummaryViewProps> = ({
                       Không có học sinh nào phù hợp với bộ lọc hiện tại.
                     </p>
                     <p className="text-xs text-slate-400 mt-1">
-                      {attendanceFilter === 'unexcused'
+                      {searchQuery.trim()
+                        ? `Không tìm thấy học sinh nào phù hợp với từ khóa "${searchQuery}".`
+                        : attendanceFilter === 'unexcused'
                         ? 'Tháng này không có học sinh nào nghỉ học không phép.'
                         : attendanceFilter === 'excused'
                         ? 'Tháng này không có học sinh nào nghỉ học có phép.'
@@ -1170,6 +1213,7 @@ export const MonthlySummaryView: React.FC<MonthlySummaryViewProps> = ({
                       onClick={() => {
                         setRankFilter('all');
                         setAttendanceFilter('all');
+                        setSearchQuery('');
                       }}
                       className="mt-3 px-3 py-1.5 text-xs font-bold text-blue-600 bg-blue-50 hover:bg-blue-100 dark:bg-blue-950/60 dark:text-blue-300 rounded-lg transition cursor-pointer"
                     >
