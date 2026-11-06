@@ -228,6 +228,75 @@ export function StudentPointEditor({
     setMovingLogId(null);
   };
 
+  // Danh sách hành vi chuẩn đã được bóc tách và đồng nhất với DailyLogModalV2
+  const availableBehaviorSuggestions = useMemo(() => {
+    return getBehaviorSuggestions(
+      behaviorCategories.filter((c) => c.type === newType && c.isActive),
+      ''
+    );
+  }, [behaviorCategories, newType]);
+
+  const quickSuggestions = useMemo(() => {
+    if (newType === 'deduct') {
+      const topNames = [
+        'Nghỉ học không phép',
+        'Đi học muộn',
+        'Không ghi chép bài',
+        'Nghỉ học có phép',
+        'Ngủ trong giờ học',
+        'Trốn tiết',
+        'Mất trật tự trong giờ học',
+        'Không nộp điện thoại',
+      ];
+      return topNames
+        .map((name) => availableBehaviorSuggestions.find((s) => s.name === name))
+        .filter(Boolean) as { category: BehaviorCategory; name: string }[];
+    } else {
+      const topNames = [
+        'Đi học đúng giờ, đầy đủ cả tuần',
+        'Phát biểu tích cực',
+        'Đạt điểm kiểm tra miệng từ 9 đến 10',
+        'Gương người tốt việc tốt',
+      ];
+      return topNames
+        .map((name) => availableBehaviorSuggestions.find((s) => s.name === name))
+        .filter(Boolean) as { category: BehaviorCategory; name: string }[];
+    }
+  }, [availableBehaviorSuggestions, newType]);
+
+  const groupedSuggestions = useMemo(() => {
+    const groups: Record<string, typeof availableBehaviorSuggestions> = {};
+    availableBehaviorSuggestions.forEach((s) => {
+      let groupName = 'Hành vi khác';
+      if (newType === 'deduct') {
+        if (s.category.defaultScore === 1) groupName = 'Lỗi trừ 1 điểm (-1đ)';
+        else if (s.category.defaultScore === 3) groupName = 'Lỗi trừ 3 điểm (-3đ)';
+        else if (s.category.defaultScore === 5) groupName = 'Lỗi trừ 5 điểm (-5đ)';
+        else if (s.category.defaultScore === 0.5) groupName = 'Chuyên cần (-0.5đ)';
+      } else {
+        if (s.category.defaultScore === 1) groupName = 'Cộng 1 điểm (+1đ)';
+        else if (s.category.defaultScore === 2) groupName = 'Cộng 2 điểm (+2đ)';
+        else groupName = `Khen thưởng (+${s.category.defaultScore}đ)`;
+      }
+      if (!groups[groupName]) groups[groupName] = [];
+      groups[groupName].push(s);
+    });
+    return groups;
+  }, [availableBehaviorSuggestions, newType]);
+
+  const handleSelectSpecificBehavior = (selectedName: string) => {
+    if (!selectedName) {
+      setNewCategoryCode('');
+      return;
+    }
+    const found = availableBehaviorSuggestions.find((s) => s.name === selectedName);
+    if (found) {
+      setNewCategoryCode(found.category.code);
+      setNewDescription(found.name);
+      setNewScore(found.category.defaultScore);
+    }
+  };
+
   // Chọn danh mục vi phạm / khen thưởng khi thêm mới
   const handleSelectCategory = (catCode: string) => {
     setNewCategoryCode(catCode);
@@ -581,24 +650,59 @@ export function StudentPointEditor({
                 </button>
               </div>
 
+              {/* Dùng gần đây / Phổ biến đồng bộ 100% với DailyLogModalV2 */}
+              {quickSuggestions.length > 0 && (
+                <div className="space-y-1.5 p-2.5 rounded-xl bg-slate-50 dark:bg-slate-800/60 border border-slate-200 dark:border-slate-700">
+                  <span className="text-[11px] font-bold text-slate-500 dark:text-slate-400 flex items-center gap-1">
+                    <Sparkles className="h-3 w-3 text-amber-500" />
+                    <span>Dùng gần đây / Phổ biến:</span>
+                  </span>
+                  <div className="flex flex-wrap gap-1.5">
+                    {quickSuggestions.map(({ category, name }) => (
+                      <button
+                        key={name}
+                        type="button"
+                        onClick={() => {
+                          setNewCategoryCode(category.code);
+                          setNewDescription(name);
+                          setNewScore(category.defaultScore);
+                        }}
+                        className={`px-2 py-1 rounded-lg text-[11px] font-medium border transition cursor-pointer active:scale-95 ${
+                          newDescription === name
+                            ? 'bg-blue-600 text-white border-blue-600 shadow-xs font-bold'
+                            : 'bg-white dark:bg-slate-750 border-slate-200 dark:border-slate-700 text-slate-700 dark:text-slate-300 hover:border-blue-300 hover:bg-blue-50 dark:hover:bg-slate-700'
+                        }`}
+                      >
+                        <span>{name}</span>
+                        <span className={`ml-1 font-bold ${newType === 'deduct' ? 'text-rose-600 dark:text-rose-400' : 'text-emerald-600 dark:text-emerald-400'}`}>
+                          {newType === 'deduct' ? `-${category.defaultScore}đ` : `+${category.defaultScore}đ`}
+                        </span>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
+
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
                 <div>
                   <label className="block font-semibold mb-1">
                     {newType === 'deduct' ? 'Chọn loại lỗi mẫu (tùy chọn)' : 'Loại khen thưởng'}
                   </label>
                   <select
-                    value={newCategoryCode}
-                    onChange={(e) => handleSelectCategory(e.target.value)}
-                    className="w-full px-3 py-2 bg-white dark:bg-slate-750 border border-slate-300 dark:border-slate-600 rounded-xl"
+                    value={newDescription}
+                    onChange={(e) => handleSelectSpecificBehavior(e.target.value)}
+                    className="w-full px-3 py-2 bg-white dark:bg-slate-750 border border-slate-300 dark:border-slate-600 rounded-xl text-xs font-medium cursor-pointer"
                   >
                     <option value="">-- Tự nhập nội dung bên dưới --</option>
-                    {behaviorCategories
-                      .filter((c) => c.type === newType)
-                      .map((c) => (
-                        <option key={c.code} value={c.code}>
-                          {c.name} ({newType === 'deduct' ? `-${c.defaultScore}đ` : `+${c.defaultScore}đ`})
-                        </option>
-                      ))}
+                    {Object.entries(groupedSuggestions).map(([groupTitle, items]) => (
+                      <optgroup key={groupTitle} label={groupTitle} className="font-bold">
+                        {items.map((s) => (
+                          <option key={s.name} value={s.name} className="font-normal">
+                            {s.name} ({newType === 'deduct' ? `-${s.category.defaultScore}đ` : `+${s.category.defaultScore}đ`})
+                          </option>
+                        ))}
+                      </optgroup>
+                    ))}
                   </select>
                 </div>
 
