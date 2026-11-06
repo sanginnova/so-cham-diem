@@ -1,7 +1,8 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { useApp } from '../context/AppContext';
-import type { DisciplineLog, BehaviorType } from '../types';
+import type { DisciplineLog, BehaviorType, BehaviorCategory } from '../types';
 import { formatVietnameseDate, formatVietnameseNumber, compareVietnameseNames } from '../lib/utils';
+import { getBehaviorSuggestions } from '../lib/behaviorSuggestions';
 import { targetDateForMovedWeek } from '../lib/weeklyPeriod';
 import {
   MORNING_PERIODS,

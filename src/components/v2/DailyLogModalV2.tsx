@@ -42,7 +42,7 @@ interface DailyLogModalV2Props {
 
 export interface SelectedBehaviorItem {
   id: string; // `${category.id}:::${name}`
-  category: BehaviorCategory;
+  category: Partial<BehaviorCategory> & Pick<BehaviorCategory, 'code' | 'name' | 'type' | 'defaultScore'>;
   name: string;
   score: number;
   count: number;
@@ -455,7 +455,7 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
   const handleAddCustomBehavior = () => {
     if (!customDescription.trim()) return;
     const customId = `custom:::${Date.now()}:::${customDescription.trim()}`;
-    const fallbackCat: BehaviorCategory = {
+    const fallbackCat: SelectedBehaviorItem['category'] = {
       id: 'custom',
       code: categoryType === 'deduct' ? 'KHT' : 'BONUS_CUSTOM',
       name: customDescription.trim(),
