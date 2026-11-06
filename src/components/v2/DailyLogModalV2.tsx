@@ -65,6 +65,7 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
     isPeriodLocked,
     addDisciplineLog,
     addBulkDisciplineLogs,
+    getWeeklySummary,
   } = useApp();
 
   const isMonitor = activeAccount?.role === 'monitor' || userRole === 'monitor';
@@ -184,6 +185,22 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
       return name.includes(q) || code.includes(q);
     });
   }, [students, studentSearch]);
+
+  // Map điểm nề nếp hiện có trong tuần cho từng học sinh để hiển thị cạnh tên
+  const studentWeeklyScoresMap = useMemo(() => {
+    const map = new Map<string, number>();
+    try {
+      if (typeof getWeeklySummary === 'function') {
+        const summary = getWeeklySummary(selectedWeek);
+        summary.forEach((item) => {
+          map.set(item.studentId, item.finalScore);
+        });
+      }
+    } catch (err) {
+      console.error('Lỗi khi tính điểm tuần trong DailyLogModalV2:', err);
+    }
+    return map;
+  }, [getWeeklySummary, selectedWeek, disciplineLogs]);
 
   // Categories filtered
   const filteredCategories = useMemo(() => {
@@ -1101,6 +1118,7 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
                   logMode === 'single'
                     ? selectedSingleStudent?.id === st.id
                     : selectedBulkStudentIds.includes(st.id);
+                const currentScore = studentWeeklyScoresMap.get(st.id) ?? classConfig?.baseScore ?? 10;
 
                 return (
                   <button
@@ -1117,12 +1135,28 @@ export const DailyLogModalV2: React.FC<DailyLogModalV2Props> = ({
                         : 'border-slate-200 dark:border-slate-700 bg-white dark:bg-slate-800 hover:border-slate-300 dark:hover:border-slate-600 text-slate-700 dark:text-slate-300'
                     }`}
                   >
-                    <div className="truncate min-w-0">
+                    <div className="truncate min-w-0 flex-1">
                       <div className="font-mono text-[10px] text-slate-400 truncate">{st.studentCode}</div>
-                      <div className="truncate font-semibold">{st.fullName}</div>
+                      <div className="truncate font-semibold flex items-center gap-1.5 mt-0.5">
+                        <span className="truncate">{st.fullName}</span>
+                        <span
+                          className={`font-mono text-[10.5px] font-bold px-1.5 py-0.2 rounded-md shrink-0 shadow-2xs ${
+                            currentScore >= 10
+                              ? 'bg-emerald-100 text-emerald-800 dark:bg-emerald-950/80 dark:text-emerald-300'
+                              : currentScore >= 8
+                              ? 'bg-blue-100 text-blue-800 dark:bg-blue-950/80 dark:text-blue-300'
+                              : currentScore >= 6.5
+                              ? 'bg-amber-100 text-amber-800 dark:bg-amber-950/80 dark:text-amber-300'
+                              : 'bg-rose-100 text-rose-800 dark:bg-rose-950/80 dark:text-rose-300'
+                          }`}
+                          title={`Điểm hiện có Tuần ${selectedWeek}: ${currentScore}đ`}
+                        >
+                          {currentScore}đ
+                        </span>
+                      </div>
                     </div>
                     {isSelected && (
-                      <CheckCircle2 className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0" />
+                      <CheckCircle2 className="h-4 w-4 text-blue-600 dark:text-blue-400 shrink-0 ml-1" />
                     )}
                   </button>
                 );
